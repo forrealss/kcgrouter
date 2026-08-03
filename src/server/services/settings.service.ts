@@ -57,7 +57,7 @@ export async function setTheme(theme: "light" | "dark"): Promise<void> {
   );
 }
 
-export async function getTokenSaverDefault(): Promise<boolean> {
+export function getTokenSaverDefault(): boolean {
   const settings = getSettings();
   return settings.token_saver_default_enabled === 1;
 }

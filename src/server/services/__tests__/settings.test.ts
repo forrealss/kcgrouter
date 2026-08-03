@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { closeDb, get, run } from "../../../db/client";
+import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import { hashPassword } from "../crypto.service";
 import {
@@ -35,9 +35,7 @@ describe("SettingsService", () => {
     }
   });
 
-  afterAll(() => {
-    closeDb();
-  });
+  afterAll(() => {});
 
   // --- 4.2: Property 37 — Round-trip theme & token saver default ---
 

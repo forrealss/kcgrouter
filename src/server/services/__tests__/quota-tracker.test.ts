@@ -7,7 +7,7 @@ import {
   type ErrorKind,
 } from "../quota-tracker.service";
 import { createProvider, addAccount } from "../provider-registry.service";
-import { get, run, closeDb } from "../../../db/client";
+import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 
 describe("QuotaTracker", () => {
@@ -26,7 +26,7 @@ describe("QuotaTracker", () => {
     }
   });
 
-  afterAll(() => closeDb());
+  afterAll(() => {});
 
   // Helper: create provider + account, return accountId
   function setupAccount(resetType: string, limitTokens: number | null): string {

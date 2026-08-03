@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fc from "fast-check";
-import { closeDb, get, run } from "../../../db/client";
+import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import {
   decrypt,
@@ -28,9 +28,7 @@ describe("CryptoService", () => {
     }
   });
 
-  afterAll(() => {
-    closeDb();
-  });
+  afterAll(() => {});
 
   test("Property 16a: round-trip encrypt/decrypt always returns identical plaintext", () => {
     fc.assert(

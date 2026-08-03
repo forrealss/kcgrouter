@@ -12,7 +12,7 @@ import {
   type NewProviderInput,
 } from "../provider-registry.service";
 import { runMigrations } from "../../../db/migrations";
-import { get, closeDb } from "../../../db/client";
+import { get, run } from "../../../db/client";
 
 describe("ProviderRegistry — Provider CRUD", () => {
   beforeAll(() => {
@@ -30,7 +30,7 @@ describe("ProviderRegistry — Provider CRUD", () => {
     }
   });
 
-  afterAll(() => closeDb());
+  afterAll(() => {});
 
   // Property 12: Round-trip pembuatan dan pembacaan Provider
   test("Property 12: created provider appears in listProviders with correct data", () => {
@@ -99,7 +99,7 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
     }
   });
 
-  afterAll(() => closeDb());
+  afterAll(() => {});
 
   // Property 16: Round-trip enkripsi/dekripsi kredensial dan non-eksposur plaintext
   test("Property 16a: getDecryptedCredential returns original API key", () => {

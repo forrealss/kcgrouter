@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fc from "fast-check";
-import { closeDb, get, run } from "../../../db/client";
+import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import { hashPassword } from "../crypto.service";
 import { login, logout, verify } from "../session.service";
@@ -10,9 +10,9 @@ const TEST_PASSWORD = "test-session-pw-123";
 describe("SessionService", () => {
   beforeAll(async () => {
     runMigrations();
+    const hash = await hashPassword(TEST_PASSWORD);
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {
-      const hash = await hashPassword(TEST_PASSWORD);
       run(
         "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
         hash,
@@ -21,12 +21,12 @@ describe("SessionService", () => {
         new Date().toISOString(),
         new Date().toISOString(),
       );
+    } else {
+      run("UPDATE app_settings SET password_hash = ? WHERE id = 1", hash);
     }
   });
 
-  afterAll(() => {
-    closeDb();
-  });
+  afterAll(() => {});
 
   // Property 39: Login succeeds if and only if password matches, producing valid session
   test("Property 39a: login with correct password returns valid cookie", async () => {

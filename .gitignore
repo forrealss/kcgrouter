@@ -35,5 +35,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .firecrawl
 .kiro/specs
 
-data.sqlite
-data.test.sqlite
+# database
+db/

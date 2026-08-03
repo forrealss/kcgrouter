@@ -1,13 +1,22 @@
 import { Database } from "bun:sqlite";
 import path from "node:path";
+import { mkdirSync } from "node:fs";
 
-const DB_PATH = process.env.DB_PATH || path.join(import.meta.dir, "../../data.sqlite");
+const DB_DIR = path.join(import.meta.dir, "../../db");
+mkdirSync(DB_DIR, { recursive: true });
 
 let _db: Database | null = null;
+let _dbPath: string | null = null;
 
 export function getDb(): Database {
+  const currentPath = process.env.DB_PATH || path.join(DB_DIR, "data.sqlite");
+  if (_db && _dbPath !== currentPath) {
+    _db.close();
+    _db = null;
+  }
   if (!_db) {
-    _db = new Database(DB_PATH);
+    _db = new Database(currentPath);
+    _dbPath = currentPath;
     _db.exec("PRAGMA journal_mode = WAL");
     _db.exec("PRAGMA foreign_keys = ON");
   }
@@ -39,5 +48,6 @@ export function closeDb(): void {
   if (_db) {
     _db.close();
     _db = null;
+    _dbPath = null;
   }
 }

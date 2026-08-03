@@ -10,7 +10,8 @@
     "check": "biome check --write ./src",
     "lint": "biome lint --write ./src",
     "format": "biome format --write ./src",
-    "gen-env": "bash scripts/gen-env.sh"
+    "gen-env": "bash scripts/gen-env.sh",
+    "test": "bash scripts/test.sh"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",

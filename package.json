@@ -9,7 +9,8 @@
     "build": "bun run build.ts",
     "check": "biome check --write ./src",
     "lint": "biome lint --write ./src",
-    "format": "biome format --write ./src"
+    "format": "biome format --write ./src",
+    "gen-env": "bash scripts/gen-env.sh"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",

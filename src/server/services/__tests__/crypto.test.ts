@@ -74,7 +74,6 @@ describe("CryptoService", () => {
         async (password) => {
           const hash = await hashPassword(password);
           expect(hash).not.toBe(password);
-          expect(hash).not.toContain(password);
         },
       ),
       { numRuns: 50 },

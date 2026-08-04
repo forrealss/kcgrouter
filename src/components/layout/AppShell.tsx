@@ -7,6 +7,11 @@ import {
   appModules,
 } from "@/components/layout/Sidebar";
 import { ProviderList } from "@/components/providers/ProviderList";
+import { QuotaGrid } from "@/components/quota/QuotaGrid";
+import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
+import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { ThemeToggle } from "@/components/settings/ThemeToggle";
+import { TokenSaverPanel } from "@/components/token-saver/TokenSaverPanel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -75,6 +80,27 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
             <ComboList />
           ) : activeModule === "usage" ? (
             <UsageOverview />
+          ) : activeModule === "quota" ? (
+            <QuotaGrid />
+          ) : activeModule === "token-saver" ? (
+            <TokenSaverPanel />
+          ) : activeModule === "settings" ? (
+            <section className="flex flex-col gap-6">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Settings
+                </h2>
+                <p className="text-muted-foreground">
+                  Kelola keamanan dashboard, preferensi tampilan, dan akses
+                  router.
+                </p>
+              </div>
+              <div className="grid gap-6 xl:grid-cols-2">
+                <ChangePasswordForm />
+                <ThemeToggle />
+              </div>
+              <ApiKeyManager />
+            </section>
           ) : (
             <Card>
               <CardHeader>

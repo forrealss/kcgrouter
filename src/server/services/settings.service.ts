@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { get, query, run } from "../../db/client";
-import type { ApiKeyRow, AppSettingsRow } from "../../db/schema";
+import type {
+  ApiKeyRow,
+  AppSettingsRow,
+  TokenSaverStatsRow,
+} from "../../db/schema";
 import {
   generateApiKey,
   hashApiKey,
@@ -66,6 +70,33 @@ export async function setTokenSaverDefault(enabled: boolean): Promise<void> {
   run(
     "UPDATE app_settings SET token_saver_default_enabled = ?, updated_at = ? WHERE id = 1",
     enabled ? 1 : 0,
+    new Date().toISOString(),
+  );
+}
+
+export interface TokenSaverStats {
+  totalTokensSaved: number;
+  updatedAt: string;
+}
+
+export function getTokenSaverStats(): TokenSaverStats {
+  const row = get<TokenSaverStatsRow>(
+    "SELECT * FROM token_saver_stats WHERE id = 1",
+  );
+  if (!row) throw new Error("token_saver_stats not initialized");
+
+  return {
+    totalTokensSaved: row.total_tokens_saved,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function recordTokenSaverSavings(tokensSaved: number): void {
+  if (!Number.isFinite(tokensSaved) || tokensSaved <= 0) return;
+
+  run(
+    "UPDATE token_saver_stats SET total_tokens_saved = total_tokens_saved + ?, updated_at = ? WHERE id = 1",
+    Math.round(tokensSaved),
     new Date().toISOString(),
   );
 }

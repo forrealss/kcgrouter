@@ -1,15 +1,22 @@
-import { toCanonical, fromCanonical, type SourceFormat } from "./format-translator.service";
-import { compress } from "./token-saver.service";
-import * as ComboEngine from "./combo-engine.service";
-import * as QuotaTracker from "./quota-tracker.service";
-import * as UsageRecorder from "./usage-recorder.service";
-import * as ProviderRegistry from "./provider-registry.service";
-import { getTokenSaverDefault } from "./settings.service";
-import { openaiAdapter } from "../adapters/openai-adapter";
+import type { ProviderTransport } from "../../db/schema";
 import { anthropicAdapter } from "../adapters/anthropic-adapter";
 import { geminiAdapter } from "../adapters/gemini-adapter";
-import type { ProviderAdapter, CanonicalRequest } from "../adapters/types";
-import type { ProviderTransport } from "../../db/schema";
+import { openaiAdapter } from "../adapters/openai-adapter";
+import type { CanonicalRequest, ProviderAdapter } from "../adapters/types";
+import * as ComboEngine from "./combo-engine.service";
+import {
+  fromCanonical,
+  type SourceFormat,
+  toCanonical,
+} from "./format-translator.service";
+import * as ProviderRegistry from "./provider-registry.service";
+import * as QuotaTracker from "./quota-tracker.service";
+import {
+  getTokenSaverDefault,
+  recordTokenSaverSavings,
+} from "./settings.service";
+import { compress } from "./token-saver.service";
+import * as UsageRecorder from "./usage-recorder.service";
 
 export interface RouterInput {
   rawBody: unknown;
@@ -48,10 +55,16 @@ function estimateCost(
 ): number {
   const inputRate = member.inputCostPer1M ?? 0;
   const outputRate = member.outputCostPer1M ?? 0;
-  return (usage.inputTokens * inputRate) / 1_000_000 + (usage.outputTokens * outputRate) / 1_000_000;
+  return (
+    (usage.inputTokens * inputRate) / 1_000_000 +
+    (usage.outputTokens * outputRate) / 1_000_000
+  );
 }
 
-function formatErrorResponse(error: unknown, sourceFormat: SourceFormat): unknown {
+function formatErrorResponse(
+  error: unknown,
+  sourceFormat: SourceFormat,
+): unknown {
   const message = error instanceof Error ? error.message : String(error);
   if (sourceFormat === "openai") {
     return { error: { message, type: "server_error", code: "upstream_error" } };
@@ -61,31 +74,46 @@ function formatErrorResponse(error: unknown, sourceFormat: SourceFormat): unknow
 
 function classifyError(err: unknown): "auth" | "rate_limit" | "server_error" {
   const message = err instanceof Error ? err.message : String(err);
-  if (message.includes("401") || message.includes("Unauthorized")) return "auth";
-  if (message.includes("429") || message.includes("rate limit")) return "rate_limit";
+  if (message.includes("401") || message.includes("Unauthorized"))
+    return "auth";
+  if (message.includes("429") || message.includes("rate limit"))
+    return "rate_limit";
   return "server_error";
 }
 
-export async function handleChatRequest(input: RouterInput): Promise<RouterResult> {
+export async function handleChatRequest(
+  input: RouterInput,
+): Promise<RouterResult> {
   // 1. Parse + validate
   let canonical: CanonicalRequest;
   try {
     canonical = toCanonical(input.rawBody, input.sourceFormat);
   } catch (err) {
-    return { status: 400, body: formatErrorResponse(err, input.sourceFormat), headers: {} };
+    return {
+      status: 400,
+      body: formatErrorResponse(err, input.sourceFormat),
+      headers: {},
+    };
   }
 
   // 2. Token Saver
   const tokenSaverEnabled = resolveTokenSaverEnabled(input.tokenSaverOverride);
-  const { messages, tokensSavedEstimate } = compress(canonical.messages, tokenSaverEnabled);
+  const { messages, tokensSavedEstimate } = compress(
+    canonical.messages,
+    tokenSaverEnabled,
+  );
   canonical.messages = messages;
+  recordTokenSaverSavings(tokensSavedEstimate);
 
   // 3. Resolve combo
   const combo = ComboEngine.getCombo(input.targetSelector);
   if (!combo) {
     return {
       status: 404,
-      body: formatErrorResponse(new Error(`Combo "${input.targetSelector}" not found`), input.sourceFormat),
+      body: formatErrorResponse(
+        new Error(`Combo "${input.targetSelector}" not found`),
+        input.sourceFormat,
+      ),
       headers: {},
     };
   }
@@ -102,13 +130,18 @@ export async function handleChatRequest(input: RouterInput): Promise<RouterResul
     if (!member) {
       return {
         status: 503,
-        body: formatErrorResponse(new Error(`All combo members exhausted`), input.sourceFormat),
+        body: formatErrorResponse(
+          new Error(`All combo members exhausted`),
+          input.sourceFormat,
+        ),
         headers: {},
       };
     }
 
     const account = ProviderRegistry.getAccount(member.providerAccountId);
-    const provider = account ? ProviderRegistry.getProvider(account.providerId) : null;
+    const provider = account
+      ? ProviderRegistry.getProvider(account.providerId)
+      : null;
     if (!account || !provider) {
       excludedMemberIds.push(member.id);
       lastError = new Error("Provider or account not found");
@@ -122,7 +155,11 @@ export async function handleChatRequest(input: RouterInput): Promise<RouterResul
 
     try {
       if (input.stream) {
-        const stream = await adapter.sendStream(reqWithModel, credential, member.modelName);
+        const stream = await adapter.sendStream(
+          reqWithModel,
+          credential,
+          member.modelName,
+        );
 
         // Record usage asynchronously (best effort)
         const reader = stream.getReader();
@@ -144,7 +181,10 @@ export async function handleChatRequest(input: RouterInput): Promise<RouterResul
                 outputTokens,
                 status: "success",
                 latencyMs,
-                estimatedCost: estimateCost(member, { inputTokens, outputTokens }),
+                estimatedCost: estimateCost(member, {
+                  inputTokens,
+                  outputTokens,
+                }),
               });
               QuotaTracker.recordUsage(account.id, inputTokens + outputTokens);
               return;
@@ -171,7 +211,11 @@ export async function handleChatRequest(input: RouterInput): Promise<RouterResul
       }
 
       // Non-streaming
-      const response = await adapter.send(reqWithModel, credential, member.modelName);
+      const response = await adapter.send(
+        reqWithModel,
+        credential,
+        member.modelName,
+      );
       const latencyMs = Date.now() - startedAt;
 
       UsageRecorder.record({
@@ -184,7 +228,10 @@ export async function handleChatRequest(input: RouterInput): Promise<RouterResul
         latencyMs,
         estimatedCost: estimateCost(member, response.usage),
       });
-      QuotaTracker.recordUsage(account.id, response.usage.inputTokens + response.usage.outputTokens);
+      QuotaTracker.recordUsage(
+        account.id,
+        response.usage.inputTokens + response.usage.outputTokens,
+      );
 
       return {
         status: 200,

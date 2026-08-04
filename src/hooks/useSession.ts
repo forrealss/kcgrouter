@@ -17,13 +17,22 @@ type ThemeResponse = { theme: "light" | "dark" };
 export function useSession() {
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeResponse["theme"] | null>(null);
+
+  useEffect(() => {
+    if (!theme) return;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   const refresh = useCallback(async () => {
     setStatus("loading");
     setError(null);
 
     try {
-      await apiClient.get<ThemeResponse>("/api/settings/theme");
+      const settings = await apiClient.get<ThemeResponse>(
+        "/api/settings/theme",
+      );
+      setTheme(settings.theme);
       setStatus("authenticated");
     } catch (requestError) {
       if (
@@ -43,11 +52,13 @@ export function useSession() {
     void refresh();
   }, [refresh]);
 
-  const login = useCallback(async (password: string) => {
-    await apiClient.post<LoginResponse>("/api/auth/login", { password });
-    setError(null);
-    setStatus("authenticated");
-  }, []);
+  const login = useCallback(
+    async (password: string) => {
+      await apiClient.post<LoginResponse>("/api/auth/login", { password });
+      await refresh();
+    },
+    [refresh],
+  );
 
   const logout = useCallback(async () => {
     await apiClient.post<LoginResponse>("/api/auth/logout");
@@ -55,5 +66,5 @@ export function useSession() {
     setStatus("unauthenticated");
   }, []);
 
-  return { status, error, login, logout, refresh };
+  return { status, error, theme, login, logout, refresh };
 }

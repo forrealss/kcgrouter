@@ -7,7 +7,9 @@ import {
   createApiKey,
   getTheme,
   getTokenSaverDefault,
+  getTokenSaverStats,
   listApiKeys,
+  recordTokenSaverSavings,
   revokeApiKey,
   setPasswordHash,
   setTheme,
@@ -82,6 +84,12 @@ describe("SettingsService", () => {
       await setTokenSaverDefault(true);
       const enabled = await getTokenSaverDefault();
       expect(enabled).toBe(true);
+    });
+
+    test("records accumulated Token Saver savings", () => {
+      const before = getTokenSaverStats().totalTokensSaved;
+      recordTokenSaverSavings(17);
+      expect(getTokenSaverStats().totalTokensSaved).toBe(before + 17);
     });
   });
 

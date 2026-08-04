@@ -91,7 +91,38 @@ const migrations: { id: number; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_records(provider_account_id);
     `,
   },
+  {
+    id: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS token_saver_stats (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        total_tokens_saved INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+
+      INSERT OR IGNORE INTO token_saver_stats (id, total_tokens_saved, updated_at)
+      VALUES (1, 0, datetime('now'));
+    `,
+  },
 ];
+
+// Default password for the initial admin login. Change it after first login.
+export const DEFAULT_PASSWORD = "admin";
+
+function seedDefaultAppSettings(): void {
+  const existing = get<{ id: number }>("SELECT id FROM app_settings WHERE id = 1");
+  if (existing) return;
+
+  const passwordHash = Bun.password.hashSync(DEFAULT_PASSWORD);
+  const now = new Date().toISOString();
+  getDb().run(
+    "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, created_at, updated_at) VALUES (1, ?, 'light', 1, ?, ?)",
+    passwordHash,
+    now,
+    now,
+  );
+  console.log(`Seeded default app_settings with default password "${DEFAULT_PASSWORD}"`);
+}
 
 function ensureMigrationsTable(): void {
   getDb().exec(`
@@ -120,4 +151,6 @@ export function runMigrations(): void {
       console.log(`Migration ${migration.id} applied`);
     }
   }
+
+  seedDefaultAppSettings();
 }

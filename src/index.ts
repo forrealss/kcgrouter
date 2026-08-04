@@ -89,40 +89,42 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 const server = serve({
   port: Number(process.env.PORT) || 3000,
   routes: {
-    "/*": async (req) => {
+    "/v1/*": async (req) => {
       const url = new URL(req.url);
       const pathname = url.pathname;
       const method = req.method;
 
       // V1 routes — API key auth
-      if (pathname.startsWith("/v1/")) {
-        const auth = authenticateApiKey(req);
-        if (!auth.ok) return auth.response;
+      const auth = authenticateApiKey(req);
+      if (!auth.ok) return auth.response;
 
-        const matched = matchRoute(method, pathname);
-        if (matched) {
-          return matched.handler(req, matched.params);
-        }
-        return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+      const matched = matchRoute(method, pathname);
+      if (matched) {
+        return matched.handler(req, matched.params);
       }
+      return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+    },
+
+    "/api/*": async (req) => {
+      const url = new URL(req.url);
+      const pathname = url.pathname;
+      const method = req.method;
 
       // API routes — session auth (except login)
-      if (pathname.startsWith("/api/")) {
-        if (pathname !== "/api/auth/login") {
-          const auth = authenticateSession(req);
-          if (!auth.ok) return auth.response;
-        }
-
-        const matched = matchRoute(method, pathname);
-        if (matched) {
-          return matched.handler(req, matched.params);
-        }
-        return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+      if (pathname !== "/api/auth/login") {
+        const auth = authenticateSession(req);
+        if (!auth.ok) return auth.response;
       }
 
-      // Static assets / SPA fallback
-      return index;
+      const matched = matchRoute(method, pathname);
+      if (matched) {
+        return matched.handler(req, matched.params);
+      }
+      return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     },
+
+    // Static assets / SPA fallback
+    "/*": index,
   },
 
   development: process.env.NODE_ENV !== "production" && {

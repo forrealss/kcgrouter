@@ -1,6 +1,14 @@
 import type { CanonicalMessage } from "../adapters/types";
 
-export type ToolOutputFilterKind = "git-diff" | "git-status" | "grep" | "find" | "ls" | "tree" | "dedup-log" | "smart-truncate";
+export type ToolOutputFilterKind =
+  | "git-diff"
+  | "git-status"
+  | "grep"
+  | "find"
+  | "ls"
+  | "tree"
+  | "dedup-log"
+  | "smart-truncate";
 
 type FilterFn = (content: string) => string;
 
@@ -68,7 +76,10 @@ const filters: Record<ToolOutputFilterKind, FilterFn> = {
 
     if (commonLen === 0) return content;
     const prefix = `${(parts[0] ?? []).slice(0, commonLen).join("/")}/`;
-    return lines.map((l) => l.replace(prefix, "")).join("\n").trim();
+    return lines
+      .map((l) => l.replace(prefix, ""))
+      .join("\n")
+      .trim();
   },
 
   ls: (content) => {
@@ -116,10 +127,18 @@ const filters: Record<ToolOutputFilterKind, FilterFn> = {
   },
 };
 
+export function getSupportedFilters(): ToolOutputFilterKind[] {
+  return Object.keys(filters) as ToolOutputFilterKind[];
+}
+
 function detectFilter(content: string): ToolOutputFilterKind | null {
   const trimmed = content.trimStart();
 
-  if (trimmed.startsWith("diff --git") || trimmed.startsWith("--- a/") || trimmed.startsWith("+++ b/")) {
+  if (
+    trimmed.startsWith("diff --git") ||
+    trimmed.startsWith("--- a/") ||
+    trimmed.startsWith("+++ b/")
+  ) {
     return "git-diff";
   }
 
@@ -133,7 +152,11 @@ function detectFilter(content: string): ToolOutputFilterKind | null {
   }
 
   if (trimmed.match(/^.*:\d+[:].+$/m)) return "grep";
-  if (trimmed.startsWith("./") || trimmed.split("\n").every((l) => l.includes("/"))) return "find";
+  if (
+    trimmed.startsWith("./") ||
+    trimmed.split("\n").every((l) => l.includes("/"))
+  )
+    return "find";
 
   if (
     trimmed.split("\n").some((l) => /^\s*total\s+\d+/.test(l)) ||
@@ -147,7 +170,10 @@ function detectFilter(content: string): ToolOutputFilterKind | null {
   return null;
 }
 
-export function compress(messages: CanonicalMessage[], enabled: boolean): {
+export function compress(
+  messages: CanonicalMessage[],
+  enabled: boolean,
+): {
   messages: CanonicalMessage[];
   tokensSavedEstimate: number;
   filtersApplied: ToolOutputFilterKind[];

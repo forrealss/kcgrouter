@@ -1,4 +1,5 @@
 import * as SettingsService from "../services/settings.service";
+import { getSupportedFilters } from "../services/token-saver.service";
 import type { RouteHandler } from "./types";
 
 export const settingsRoutes: Record<string, RouteHandler> = {
@@ -10,10 +11,22 @@ export const settingsRoutes: Record<string, RouteHandler> = {
   "PATCH /api/settings/theme": async (req) => {
     const body = (await req.json()) as { theme?: string };
     if (!body.theme || !["light", "dark"].includes(body.theme)) {
-      return Response.json({ error: "theme must be 'light' or 'dark'" }, { status: 400 });
+      return Response.json(
+        { error: "theme must be 'light' or 'dark'" },
+        { status: 400 },
+      );
     }
     await SettingsService.setTheme(body.theme as "light" | "dark");
     return Response.json({ ok: true });
+  },
+
+  "GET /api/settings/token-saver": () => {
+    const stats = SettingsService.getTokenSaverStats();
+    return Response.json({
+      enabled: SettingsService.getTokenSaverDefault(),
+      filters: getSupportedFilters().map((name) => ({ name, active: true })),
+      ...stats,
+    });
   },
 
   "PATCH /api/settings/token-saver-default": async (req) => {
@@ -40,7 +53,10 @@ export const settingsRoutes: Record<string, RouteHandler> = {
       const result = await SettingsService.createApiKey(body.label);
       return Response.json(result, { status: 201 });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
     }
   },
 
@@ -49,7 +65,10 @@ export const settingsRoutes: Record<string, RouteHandler> = {
       await SettingsService.revokeApiKey(params?.id ?? "");
       return Response.json({ ok: true });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
     }
   },
 };

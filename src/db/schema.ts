@@ -7,6 +7,12 @@ export interface AppSettingsRow {
   updated_at: string;
 }
 
+export interface TokenSaverStatsRow {
+  id: 1;
+  total_tokens_saved: number;
+  updated_at: string;
+}
+
 export interface ApiKeyRow {
   id: string;
   label: string;

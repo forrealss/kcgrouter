@@ -6,10 +6,10 @@ import {
   Layers3Icon,
   LogOutIcon,
   type LucideIcon,
-  RouterIcon,
   SlidersHorizontalIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { Logo } from "@/components/icons/Logo";
 import {
   SidebarContent,
   SidebarFooter,
@@ -115,7 +115,7 @@ export function AppSidebar({
               size="lg"
               onClick={() => selectModule("providers")}
             >
-              <RouterIcon />
+              <Logo className="size-6 shrink-0" />
               <span>KCG Router</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

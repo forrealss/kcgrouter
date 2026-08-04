@@ -37,7 +37,7 @@ export function App() {
 
   if (session.status === "unauthenticated") {
     return (
-      <div className="flex min-h-svh items-center justify-center p-6">
+      <div className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
         <LoginForm onLogin={session.login} />
       </div>
     );

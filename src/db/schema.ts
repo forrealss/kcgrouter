@@ -25,8 +25,10 @@ export interface ApiKeyRow {
 export interface ProviderRow {
   id: string;
   name: string;
-  transport: "openai" | "anthropic" | "gemini";
+  transport: ProviderTransport;
   base_url: string;
+  is_builtin: number;
+  prefix: string;
   created_at: string;
 }
 
@@ -82,7 +84,23 @@ export interface UsageRecordRow {
   estimated_cost: number;
 }
 
-export type ProviderTransport = "openai" | "anthropic" | "gemini";
+export type ProviderTransport =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "kiro"
+  | "command-code";
 export type QuotaResetType = "5h" | "daily" | "weekly" | "none";
 export type AccountStatus = "active" | "error" | "expired";
 export type ComboStrategy = "fallback" | "round_robin";
+
+export interface ProviderModelRow {
+  id: string;
+  provider_id: string;
+  model_id: string;
+  model_name: string;
+  context_length: number | null;
+  max_output_tokens: number | null;
+  enabled: number;
+  created_at: string;
+}

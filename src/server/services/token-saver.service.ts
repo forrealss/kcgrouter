@@ -1,4 +1,4 @@
-import type { CanonicalMessage } from "../adapters/types";
+import type { CanonicalMessage } from "../providers/types";
 
 export type ToolOutputFilterKind =
   | "git-diff"

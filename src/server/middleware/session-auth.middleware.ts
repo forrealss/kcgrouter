@@ -1,6 +1,11 @@
-import { verify as verifySession, getCookieFromRequest } from "../services/session.service";
+import {
+  getCookieFromRequest,
+  verify as verifySession,
+} from "../services/session.service";
 
-export function authenticateSession(req: Request): { ok: true } | { ok: false; response: Response } {
+export function authenticateSession(
+  req: Request,
+): { ok: true } | { ok: false; response: Response } {
   const cookie = getCookieFromRequest(req);
 
   if (!cookie || !verifySession(cookie)) {

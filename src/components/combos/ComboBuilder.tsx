@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
   Field,
   FieldDescription,
@@ -35,27 +36,8 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import type { Combo, ComboMember } from "./types";
-
-interface Provider {
-  id: string;
-  name: string;
-  transport: "openai" | "anthropic" | "gemini";
-  baseUrl: string;
-  createdAt: string;
-  accountCount?: number;
-}
-
-interface ProviderAccount {
-  id: string;
-  providerId: string;
-  label: string;
-  status: "active" | "error" | "expired";
-  quotaResetType: "5h" | "daily" | "weekly" | "none";
-  quotaLimitTokens: number | null;
-  lastUsedAt: string | null;
-  createdAt: string;
-}
+import type { Combo, ComboMember } from "@/types/combo";
+import type { Provider, ProviderAccount } from "@/types/provider";
 
 interface AccountOption extends ProviderAccount {
   providerName: string;
@@ -92,6 +74,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   const [modelName, setModelName] = useState("");
   const [inputCost, setInputCost] = useState("");
   const [outputCost, setOutputCost] = useState("");
+  const [modelOptions, setModelOptions] = useState<ComboboxOption[]>([]);
 
   const loadMembers = useCallback(async () => {
     const nextMembers = await apiClient.get<ComboMember[]>(
@@ -137,6 +120,43 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   useEffect(() => {
     void loadBuilderData();
   }, [loadBuilderData]);
+
+  // Fetch models when provider account changes
+  useEffect(() => {
+    if (!providerAccountId) {
+      setModelOptions([]);
+      return;
+    }
+
+    const account = accounts.find((a) => a.id === providerAccountId);
+    if (!account) return;
+
+    // Find the provider to get transport type
+    const fetchModels = async () => {
+      try {
+        const providers = await apiClient.get<Provider[]>("/api/providers");
+        const provider = providers.find((p) => p.id === account.providerId);
+        if (!provider) return;
+
+        // Fetch default models from registry
+        const models = await apiClient.get<Array<{ id: string; name: string }>>(
+          `/api/providers/models/${provider.transport}`,
+        );
+
+        setModelOptions(
+          models.map((m) => ({
+            value: m.id,
+            label: m.name,
+          })),
+        );
+      } catch {
+        // If fetch fails, allow custom input
+        setModelOptions([]);
+      }
+    };
+
+    void fetchModels();
+  }, [providerAccountId, accounts]);
 
   async function handleAddMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -338,14 +358,18 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                   <FieldLabel htmlFor={`model-name-${combo.id}`}>
                     Nama model
                   </FieldLabel>
-                  <Input
-                    id={`model-name-${combo.id}`}
+                  <Combobox
+                    options={modelOptions}
                     value={modelName}
-                    onChange={(event) => setModelName(event.target.value)}
-                    placeholder="mis. gpt-4.1-mini"
+                    onValueChange={setModelName}
+                    placeholder="Pilih model..."
+                    searchPlaceholder="Cari model..."
+                    allowCustom
                     disabled={isAdding}
-                    required
                   />
+                  <FieldDescription>
+                    Pilih dari model default atau ketik nama model custom.
+                  </FieldDescription>
                 </Field>
                 <FieldGroup className="gap-4 sm:flex-row">
                   <Field>

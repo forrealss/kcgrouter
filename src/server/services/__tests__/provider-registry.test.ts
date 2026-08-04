@@ -1,22 +1,24 @@
-import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import {
-  createProvider,
-  listProviders,
-  deleteProvider,
-  addAccount,
-  updateAccount,
-  removeAccount,
-  getAccount,
-  listAccounts,
-  getDecryptedCredential,
-  type NewProviderInput,
-} from "../provider-registry.service";
-import { runMigrations } from "../../../db/migrations";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
+import { runMigrations } from "../../../db/migrations";
+import {
+  addAccount,
+  createProvider,
+  deleteProvider,
+  getAccount,
+  getDecryptedCredential,
+  listAccounts,
+  listProviders,
+  type NewProviderInput,
+  removeAccount,
+  updateAccount,
+} from "../provider-registry.service";
 
 describe("ProviderRegistry — Provider CRUD", () => {
   beforeAll(() => {
     runMigrations();
+    run("DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)");
+    run("DELETE FROM providers WHERE is_builtin = 0");
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {
       run(
@@ -34,13 +36,18 @@ describe("ProviderRegistry — Provider CRUD", () => {
 
   // Property 12: Round-trip pembuatan dan pembacaan Provider
   test("Property 12: created provider appears in listProviders with correct data", () => {
-    const provider = createProvider({ name: "OpenAI", transport: "openai", baseUrl: "https://api.openai.com/v1" });
+    const provider = createProvider({
+      name: "TestOpenAI",
+      transport: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      prefix: "test-openai",
+    });
     const list = listProviders();
     const found = list.find((p) => p.id === provider.id);
 
     expect(found).toBeDefined();
     if (!found) return;
-    expect(found.name).toBe("OpenAI");
+    expect(found.name).toBe("TestOpenAI");
     expect(found.transport).toBe("openai");
     expect(found.baseUrl).toBe("https://api.openai.com/v1");
     expect(found.accountCount).toBe(0);
@@ -50,11 +57,21 @@ describe("ProviderRegistry — Provider CRUD", () => {
 
   // Property 13: Nama Provider duplikat selalu ditolak
   test("Property 13: duplicate provider name is always rejected", () => {
-    const p1 = createProvider({ name: "DuplicateTest", transport: "openai", baseUrl: "https://a.com" });
+    const p1 = createProvider({
+      name: "DuplicateTest",
+      transport: "openai",
+      baseUrl: "https://a.com",
+      prefix: "dup-test",
+    });
 
-    expect(() => createProvider({ name: "DuplicateTest", transport: "anthropic", baseUrl: "https://b.com" })).toThrow(
-      /already exists/,
-    );
+    expect(() =>
+      createProvider({
+        name: "DuplicateTest",
+        transport: "anthropic",
+        baseUrl: "https://b.com",
+        prefix: "dup-test-2",
+      }),
+    ).toThrow(/already exists/);
 
     deleteProvider(p1.id);
   });
@@ -62,15 +79,28 @@ describe("ProviderRegistry — Provider CRUD", () => {
   // Property 14: Transport tidak valid selalu ditolak
   test("Property 14: invalid transport is always rejected", () => {
     expect(() =>
-      createProvider({ name: "Bad", transport: "invalid" as NewProviderInput["transport"], baseUrl: "https://c.com" }),
+      createProvider({
+        name: "Bad",
+        transport: "invalid" as NewProviderInput["transport"],
+        baseUrl: "https://c.com",
+        prefix: "bad",
+      }),
     ).toThrow(/Invalid transport/);
   });
 
   // Property 15: Penghapusan Provider melakukan cascade ke Provider Account
   test("Property 15: deleting provider cascades to provider accounts", () => {
-    const provider = createProvider({ name: "CascadeTest", transport: "openai", baseUrl: "https://cascade.com" });
+    const provider = createProvider({
+      name: "CascadeTest",
+      transport: "openai",
+      baseUrl: "https://cascade.com",
+      prefix: "cascade",
+    });
 
-    const acct = addAccount(provider.id, { label: "Account 1", apiKey: "sk_test_12345" });
+    const acct = addAccount(provider.id, {
+      label: "Account 1",
+      apiKey: "sk_test_12345",
+    });
     expect(getAccount(acct.id)).not.toBeNull();
 
     deleteProvider(provider.id);
@@ -86,6 +116,8 @@ describe("ProviderRegistry — Provider CRUD", () => {
 describe("ProviderRegistry — Provider Account CRUD", () => {
   beforeAll(() => {
     runMigrations();
+    run("DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)");
+    run("DELETE FROM providers WHERE is_builtin = 0");
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {
       run(
@@ -103,8 +135,16 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
 
   // Property 16: Round-trip enkripsi/dekripsi kredensial dan non-eksposur plaintext
   test("Property 16a: getDecryptedCredential returns original API key", () => {
-    const provider = createProvider({ name: "EncTest", transport: "openai", baseUrl: "https://enc.com" });
-    const acct = addAccount(provider.id, { label: "Enc Account", apiKey: "sk_secret_abc123" });
+    const provider = createProvider({
+      name: "EncTest",
+      transport: "openai",
+      baseUrl: "https://enc.com",
+      prefix: "enc",
+    });
+    const acct = addAccount(provider.id, {
+      label: "Enc Account",
+      apiKey: "sk_secret_abc123",
+    });
 
     const cred = getDecryptedCredential(acct.id);
     expect(cred.apiKey).toBe("sk_secret_abc123");
@@ -113,7 +153,12 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
   });
 
   test("Property 16b: provider account never exposes API key plaintext", () => {
-    const provider = createProvider({ name: "LeakTest", transport: "openai", baseUrl: "https://leak.com" });
+    const provider = createProvider({
+      name: "LeakTest",
+      transport: "openai",
+      baseUrl: "https://leak.com",
+      prefix: "leak",
+    });
     addAccount(provider.id, { label: "Leak Account", apiKey: "sk_leaky_key" });
 
     const list = listAccounts(provider.id);
@@ -127,28 +172,61 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
 
   // Property 17: Validasi quota_limit_tokens
   test("Property 17: quota_limit_tokens validation", () => {
-    const provider = createProvider({ name: "QuotaVal", transport: "openai", baseUrl: "https://quota.com" });
+    const provider = createProvider({
+      name: "QuotaVal",
+      transport: "openai",
+      baseUrl: "https://quota.com",
+      prefix: "quota",
+    });
 
     // null is valid
-    expect(() => addAccount(provider.id, { label: "Valid1", apiKey: "sk1", quotaLimitTokens: null })).not.toThrow();
+    expect(() =>
+      addAccount(provider.id, {
+        label: "Valid1",
+        apiKey: "sk1",
+        quotaLimitTokens: null,
+      }),
+    ).not.toThrow();
     // positive is valid
-    expect(() => addAccount(provider.id, { label: "Valid2", apiKey: "sk2", quotaLimitTokens: 1000 })).not.toThrow();
+    expect(() =>
+      addAccount(provider.id, {
+        label: "Valid2",
+        apiKey: "sk2",
+        quotaLimitTokens: 1000,
+      }),
+    ).not.toThrow();
     // zero is invalid
-    expect(() => addAccount(provider.id, { label: "Invalid1", apiKey: "sk3", quotaLimitTokens: 0 })).toThrow(
-      /positive/,
-    );
+    expect(() =>
+      addAccount(provider.id, {
+        label: "Invalid1",
+        apiKey: "sk3",
+        quotaLimitTokens: 0,
+      }),
+    ).toThrow(/positive/);
     // negative is invalid
-    expect(() => addAccount(provider.id, { label: "Invalid2", apiKey: "sk4", quotaLimitTokens: -100 })).toThrow(
-      /positive/,
-    );
+    expect(() =>
+      addAccount(provider.id, {
+        label: "Invalid2",
+        apiKey: "sk4",
+        quotaLimitTokens: -100,
+      }),
+    ).toThrow(/positive/);
 
     deleteProvider(provider.id);
   });
 
   // Property 18: Update Provider Account mempertahankan identitas
   test("Property 18: updateAccount preserves id and providerId", () => {
-    const provider = createProvider({ name: "IdTest", transport: "openai", baseUrl: "https://id.com" });
-    const acct = addAccount(provider.id, { label: "Original", apiKey: "sk_orig" });
+    const provider = createProvider({
+      name: "IdTest",
+      transport: "openai",
+      baseUrl: "https://id.com",
+      prefix: "idtest",
+    });
+    const acct = addAccount(provider.id, {
+      label: "Original",
+      apiKey: "sk_orig",
+    });
 
     const updated = updateAccount(acct.id, { label: "Updated" });
     expect(updated.id).toBe(acct.id);
@@ -160,8 +238,16 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
 
   // Property 19: Penghapusan Provider Account melakukan cascade ke quota_state dan combo_members
   test("Property 19: removing account cascades to quota_state", () => {
-    const provider = createProvider({ name: "CascadeAcct", transport: "openai", baseUrl: "https://cas.com" });
-    const acct = addAccount(provider.id, { label: "CasAcct", apiKey: "sk_cas" });
+    const provider = createProvider({
+      name: "CascadeAcct",
+      transport: "openai",
+      baseUrl: "https://cas.com",
+      prefix: "cas",
+    });
+    const acct = addAccount(provider.id, {
+      label: "CasAcct",
+      apiKey: "sk_cas",
+    });
 
     // Verify quota_state exists
     const qs = get("SELECT * FROM quota_state WHERE account_id = ?", acct.id);
@@ -169,7 +255,10 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
 
     removeAccount(acct.id);
 
-    const qsAfter = get("SELECT * FROM quota_state WHERE account_id = ?", acct.id);
+    const qsAfter = get(
+      "SELECT * FROM quota_state WHERE account_id = ?",
+      acct.id,
+    );
     expect(qsAfter).toBeNull();
 
     deleteProvider(provider.id);
@@ -182,7 +271,9 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
   });
 
   test("updateAccount on non-existent account throws", () => {
-    expect(() => updateAccount("acct_nonexistent", { label: "X" })).toThrow(/not found/);
+    expect(() => updateAccount("acct_nonexistent", { label: "X" })).toThrow(
+      /not found/,
+    );
   });
 
   test("removeAccount on non-existent account throws", () => {

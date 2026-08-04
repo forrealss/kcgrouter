@@ -40,31 +40,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-
-export interface UsageAccountOption {
-  id: string;
-  label: string;
-}
-
-interface UsageRecord {
-  id: string;
-  timestamp: string;
-  providerAccountId: string;
-  comboId: string | null;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  status: "success" | "error";
-  latencyMs: number;
-  estimatedCost: number;
-}
-
-interface HistoryFilters {
-  providerAccountId: string;
-  model: string;
-  from: string;
-  to: string;
-}
+import type {
+  HistoryFilters,
+  UsageAccountOption,
+  UsageRecord,
+} from "@/types/usage";
 
 interface UsageTableProps {
   accounts: readonly UsageAccountOption[];

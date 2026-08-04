@@ -1,19 +1,24 @@
 import type {
-  ProviderAdapter,
+  CanonicalContentPart,
   CanonicalRequest,
   CanonicalResponse,
   CanonicalStreamChunk,
-  CanonicalContentPart,
-} from "./types";
+  ProviderAdapter,
+} from "../types";
 
-function buildGeminiContents(req: CanonicalRequest): { systemInstruction?: unknown; contents: unknown[] } {
+function buildGeminiContents(req: CanonicalRequest): {
+  systemInstruction?: unknown;
+  contents: unknown[];
+} {
   let systemInstruction: unknown;
   const contents: unknown[] = [];
 
   for (const m of req.messages) {
     if (m.role === "system") {
       systemInstruction = {
-        parts: m.content.filter((p) => p.type === "text").map((p) => ({ text: (p as { type: "text"; text: string }).text })),
+        parts: m.content
+          .filter((p) => p.type === "text")
+          .map((p) => ({ text: (p as { type: "text"; text: string }).text })),
       };
       continue;
     }
@@ -26,7 +31,10 @@ function buildGeminiContents(req: CanonicalRequest): { systemInstruction?: unkno
         parts.push({
           functionCall: {
             name: part.name,
-            args: typeof part.arguments === "string" ? JSON.parse(part.arguments) : part.arguments,
+            args:
+              typeof part.arguments === "string"
+                ? JSON.parse(part.arguments)
+                : part.arguments,
           },
         });
       } else if (part.type === "tool_result") {
@@ -52,8 +60,19 @@ function buildGeminiContents(req: CanonicalRequest): { systemInstruction?: unkno
 
 function parseGeminiResponse(data: unknown): CanonicalResponse {
   const res = data as {
-    candidates?: { content?: { parts?: { text?: string; functionCall?: { name: string; args: unknown } }[] }; finishReason?: string }[];
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    candidates?: {
+      content?: {
+        parts?: {
+          text?: string;
+          functionCall?: { name: string; args: unknown };
+        }[];
+      };
+      finishReason?: string;
+    }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+    };
   };
 
   const parts: CanonicalContentPart[] = [];
@@ -123,7 +142,11 @@ export const geminiAdapter: ProviderAdapter = {
     return parseGeminiResponse(await res.json());
   },
 
-  async sendStream(req, credential, model): Promise<ReadableStream<CanonicalStreamChunk>> {
+  async sendStream(
+    req,
+    credential,
+    model,
+  ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const { systemInstruction, contents } = buildGeminiContents(req);
 
     const body: Record<string, unknown> = {
@@ -154,7 +177,10 @@ export const geminiAdapter: ProviderAdapter = {
 
     return new ReadableStream({
       async pull(controller) {
-        if (!reader) { controller.close(); return; }
+        if (!reader) {
+          controller.close();
+          return;
+        }
         const { done, value } = await reader.read();
         if (done || !value) {
           controller.close();
@@ -176,8 +202,14 @@ export const geminiAdapter: ProviderAdapter = {
             }
 
             if (candidate?.finishReason) {
-              const finishMap: Record<string, "stop" | "length"> = { STOP: "stop", MAX_TOKENS: "length" };
-              controller.enqueue({ delta: "", finishReason: finishMap[candidate.finishReason] ?? "stop" });
+              const finishMap: Record<string, "stop" | "length"> = {
+                STOP: "stop",
+                MAX_TOKENS: "length",
+              };
+              controller.enqueue({
+                delta: "",
+                finishReason: finishMap[candidate.finishReason] ?? "stop",
+              });
             }
 
             if (parsed.usageMetadata) {

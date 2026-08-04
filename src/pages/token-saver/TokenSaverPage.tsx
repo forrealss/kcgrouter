@@ -1,6 +1,4 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
+import { filterDetails } from "@/components/token-saver/filter-details";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,93 +21,7 @@ import {
 } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-
-type FilterName =
-  | "git-diff"
-  | "git-status"
-  | "grep"
-  | "find"
-  | "ls"
-  | "tree"
-  | "dedup-log"
-  | "smart-truncate";
-
-type TokenSaverFilter = {
-  name: FilterName;
-  active: boolean;
-};
-
-type TokenSaverSettings = {
-  enabled: boolean;
-  filters: TokenSaverFilter[];
-  totalTokensSaved: number;
-  updatedAt: string;
-};
-
-const filterDetails: Record<
-  FilterName,
-  { label: string; description: string }
-> = {
-  "git-diff": {
-    label: "Git diff",
-    description: "Reduces repeated diff output.",
-  },
-  "git-status": {
-    label: "Git status",
-    description: "Condenses repository status output.",
-  },
-  grep: {
-    label: "Grep",
-    description: "Trims repeated search results.",
-  },
-  find: {
-    label: "Find",
-    description: "Limits redundant file matches.",
-  },
-  ls: {
-    label: "List files",
-    description: "Condenses directory listings.",
-  },
-  tree: {
-    label: "Directory tree",
-    description: "Truncates large tree output.",
-  },
-  "dedup-log": {
-    label: "Deduplicate logs",
-    description: "Removes duplicate log lines.",
-  },
-  "smart-truncate": {
-    label: "Smart truncation",
-    description: "Keeps the most useful portion of long output.",
-  },
-};
-
-function isFilterName(value: unknown): value is FilterName {
-  return typeof value === "string" && value in filterDetails;
-}
-
-function isTokenSaverSettings(value: unknown): value is TokenSaverSettings {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const settings = value as Record<string, unknown>;
-
-  return (
-    typeof settings.enabled === "boolean" &&
-    Array.isArray(settings.filters) &&
-    settings.filters.every(
-      (filter) =>
-        !!filter &&
-        typeof filter === "object" &&
-        isFilterName((filter as Record<string, unknown>).name) &&
-        typeof (filter as Record<string, unknown>).active === "boolean",
-    ) &&
-    typeof settings.totalTokensSaved === "number" &&
-    typeof settings.updatedAt === "string"
-  );
-}
+import { useTokenSaver } from "@/hooks/useTokenSaver";
 
 function formatUpdatedAt(updatedAt: string): string {
   const date = new Date(updatedAt);
@@ -124,80 +36,16 @@ function formatUpdatedAt(updatedAt: string): string {
   }).format(date)}`;
 }
 
-function TokenSaverPanel() {
-  const [settings, setSettings] = useState<TokenSaverSettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const loadSettings = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setLoadError(null);
-
-    try {
-      const data = await apiClient.get<unknown>("/api/settings/token-saver", {
-        signal,
-      });
-
-      if (!isTokenSaverSettings(data)) {
-        throw new Error("Token saver settings returned an invalid response.");
-      }
-
-      setSettings(data);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
-
-      setLoadError(getApiErrorMessage(error));
-    } finally {
-      if (!signal?.aborted) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadSettings(controller.signal);
-
-    return () => controller.abort();
-  }, [loadSettings]);
-
-  const persistEnabled = useCallback(
-    async (enabled: boolean) => {
-      if (!settings || isSaving) {
-        return;
-      }
-
-      const previousSettings = settings;
-      setSettings({ ...previousSettings, enabled });
-      setIsSaving(true);
-      setSaveError(null);
-
-      try {
-        const data = await apiClient.patch<unknown>(
-          "/api/settings/token-saver-default",
-          { enabled },
-        );
-
-        if (
-          !data ||
-          typeof data !== "object" ||
-          (data as Record<string, unknown>).ok !== true
-        ) {
-          throw new Error("Token saver setting was not saved.");
-        }
-      } catch (error) {
-        setSettings(previousSettings);
-        setSaveError(getApiErrorMessage(error));
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [isSaving, settings],
-  );
+export function TokenSaverPage() {
+  const {
+    settings,
+    isLoading,
+    loadError,
+    saveError,
+    isSaving,
+    loadSettings,
+    persistEnabled,
+  } = useTokenSaver();
 
   if (isLoading) {
     return (
@@ -336,6 +184,3 @@ function TokenSaverPanel() {
     </Card>
   );
 }
-
-export { TokenSaverPanel };
-export default TokenSaverPanel;

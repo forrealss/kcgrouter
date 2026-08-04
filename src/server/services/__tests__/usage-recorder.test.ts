@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeAll } from "bun:test";
-import { record, getHistory, summarize } from "../usage-recorder.service";
-import { createProvider, addAccount } from "../provider-registry.service";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
+import { addAccount, createProvider } from "../provider-registry.service";
+import { getHistory, record, summarize } from "../usage-recorder.service";
 
 describe("UsageRecorder", () => {
   beforeAll(() => {
@@ -21,7 +21,12 @@ describe("UsageRecorder", () => {
   });
 
   test("record inserts a usage record", () => {
-    const p = createProvider({ name: `UR-Test-${Date.now()}`, transport: "openai", baseUrl: "https://t.com" });
+    const p = createProvider({
+      name: `UR-Test-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-test-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
     const a = addAccount(p.id, { label: "A", apiKey: "sk" });
 
     record({
@@ -41,11 +46,24 @@ describe("UsageRecorder", () => {
   });
 
   test("Property 29: history limited to 50", () => {
-    const p = createProvider({ name: `UR-Limit-${Date.now()}`, transport: "openai", baseUrl: "https://t.com" });
+    const p = createProvider({
+      name: `UR-Limit-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-limit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
     const a = addAccount(p.id, { label: "A", apiKey: "sk" });
 
     for (let i = 0; i < 60; i++) {
-      record({ providerAccountId: a.id, model: "m", inputTokens: 1, outputTokens: 0, status: "success", latencyMs: 1, estimatedCost: 0 });
+      record({
+        providerAccountId: a.id,
+        model: "m",
+        inputTokens: 1,
+        outputTokens: 0,
+        status: "success",
+        latencyMs: 1,
+        estimatedCost: 0,
+      });
     }
 
     const history = getHistory({ limit: 50 });
@@ -53,22 +71,64 @@ describe("UsageRecorder", () => {
   });
 
   test("Property 30: filter by model", () => {
-    const p = createProvider({ name: `UR-Filter-${Date.now()}`, transport: "openai", baseUrl: "https://t.com" });
+    const p = createProvider({
+      name: `UR-Filter-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-filter-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
     const a = addAccount(p.id, { label: "A", apiKey: "sk" });
 
-    record({ providerAccountId: a.id, model: "target-model", inputTokens: 1, outputTokens: 0, status: "success", latencyMs: 1, estimatedCost: 0 });
-    record({ providerAccountId: a.id, model: "other-model", inputTokens: 1, outputTokens: 0, status: "success", latencyMs: 1, estimatedCost: 0 });
+    record({
+      providerAccountId: a.id,
+      model: "target-model",
+      inputTokens: 1,
+      outputTokens: 0,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0,
+    });
+    record({
+      providerAccountId: a.id,
+      model: "other-model",
+      inputTokens: 1,
+      outputTokens: 0,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0,
+    });
 
     const filtered = getHistory({ model: "target-model", limit: 100 });
     expect(filtered.every((r) => r.model === "target-model")).toBe(true);
   });
 
   test("summarize returns correct totals", () => {
-    const p = createProvider({ name: `UR-Sum-${Date.now()}`, transport: "openai", baseUrl: "https://t.com" });
+    const p = createProvider({
+      name: `UR-Sum-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-sum-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
     const a = addAccount(p.id, { label: "A", apiKey: "sk" });
 
-    record({ providerAccountId: a.id, model: "m", inputTokens: 100, outputTokens: 50, status: "success", latencyMs: 1, estimatedCost: 0.05 });
-    record({ providerAccountId: a.id, model: "m", inputTokens: 200, outputTokens: 100, status: "success", latencyMs: 1, estimatedCost: 0.10 });
+    record({
+      providerAccountId: a.id,
+      model: "m",
+      inputTokens: 100,
+      outputTokens: 50,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0.05,
+    });
+    record({
+      providerAccountId: a.id,
+      model: "m",
+      inputTokens: 200,
+      outputTokens: 100,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0.1,
+    });
 
     const summary = summarize();
     expect(summary.totalInputTokens).toBeGreaterThanOrEqual(300);

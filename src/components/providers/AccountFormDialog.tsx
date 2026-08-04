@@ -31,7 +31,7 @@ import type {
   AccountFormValues,
   ProviderAccount,
   QuotaResetType,
-} from "./types";
+} from "@/types/provider";
 
 interface AccountFormDialogProps {
   providerId: string;

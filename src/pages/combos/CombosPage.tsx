@@ -6,7 +6,9 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { ComboBuilder } from "@/components/combos/ComboBuilder";
+import { CreateComboForm } from "@/components/combos/CreateComboForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -32,10 +34,8 @@ import {
 } from "@/components/ui/card";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -47,140 +47,31 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import { ComboBuilder } from "./ComboBuilder";
-import type { Combo, ComboMember } from "./types";
-
-export type { Combo, ComboMember } from "./types";
-
-type MemberMap = Record<string, ComboMember[]>;
-
-function comboMembersPath(comboId: string): string {
-  return `/api/combos/${encodeURIComponent(comboId)}/members`;
-}
+import { useCombos, useCreateCombo } from "@/hooks/useCombos";
+import type { Combo } from "@/types/combo";
 
 function strategyLabel(strategy: Combo["strategy"]): string {
   return strategy === "fallback" ? "Fallback" : "Round-robin";
 }
 
-export function ComboList() {
-  const [combos, setCombos] = useState<Combo[]>([]);
-  const [membersByCombo, setMembersByCombo] = useState<MemberMap>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+export function CombosPage() {
+  const {
+    combos,
+    membersByCombo,
+    isLoading,
+    error,
+    isDeletingId,
+    refreshCombos,
+    handleDeleteCombo,
+  } = useCombos();
+
   const [builderCombo, setBuilderCombo] = useState<Combo | null>(null);
-  const [name, setName] = useState("");
-  const [strategy, setStrategy] = useState<Combo["strategy"]>("fallback");
-  const [createError, setCreateError] = useState<string | null>(null);
 
-  const refreshCombos = useCallback(async () => {
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const nextCombos = await apiClient.get<Combo[]>("/api/combos");
-      const members = await Promise.all(
-        nextCombos.map(async (combo) => {
-          const comboMembers = await apiClient.get<ComboMember[]>(
-            comboMembersPath(combo.id),
-          );
-          return [
-            combo.id,
-            [...comboMembers].sort(
-              (left, right) => left.priority - right.priority,
-            ),
-          ] as const;
-        }),
-      );
-
-      setCombos(nextCombos);
-      setMembersByCombo(Object.fromEntries(members));
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
+  const createCombo = useCreateCombo((combo) => {
     void refreshCombos();
-  }, [refreshCombos]);
-
-  function resetCreateForm() {
-    setName("");
-    setStrategy("fallback");
-    setCreateError(null);
-  }
-
-  function handleCreateDialogChange(open: boolean) {
-    setIsCreateDialogOpen(open);
-    if (!open && !isCreating) resetCreateForm();
-  }
-
-  async function handleCreateCombo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setCreateError(null);
-
-    if (!name.trim()) {
-      setCreateError("Nama combo wajib diisi.");
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const combo = await apiClient.post<Omit<Combo, "memberCount">>(
-        "/api/combos",
-        {
-          name: name.trim(),
-          strategy,
-        },
-      );
-      resetCreateForm();
-      setIsCreateDialogOpen(false);
-      await refreshCombos();
-      setBuilderCombo({ ...combo, memberCount: 0 });
-    } catch (requestError) {
-      setCreateError(getApiErrorMessage(requestError));
-    } finally {
-      setIsCreating(false);
-    }
-  }
-
-  async function handleDeleteCombo(comboId: string) {
-    setError(null);
-    setIsDeletingId(comboId);
-
-    try {
-      await apiClient.delete<{ ok: true }>(
-        `/api/combos/${encodeURIComponent(comboId)}`,
-      );
-      if (builderCombo?.id === comboId) setBuilderCombo(null);
-      await refreshCombos();
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
-    } finally {
-      setIsDeletingId(null);
-    }
-  }
+    setBuilderCombo({ ...combo, memberCount: 0 });
+  });
 
   return (
     <section className="flex flex-col gap-6" aria-label="Pengelolaan combo">
@@ -191,76 +82,10 @@ export function ComboList() {
             Susun target model untuk fallback atau distribusi round-robin.
           </p>
         </div>
-        <Dialog
-          open={isCreateDialogOpen}
-          onOpenChange={handleCreateDialogChange}
-        >
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <PlusIcon data-icon="inline-start" />
-            Buat combo
-          </Button>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Buat combo</DialogTitle>
-              <DialogDescription>
-                Pilih strategi routing sebelum menambahkan target model.
-              </DialogDescription>
-            </DialogHeader>
-            <form id="create-combo-form" onSubmit={handleCreateCombo}>
-              <FieldGroup className="gap-4">
-                <Field data-invalid={Boolean(createError)}>
-                  <FieldLabel htmlFor="combo-name">Nama combo</FieldLabel>
-                  <Input
-                    id="combo-name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="mis. production-default"
-                    aria-invalid={Boolean(createError)}
-                    disabled={isCreating}
-                    required
-                    autoFocus
-                  />
-                  {createError ? <FieldError>{createError}</FieldError> : null}
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="combo-strategy">Strategi</FieldLabel>
-                  <Select
-                    value={strategy}
-                    onValueChange={(value) =>
-                      setStrategy(value as Combo["strategy"])
-                    }
-                    disabled={isCreating}
-                  >
-                    <SelectTrigger id="combo-strategy" className="w-full">
-                      <SelectValue placeholder="Pilih strategi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="fallback">Fallback</SelectItem>
-                        <SelectItem value="round_robin">Round-robin</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
-            </form>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={isCreating}>
-                  Batal
-                </Button>
-              </DialogClose>
-              <Button
-                type="submit"
-                form="create-combo-form"
-                disabled={isCreating}
-              >
-                {isCreating ? <Spinner data-icon="inline-start" /> : null}
-                Buat combo
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => createCombo.setIsOpen(true)}>
+          <PlusIcon data-icon="inline-start" />
+          Buat combo
+        </Button>
       </div>
 
       {error ? (
@@ -300,7 +125,7 @@ export function ComboList() {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Button onClick={() => createCombo.setIsOpen(true)}>
               <PlusIcon data-icon="inline-start" />
               Buat combo pertama
             </Button>
@@ -408,6 +233,30 @@ export function ComboList() {
           })}
         </div>
       )}
+
+      <Dialog
+        open={createCombo.isOpen}
+        onOpenChange={createCombo.handleOpenChange}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Buat combo</DialogTitle>
+            <DialogDescription>
+              Pilih strategi routing sebelum menambahkan target model.
+            </DialogDescription>
+          </DialogHeader>
+          <CreateComboForm
+            name={createCombo.name}
+            strategy={createCombo.strategy}
+            isCreating={createCombo.isCreating}
+            error={createCombo.error}
+            onNameChange={createCombo.setName}
+            onStrategyChange={createCombo.setStrategy}
+            onSubmit={createCombo.handleSubmit}
+            onCancel={() => createCombo.handleOpenChange(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={builderCombo !== null}

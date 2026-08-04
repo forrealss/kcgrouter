@@ -1,17 +1,13 @@
 import { AlertCircleIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
-import { ComboList } from "@/components/combos/ComboList";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import {
   type AppModule,
   AppSidebar,
   appModules,
+  defaultPath,
+  resolveModuleFromPath,
 } from "@/components/layout/Sidebar";
-import { ProviderList } from "@/components/providers/ProviderList";
-import { QuotaGrid } from "@/components/quota/QuotaGrid";
-import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
-import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
-import { ThemeToggle } from "@/components/settings/ThemeToggle";
-import { TokenSaverPanel } from "@/components/token-saver/TokenSaverPanel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -25,8 +21,15 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { UsageOverview } from "@/components/usage/UsageOverview";
+import { useRouter } from "@/hooks/useRouter";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { CombosPage } from "@/pages/combos/CombosPage";
+import { ProviderDetailPage } from "@/pages/providers/ProviderDetailPage";
+import { ProvidersPage } from "@/pages/providers/ProvidersPage";
+import { QuotaPage } from "@/pages/quota/QuotaPage";
+import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { TokenSaverPage } from "@/pages/token-saver/TokenSaverPage";
+import { UsagePage } from "@/pages/usage/UsagePage";
 
 interface AppShellProps {
   onLogout: () => Promise<void>;
@@ -34,10 +37,19 @@ interface AppShellProps {
 }
 
 export function AppShell({ onLogout, renderModule }: AppShellProps) {
-  const [activeModule, setActiveModule] = useState<AppModule>("providers");
+  const { pathname, navigate } = useRouter();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const activeModule = resolveModuleFromPath(pathname);
   const currentModule =
     appModules.find((module) => module.id === activeModule) ?? appModules[0];
+
+  // Check for provider detail route: /providers/:id
+  const providerDetailMatch = pathname.match(/^\/providers\/([^/]+)$/);
+  const providerDetailId = providerDetailMatch?.[1] ?? null;
+
+  if (pathname === "/") {
+    navigate(defaultPath);
+  }
 
   async function handleLogout() {
     setLogoutError(null);
@@ -52,7 +64,7 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
     <SidebarProvider>
       <AppSidebar
         activeModule={activeModule}
-        onModuleChange={setActiveModule}
+        onNavigate={navigate}
         onLogout={handleLogout}
       />
       <SidebarInset>
@@ -74,33 +86,20 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
           ) : null}
           {renderModule ? (
             renderModule(activeModule)
+          ) : activeModule === "providers" && providerDetailId ? (
+            <ProviderDetailPage providerId={providerDetailId} />
           ) : activeModule === "providers" ? (
-            <ProviderList />
+            <ProvidersPage />
           ) : activeModule === "combos" ? (
-            <ComboList />
+            <CombosPage />
           ) : activeModule === "usage" ? (
-            <UsageOverview />
+            <UsagePage />
           ) : activeModule === "quota" ? (
-            <QuotaGrid />
+            <QuotaPage />
           ) : activeModule === "token-saver" ? (
-            <TokenSaverPanel />
+            <TokenSaverPage />
           ) : activeModule === "settings" ? (
-            <section className="flex flex-col gap-6">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-2xl font-semibold tracking-tight">
-                  Settings
-                </h2>
-                <p className="text-muted-foreground">
-                  Kelola keamanan dashboard, preferensi tampilan, dan akses
-                  router.
-                </p>
-              </div>
-              <div className="grid gap-6 xl:grid-cols-2">
-                <ChangePasswordForm />
-                <ThemeToggle />
-              </div>
-              <ApiKeyManager />
-            </section>
+            <SettingsPage />
           ) : (
             <Card>
               <CardHeader>

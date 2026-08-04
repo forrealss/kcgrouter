@@ -1,8 +1,5 @@
-import type { ProviderTransport } from "../../db/schema";
-import { anthropicAdapter } from "../adapters/anthropic-adapter";
-import { geminiAdapter } from "../adapters/gemini-adapter";
-import { openaiAdapter } from "../adapters/openai-adapter";
-import type { CanonicalRequest, ProviderAdapter } from "../adapters/types";
+import { getAdapter } from "../providers/registry";
+import type { CanonicalRequest } from "../providers/types";
 import * as ComboEngine from "./combo-engine.service";
 import {
   fromCanonical,
@@ -32,15 +29,19 @@ export interface RouterResult {
   headers: Record<string, string>;
 }
 
-function getAdapter(transport: ProviderTransport): ProviderAdapter {
-  switch (transport) {
-    case "openai":
-      return openaiAdapter;
-    case "anthropic":
-      return anthropicAdapter;
-    case "gemini":
-      return geminiAdapter;
+interface ParsedModel {
+  providerPrefix: string | null;
+  modelName: string;
+}
+
+function parseModel(modelStr: string): ParsedModel {
+  const slashIndex = modelStr.indexOf("/");
+  if (slashIndex === -1) {
+    return { providerPrefix: null, modelName: modelStr };
   }
+  const prefix = modelStr.slice(0, slashIndex).toLowerCase();
+  const model = modelStr.slice(slashIndex + 1);
+  return { providerPrefix: prefix, modelName: model };
 }
 
 function resolveTokenSaverEnabled(override?: "on" | "off"): boolean {
@@ -81,44 +82,157 @@ function classifyError(err: unknown): "auth" | "rate_limit" | "server_error" {
   return "server_error";
 }
 
-export async function handleChatRequest(
-  input: RouterInput,
+async function handlePrefixRoute(
+  canonical: CanonicalRequest,
+  providerPrefix: string,
+  modelName: string,
+  sourceFormat: SourceFormat,
+  stream: boolean,
+  tokenSaverEstimate: number,
 ): Promise<RouterResult> {
-  // 1. Parse + validate
-  let canonical: CanonicalRequest;
-  try {
-    canonical = toCanonical(input.rawBody, input.sourceFormat);
-  } catch (err) {
-    return {
-      status: 400,
-      body: formatErrorResponse(err, input.sourceFormat),
-      headers: {},
-    };
-  }
-
-  // 2. Token Saver
-  const tokenSaverEnabled = resolveTokenSaverEnabled(input.tokenSaverOverride);
-  const { messages, tokensSavedEstimate } = compress(
-    canonical.messages,
-    tokenSaverEnabled,
-  );
-  canonical.messages = messages;
-  recordTokenSaverSavings(tokensSavedEstimate);
-
-  // 3. Resolve combo
-  const combo = ComboEngine.getCombo(input.targetSelector);
-  if (!combo) {
+  // Find provider by prefix
+  const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
+  if (!provider) {
     return {
       status: 404,
       body: formatErrorResponse(
-        new Error(`Combo "${input.targetSelector}" not found`),
-        input.sourceFormat,
+        new Error(`Provider with prefix "${providerPrefix}" not found`),
+        sourceFormat,
       ),
       headers: {},
     };
   }
 
-  // 4. Fallback loop
+  // Find first available account for this provider
+  const accounts = ProviderRegistry.listAccounts(provider.id);
+  const activeAccount = accounts.find((a) => a.status === "active");
+
+  if (!activeAccount) {
+    return {
+      status: 404,
+      body: formatErrorResponse(
+        new Error(`No active account found for provider "${provider.name}"`),
+        sourceFormat,
+      ),
+      headers: {},
+    };
+  }
+
+  const adapter = getAdapter(provider.transport);
+  const credential = ProviderRegistry.getDecryptedCredential(activeAccount.id);
+  const startedAt = Date.now();
+  const reqWithModel = { ...canonical, modelHint: modelName };
+
+  try {
+    if (stream) {
+      const streamResult = await adapter.sendStream(
+        reqWithModel,
+        credential,
+        modelName,
+      );
+
+      const reader = streamResult.getReader();
+      let outputTokens = 0;
+      let inputTokens = 0;
+
+      const transformStream = new ReadableStream({
+        async pull(controller) {
+          const result = await reader.read();
+          if (result.done) {
+            controller.close();
+            const latencyMs = Date.now() - startedAt;
+            UsageRecorder.record({
+              providerAccountId: activeAccount.id,
+              comboId: null,
+              model: modelName,
+              inputTokens,
+              outputTokens,
+              status: "success",
+              latencyMs,
+              estimatedCost: 0,
+            });
+            QuotaTracker.recordUsage(
+              activeAccount.id,
+              inputTokens + outputTokens,
+            );
+            return;
+          }
+          const chunk = result.value;
+          if (chunk.usage) {
+            inputTokens = chunk.usage.inputTokens;
+            outputTokens = chunk.usage.outputTokens;
+          }
+          controller.enqueue(chunk);
+        },
+      });
+
+      return {
+        status: 200,
+        body: transformStream,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "x-router-tokens-saved": String(tokenSaverEstimate),
+        },
+      };
+    }
+
+    // Non-streaming
+    const response = await adapter.send(reqWithModel, credential, modelName);
+    const latencyMs = Date.now() - startedAt;
+
+    UsageRecorder.record({
+      providerAccountId: activeAccount.id,
+      comboId: null,
+      model: modelName,
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+      status: "success",
+      latencyMs,
+      estimatedCost: 0,
+    });
+    QuotaTracker.recordUsage(
+      activeAccount.id,
+      response.usage.inputTokens + response.usage.outputTokens,
+    );
+
+    return {
+      status: 200,
+      body: fromCanonical(response, sourceFormat),
+      headers: {
+        "Content-Type": "application/json",
+        "x-router-tokens-saved": String(tokenSaverEstimate),
+      },
+    };
+  } catch (err) {
+    return {
+      status: 502,
+      body: formatErrorResponse(err, sourceFormat),
+      headers: {},
+    };
+  }
+}
+
+async function handleComboRoute(
+  canonical: CanonicalRequest,
+  comboName: string,
+  sourceFormat: SourceFormat,
+  stream: boolean,
+  tokenSaverEstimate: number,
+): Promise<RouterResult> {
+  const combo = ComboEngine.getCombo(comboName);
+  if (!combo) {
+    return {
+      status: 404,
+      body: formatErrorResponse(
+        new Error(`Combo "${comboName}" not found`),
+        sourceFormat,
+      ),
+      headers: {},
+    };
+  }
+
   const excludedMemberIds: string[] = [];
 
   while (true) {
@@ -132,7 +246,7 @@ export async function handleChatRequest(
         status: 503,
         body: formatErrorResponse(
           new Error(`All combo members exhausted`),
-          input.sourceFormat,
+          sourceFormat,
         ),
         headers: {},
       };
@@ -144,7 +258,6 @@ export async function handleChatRequest(
       : null;
     if (!account || !provider) {
       excludedMemberIds.push(member.id);
-      lastError = new Error("Provider or account not found");
       continue;
     }
 
@@ -154,15 +267,14 @@ export async function handleChatRequest(
     const reqWithModel = { ...canonical, modelHint: member.modelName };
 
     try {
-      if (input.stream) {
-        const stream = await adapter.sendStream(
+      if (stream) {
+        const streamResult = await adapter.sendStream(
           reqWithModel,
           credential,
           member.modelName,
         );
 
-        // Record usage asynchronously (best effort)
-        const reader = stream.getReader();
+        const reader = streamResult.getReader();
         let outputTokens = 0;
         let inputTokens = 0;
 
@@ -171,7 +283,6 @@ export async function handleChatRequest(
             const result = await reader.read();
             if (result.done) {
               controller.close();
-              // Record after stream ends
               const latencyMs = Date.now() - startedAt;
               UsageRecorder.record({
                 providerAccountId: account.id,
@@ -205,7 +316,7 @@ export async function handleChatRequest(
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             Connection: "keep-alive",
-            "x-router-tokens-saved": String(tokensSavedEstimate),
+            "x-router-tokens-saved": String(tokenSaverEstimate),
           },
         };
       }
@@ -235,16 +346,63 @@ export async function handleChatRequest(
 
       return {
         status: 200,
-        body: fromCanonical(response, input.sourceFormat),
+        body: fromCanonical(response, sourceFormat),
         headers: {
           "Content-Type": "application/json",
-          "x-router-tokens-saved": String(tokensSavedEstimate),
+          "x-router-tokens-saved": String(tokenSaverEstimate),
         },
       };
     } catch (err) {
-      lastError = err;
       excludedMemberIds.push(member.id);
       QuotaTracker.markError(account.id, classifyError(err));
     }
   }
+}
+
+export async function handleChatRequest(
+  input: RouterInput,
+): Promise<RouterResult> {
+  // 1. Parse + validate
+  let canonical: CanonicalRequest;
+  try {
+    canonical = toCanonical(input.rawBody, input.sourceFormat);
+  } catch (err) {
+    return {
+      status: 400,
+      body: formatErrorResponse(err, input.sourceFormat),
+      headers: {},
+    };
+  }
+
+  // 2. Token Saver
+  const tokenSaverEnabled = resolveTokenSaverEnabled(input.tokenSaverOverride);
+  const { messages, tokensSavedEstimate } = compress(
+    canonical.messages,
+    tokenSaverEnabled,
+  );
+  canonical.messages = messages;
+  recordTokenSaverSavings(tokensSavedEstimate);
+
+  // 3. Parse model string for prefix
+  const { providerPrefix, modelName } = parseModel(input.targetSelector);
+
+  // 4. Route based on prefix or combo
+  if (providerPrefix) {
+    return handlePrefixRoute(
+      canonical,
+      providerPrefix,
+      modelName,
+      input.sourceFormat,
+      input.stream,
+      tokensSavedEstimate,
+    );
+  }
+
+  return handleComboRoute(
+    canonical,
+    input.targetSelector,
+    input.sourceFormat,
+    input.stream,
+    tokensSavedEstimate,
+  );
 }

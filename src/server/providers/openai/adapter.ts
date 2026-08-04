@@ -1,9 +1,10 @@
 import type {
-  ProviderAdapter,
+  CanonicalContentPart,
   CanonicalRequest,
   CanonicalResponse,
   CanonicalStreamChunk,
-} from "./types";
+  ProviderAdapter,
+} from "../types";
 
 function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
   return req.messages.map((m) => {
@@ -14,12 +15,19 @@ function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
     const toolResults = m.content.filter((p) => p.type === "tool_result");
 
     if (textParts.length > 0) {
-      msg.content = textParts.map((p) => (p as { type: "text"; text: string }).text).join("\n");
+      msg.content = textParts
+        .map((p) => (p as { type: "text"; text: string }).text)
+        .join("\n");
     }
 
     if (toolCalls.length > 0) {
       msg.tool_calls = toolCalls.map((p) => {
-        const tc = p as { type: "tool_call"; id: string; name: string; arguments: unknown };
+        const tc = p as {
+          type: "tool_call";
+          id: string;
+          name: string;
+          arguments: unknown;
+        };
         return {
           id: tc.id,
           type: "function",
@@ -29,7 +37,11 @@ function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
     }
 
     if (toolResults.length > 0) {
-      const tr = toolResults[0] as { type: "tool_result"; toolCallId: string; content: string };
+      const tr = toolResults[0] as {
+        type: "tool_result";
+        toolCallId: string;
+        content: string;
+      };
       msg.role = "tool";
       msg.tool_call_id = tr.toolCallId;
       msg.content = tr.content;
@@ -45,11 +57,25 @@ function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
 
 function parseOpenAIResponse(data: unknown): CanonicalResponse {
   const res = data as {
-    choices: { message: { role: string; content?: string; tool_calls?: unknown[] }; finish_reason: string }[];
+    choices: {
+      message: { role: string; content?: string; tool_calls?: unknown[] };
+      finish_reason: string;
+    }[];
     usage?: { prompt_tokens: number; completion_tokens: number };
   };
 
   const choice = res.choices[0];
+  if (!choice) {
+    return {
+      message: { role: "assistant", content: [] },
+      usage: {
+        inputTokens: res.usage?.prompt_tokens ?? 0,
+        outputTokens: res.usage?.completion_tokens ?? 0,
+      },
+      finishReason: "stop",
+    };
+  }
+
   const parts: CanonicalContentPart[] = [];
 
   if (choice.message.content) {
@@ -58,14 +84,22 @@ function parseOpenAIResponse(data: unknown): CanonicalResponse {
 
   if (choice.message.tool_calls) {
     for (const tc of choice.message.tool_calls) {
-      const t = tc as { id: string; function: { name: string; arguments: string } };
+      const t = tc as {
+        id: string;
+        function: { name: string; arguments: string };
+      };
       let parsed: unknown;
       try {
         parsed = JSON.parse(t.function.arguments);
       } catch {
         parsed = t.function.arguments;
       }
-      parts.push({ type: "tool_call", id: t.id, name: t.function.name, arguments: parsed });
+      parts.push({
+        type: "tool_call",
+        id: t.id,
+        name: t.function.name,
+        arguments: parsed,
+      });
     }
   }
 
@@ -78,7 +112,10 @@ function parseOpenAIResponse(data: unknown): CanonicalResponse {
 
   return {
     message: { role: "assistant", content: parts },
-    usage: { inputTokens: res.usage?.prompt_tokens ?? 0, outputTokens: res.usage?.completion_tokens ?? 0 },
+    usage: {
+      inputTokens: res.usage?.prompt_tokens ?? 0,
+      outputTokens: res.usage?.completion_tokens ?? 0,
+    },
     finishReason: finishMap[choice.finish_reason] ?? "stop",
   };
 }
@@ -87,7 +124,10 @@ export const openaiAdapter: ProviderAdapter = {
   transport: "openai",
 
   async send(req, credential, model): Promise<CanonicalResponse> {
-    const url = new URL("/chat/completions", "https://api.openai.com/v1").toString();
+    const url = new URL(
+      "/chat/completions",
+      "https://api.openai.com/v1",
+    ).toString();
 
     const body = {
       model,
@@ -99,7 +139,11 @@ export const openaiAdapter: ProviderAdapter = {
         ? {
             tools: req.tools.map((t) => ({
               type: "function",
-              function: { name: t.name, description: t.description, parameters: t.parameters },
+              function: {
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              },
             })),
           }
         : {}),
@@ -122,8 +166,15 @@ export const openaiAdapter: ProviderAdapter = {
     return parseOpenAIResponse(await res.json());
   },
 
-  async sendStream(req, credential, model): Promise<ReadableStream<CanonicalStreamChunk>> {
-    const url = new URL("/chat/completions", "https://api.openai.com/v1").toString();
+  async sendStream(
+    req,
+    credential,
+    model,
+  ): Promise<ReadableStream<CanonicalStreamChunk>> {
+    const url = new URL(
+      "/chat/completions",
+      "https://api.openai.com/v1",
+    ).toString();
 
     const body = {
       model,
@@ -148,12 +199,15 @@ export const openaiAdapter: ProviderAdapter = {
       throw new Error(`OpenAI API error ${res.status}: ${text}`);
     }
 
-      const reader = res.body?.getReader();
+    const reader = res.body?.getReader();
     const decoder = new TextDecoder();
 
     return new ReadableStream({
       async pull(controller) {
-        if (!reader) { controller.close(); return; }
+        if (!reader) {
+          controller.close();
+          return;
+        }
         const { done, value } = await reader.read();
         if (done || !value) {
           controller.close();
@@ -179,14 +233,20 @@ export const openaiAdapter: ProviderAdapter = {
             if (finish) {
               controller.enqueue({
                 delta: "",
-                finishReason: finish === "tool_calls" ? "tool_call" : (finish as "stop" | "length"),
+                finishReason:
+                  finish === "tool_calls"
+                    ? "tool_call"
+                    : (finish as "stop" | "length"),
               });
             }
 
             if (parsed.usage) {
               controller.enqueue({
                 delta: "",
-                usage: { inputTokens: parsed.usage.prompt_tokens, outputTokens: parsed.usage.completion_tokens },
+                usage: {
+                  inputTokens: parsed.usage.prompt_tokens,
+                  outputTokens: parsed.usage.completion_tokens,
+                },
               });
             }
           } catch {

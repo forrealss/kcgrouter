@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeAll } from "bun:test";
-import { compress, type ToolOutputFilterKind } from "../token-saver.service";
-import type { CanonicalMessage } from "../../adapters/types";
-import { runMigrations } from "../../../db/migrations";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
+import { runMigrations } from "../../../db/migrations";
+import type { CanonicalMessage } from "../../providers/types";
+import { compress, type ToolOutputFilterKind } from "../token-saver.service";
 
 function makeToolResult(content: string): CanonicalMessage {
   return {
@@ -38,9 +38,14 @@ describe("TokenSaverService", () => {
 
   // Property 35: non-tool_result never changed
   test("Property 35: non-tool_result content never changed", () => {
-    const msgs: CanonicalMessage[] = [{ role: "user", content: [{ type: "text", text: "Hello" }] }];
+    const msgs: CanonicalMessage[] = [
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+    ];
     const result = compress(msgs, true);
-    expect(result.messages[0]?.content[0]).toEqual({ type: "text", text: "Hello" });
+    expect(result.messages[0]?.content[0]).toEqual({
+      type: "text",
+      text: "Hello",
+    });
   });
 
   // Property 32: compression applied when filter matches
@@ -58,7 +63,8 @@ index abc..def 100644
     expect(result.filtersApplied).toContain("git-diff" as ToolOutputFilterKind);
     const part = result.messages[0]?.content[0];
     expect(part?.type).toBe("tool_result");
-    const compressed = (part as { type: "tool_result"; content: string }).content;
+    const compressed = (part as { type: "tool_result"; content: string })
+      .content;
     expect(compressed.length).toBeLessThan(diff.length);
   });
 
@@ -75,7 +81,9 @@ index abc..def 100644
 
   // Property 34: fail-open on filter error
   test("Property 34: no crash on unrecognized content", () => {
-    const msgs: CanonicalMessage[] = [makeToolResult("random unknown format content here")];
+    const msgs: CanonicalMessage[] = [
+      makeToolResult("random unknown format content here"),
+    ];
     const result = compress(msgs, true);
     expect(result.messages).toBeDefined();
   });
@@ -91,10 +99,13 @@ index abc..def 100644
   });
 
   test("git-status filter removes branch info", () => {
-    const status = "On branch main\nChanges not staged for committed:\n  M file.ts\n  D old.ts";
+    const status =
+      "On branch main\nChanges not staged for committed:\n  M file.ts\n  D old.ts";
     const msgs: CanonicalMessage[] = [makeToolResult(status)];
     const result = compress(msgs, true);
-    expect(result.filtersApplied).toContain("git-status" as ToolOutputFilterKind);
+    expect(result.filtersApplied).toContain(
+      "git-status" as ToolOutputFilterKind,
+    );
     const part = result.messages[0]?.content[0];
     expect(part?.type).toBe("tool_result");
     const content = (part as { type: "tool_result"; content: string }).content;

@@ -1,29 +1,44 @@
-import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import {
-  createCombo,
-  getCombo,
-  listCombos,
-  deleteCombo,
-  addMember,
-  getMembersSortedByPriority,
-  reorderMembers,
-  nextFallback,
-  resolveTarget,
-} from "../combo-engine.service";
-import { createProvider, addAccount } from "../provider-registry.service";
-import * as QuotaTracker from "../quota-tracker.service";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
+import {
+  addMember,
+  createCombo,
+  deleteCombo,
+  getCombo,
+  getMembersSortedByPriority,
+  listCombos,
+  nextFallback,
+  reorderMembers,
+  resolveTarget,
+} from "../combo-engine.service";
+import { addAccount, createProvider } from "../provider-registry.service";
+import * as QuotaTracker from "../quota-tracker.service";
 
 let providerId: string;
 let acc1: string;
 let acc2: string;
 
 function setupProvider() {
-  const p = createProvider({ name: `CT-${Date.now()}`, transport: "openai", baseUrl: "https://t.com" });
+  const p = createProvider({
+    name: `CT-${Date.now()}`,
+    transport: "openai",
+    baseUrl: "https://t.com",
+    prefix: `ct-${Date.now()}`,
+  });
   providerId = p.id;
-  acc1 = addAccount(providerId, { label: "A1", apiKey: "sk1", quotaResetType: "daily", quotaLimitTokens: 1000 }).id;
-  acc2 = addAccount(providerId, { label: "A2", apiKey: "sk2", quotaResetType: "daily", quotaLimitTokens: 1000 }).id;
+  acc1 = addAccount(providerId, {
+    label: "A1",
+    apiKey: "sk1",
+    quotaResetType: "daily",
+    quotaLimitTokens: 1000,
+  }).id;
+  acc2 = addAccount(providerId, {
+    label: "A2",
+    apiKey: "sk2",
+    quotaResetType: "daily",
+    quotaLimitTokens: 1000,
+  }).id;
 }
 
 describe("ComboEngine — CRUD", () => {
@@ -59,7 +74,11 @@ describe("ComboEngine — CRUD", () => {
 
   test("Property 22: added member appears in sorted list", () => {
     const c = createCombo(`P22-${Date.now()}`, "fallback");
-    const m = addMember(c.id, { providerAccountId: acc1, modelName: "gpt-4o", priority: 0 });
+    const m = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "gpt-4o",
+      priority: 0,
+    });
     expect(m.comboId).toBe(c.id);
     const members = getMembersSortedByPriority(c.id);
     expect(members.length).toBe(1);
@@ -70,14 +89,24 @@ describe("ComboEngine — CRUD", () => {
   test("Property 23: duplicate priority rejected", () => {
     const c = createCombo(`P23-${Date.now()}`, "fallback");
     addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
-    expect(() => addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 0 })).toThrow(/already used/);
+    expect(() =>
+      addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 0 }),
+    ).toThrow(/already used/);
     deleteCombo(c.id);
   });
 
   test("Property 24: reorder changes priorities", () => {
     const c = createCombo(`P24-${Date.now()}`, "fallback");
-    const m1 = addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
-    const m2 = addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 1 });
+    const m1 = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "a",
+      priority: 0,
+    });
+    const m2 = addMember(c.id, {
+      providerAccountId: acc2,
+      modelName: "b",
+      priority: 1,
+    });
     reorderMembers(c.id, [m2.id, m1.id]);
     const members = getMembersSortedByPriority(c.id);
     expect(members[0].id).toBe(m2.id);
@@ -88,7 +117,13 @@ describe("ComboEngine — CRUD", () => {
   });
 
   test("addMember to non-existent combo throws", () => {
-    expect(() => addMember("combo_x", { providerAccountId: acc1, modelName: "x", priority: 0 })).toThrow(/not found/);
+    expect(() =>
+      addMember("combo_x", {
+        providerAccountId: acc1,
+        modelName: "x",
+        priority: 0,
+      }),
+    ).toThrow(/not found/);
   });
 
   test("listCombos includes member count", () => {
@@ -122,7 +157,11 @@ describe("ComboEngine — resolveTarget & nextFallback", () => {
 
   test("Property 7a: fallback returns first available", () => {
     const c = createCombo(`R7a-${Date.now()}`, "fallback");
-    const m1 = addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
+    const m1 = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "a",
+      priority: 0,
+    });
     addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 1 });
     const target = resolveTarget(c.id);
     expect(target?.id).toBe(m1.id);
@@ -132,7 +171,11 @@ describe("ComboEngine — resolveTarget & nextFallback", () => {
   test("Property 7b: fallback skips exhausted", () => {
     const c = createCombo(`R7b-${Date.now()}`, "fallback");
     addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
-    const m2 = addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 1 });
+    const m2 = addMember(c.id, {
+      providerAccountId: acc2,
+      modelName: "b",
+      priority: 1,
+    });
     QuotaTracker.recordUsage(acc1, 1000);
     const target = resolveTarget(c.id);
     expect(target?.id).toBe(m2.id);
@@ -159,8 +202,16 @@ describe("ComboEngine — resolveTarget & nextFallback", () => {
 
   test("nextFallback skips excluded members", () => {
     const c = createCombo(`NF-${Date.now()}`, "fallback");
-    const m1 = addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
-    const m2 = addMember(c.id, { providerAccountId: acc2, modelName: "b", priority: 1 });
+    const m1 = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "a",
+      priority: 0,
+    });
+    const m2 = addMember(c.id, {
+      providerAccountId: acc2,
+      modelName: "b",
+      priority: 1,
+    });
     const target = nextFallback(c.id, [m1.id]);
     expect(target?.id).toBe(m2.id);
     deleteCombo(c.id);
@@ -168,7 +219,11 @@ describe("ComboEngine — resolveTarget & nextFallback", () => {
 
   test("nextFallback null when all excluded", () => {
     const c = createCombo(`NFE-${Date.now()}`, "fallback");
-    const m1 = addMember(c.id, { providerAccountId: acc1, modelName: "a", priority: 0 });
+    const m1 = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "a",
+      priority: 0,
+    });
     expect(nextFallback(c.id, [m1.id])).toBeNull();
     deleteCombo(c.id);
   });

@@ -40,27 +40,38 @@ export interface CanonicalStreamChunk {
   usage?: { inputTokens: number; outputTokens: number };
 }
 
-// --- Provider Account (for adapter) ---
-
-export interface ProviderAccount {
-  id: string;
-  providerId: string;
-  label: string;
-  status: "active" | "error" | "expired";
-  quotaResetType: "5h" | "daily" | "weekly" | "none";
-  quotaLimitTokens: number | null;
-  lastUsedAt: string | null;
-  createdAt: string;
-}
-
-// --- Adapter Interface ---
+// --- Provider Adapter Interface ---
 
 export interface ProviderAdapter {
   readonly transport: ProviderTransport;
-  send(request: CanonicalRequest, credential: { apiKey: string }, model: string): Promise<CanonicalResponse>;
+  send(
+    request: CanonicalRequest,
+    credential: { apiKey: string },
+    model: string,
+  ): Promise<CanonicalResponse>;
   sendStream(
     request: CanonicalRequest,
     credential: { apiKey: string },
     model: string,
   ): Promise<ReadableStream<CanonicalStreamChunk>>;
+}
+
+// --- Model Info ---
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  contextLength?: number;
+  maxOutputTokens?: number;
+}
+
+// --- Provider Config ---
+
+export interface ProviderConfig {
+  transport: ProviderTransport;
+  baseUrl: string;
+  authType: "apikey" | "oauth";
+  authHeader: string;
+  defaultHeaders?: Record<string, string>;
+  defaultModels?: ModelInfo[];
 }

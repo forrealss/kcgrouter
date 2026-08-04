@@ -27,7 +27,11 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import type { Provider, ProviderFormValues, ProviderTransport } from "./types";
+import type {
+  Provider,
+  ProviderFormValues,
+  ProviderTransport,
+} from "@/types/provider";
 
 interface ProviderFormDialogProps {
   open: boolean;
@@ -39,12 +43,14 @@ const initialValues: ProviderFormValues = {
   name: "",
   transport: "openai",
   baseUrl: "",
+  prefix: "",
 };
 
-const transportLabels: Record<ProviderTransport, string> = {
+const customTransports: ProviderTransport[] = ["openai", "anthropic"];
+
+const transportLabels: Partial<Record<ProviderTransport, string>> = {
   openai: "OpenAI-compatible",
   anthropic: "Anthropic",
-  gemini: "Google Gemini",
 };
 
 export function ProviderFormDialog({
@@ -73,9 +79,18 @@ export function ProviderFormDialog({
 
     const name = values.name.trim();
     const baseUrl = values.baseUrl.trim();
+    const prefix = values.prefix.trim().toLowerCase();
 
-    if (!name || !baseUrl) {
-      setError("Nama provider dan base URL wajib diisi.");
+    if (!name || !baseUrl || !prefix) {
+      setError("Nama provider, base URL, dan prefix wajib diisi.");
+      return;
+    }
+
+    // Validate prefix format
+    if (!/^[a-z0-9][a-z0-9.-]*$/.test(prefix)) {
+      setError(
+        "Prefix harus diawali huruf/angka dan hanya boleh huruf kecil, angka, hyphen, atau titik.",
+      );
       return;
     }
 
@@ -101,6 +116,7 @@ export function ProviderFormDialog({
         name,
         transport: values.transport,
         baseUrl,
+        prefix,
       });
       await onSaved();
       onOpenChange(false);
@@ -153,16 +169,35 @@ export function ProviderFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {(Object.keys(transportLabels) as ProviderTransport[]).map(
-                      (transport) => (
-                        <SelectItem key={transport} value={transport}>
-                          {transportLabels[transport]}
-                        </SelectItem>
-                      ),
-                    )}
+                    {customTransports.map((transport) => (
+                      <SelectItem key={transport} value={transport}>
+                        {transportLabels[transport]}
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            </Field>
+            <Field data-invalid={Boolean(error && !values.prefix.trim())}>
+              <FieldLabel htmlFor="provider-prefix">Prefix</FieldLabel>
+              <Input
+                id="provider-prefix"
+                value={values.prefix}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    prefix: event.target.value,
+                  }))
+                }
+                disabled={isSubmitting}
+                required
+                placeholder="mis. my-openai"
+              />
+              <FieldDescription>
+                Unique prefix untuk routing. Gunakan format{" "}
+                <code className="text-xs">prefix/model</code> saat request
+                (misal <code className="text-xs">my-openai/gpt-4o</code>).
+              </FieldDescription>
             </Field>
             <Field data-invalid={Boolean(error && !values.baseUrl.trim())}>
               <FieldLabel htmlFor="provider-base-url">Base URL</FieldLabel>

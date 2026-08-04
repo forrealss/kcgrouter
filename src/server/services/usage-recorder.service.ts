@@ -1,5 +1,5 @@
-import { query, run } from "../../db/client";
 import { randomBytes } from "node:crypto";
+import { query, run } from "../../db/client";
 import type { UsageRecordRow } from "../../db/schema";
 
 export interface UsageRecord {
@@ -90,7 +90,8 @@ export function getHistory(opts: {
     params.push(opts.toDate);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = opts.limit ?? 50;
 
   const rows = query<UsageRecordRow>(
@@ -104,7 +105,9 @@ export function getHistory(opts: {
 
 export function summarize(range?: { from: string; to: string }): UsageSummary {
   const now = new Date();
-  const defaultFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const defaultFrom = new Date(
+    now.getTime() - 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
 
   const from = range?.from ?? defaultFrom;
   const to = range?.to ?? now.toISOString();
@@ -121,7 +124,13 @@ export function summarize(range?: { from: string; to: string }): UsageSummary {
 
   const byProviderMap = new Map<
     string,
-    { providerAccountId: string; inputTokens: number; outputTokens: number; cost: number; requestCount: number }
+    {
+      providerAccountId: string;
+      inputTokens: number;
+      outputTokens: number;
+      cost: number;
+      requestCount: number;
+    }
   >();
 
   for (const row of rows) {

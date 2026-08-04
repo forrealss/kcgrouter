@@ -1,7 +1,7 @@
-import { query, get, run } from "../../db/client";
-import * as QuotaTracker from "./quota-tracker.service";
-import type { ComboRow, ComboMemberRow, ComboStrategy } from "../../db/schema";
 import { randomBytes } from "node:crypto";
+import { get, query, run } from "../../db/client";
+import type { ComboMemberRow, ComboRow, ComboStrategy } from "../../db/schema";
+import * as QuotaTracker from "./quota-tracker.service";
 
 export interface Combo {
   id: string;
@@ -50,12 +50,16 @@ function rowToMember(row: ComboMemberRow): ComboMember {
 // --- Combo CRUD ---
 
 export function createCombo(name: string, strategy: ComboStrategy): Combo {
-  if (!name || name.trim().length === 0) throw new Error("Combo name is required");
+  if (!name || name.trim().length === 0)
+    throw new Error("Combo name is required");
   if (!["fallback", "round_robin"].includes(strategy)) {
     throw new Error(`Invalid strategy: ${strategy}`);
   }
 
-  const existing = get<ComboRow>("SELECT id FROM combos WHERE name = ?", name.trim());
+  const existing = get<ComboRow>(
+    "SELECT id FROM combos WHERE name = ?",
+    name.trim(),
+  );
   if (existing) throw new Error(`Combo name "${name}" already exists`);
 
   const id = generateId("combo");
@@ -69,7 +73,13 @@ export function createCombo(name: string, strategy: ComboStrategy): Combo {
     now,
   );
 
-  return { id, name: name.trim(), strategy, roundRobinCursor: 0, createdAt: now };
+  return {
+    id,
+    name: name.trim(),
+    strategy,
+    roundRobinCursor: 0,
+    createdAt: now,
+  };
 }
 
 export function getCombo(id: string): Combo | null {
@@ -107,12 +117,19 @@ export function deleteCombo(id: string): void {
 
 export function addMember(
   comboId: string,
-  member: { providerAccountId: string; modelName: string; priority: number; inputCostPer1M?: number; outputCostPer1M?: number },
+  member: {
+    providerAccountId: string;
+    modelName: string;
+    priority: number;
+    inputCostPer1M?: number;
+    outputCostPer1M?: number;
+  },
 ): ComboMember {
   const combo = getCombo(comboId);
   if (!combo) throw new Error("Combo not found");
 
-  if (!member.modelName || member.modelName.trim().length === 0) throw new Error("Model name is required");
+  if (!member.modelName || member.modelName.trim().length === 0)
+    throw new Error("Model name is required");
 
   // Check priority uniqueness
   const existingPriority = get<ComboMemberRow>(
@@ -120,7 +137,10 @@ export function addMember(
     comboId,
     member.priority,
   );
-  if (existingPriority) throw new Error(`Priority ${member.priority} is already used in this combo`);
+  if (existingPriority)
+    throw new Error(
+      `Priority ${member.priority} is already used in this combo`,
+    );
 
   const id = generateId("cmbm");
 
@@ -155,7 +175,10 @@ export function getMembersSortedByPriority(comboId: string): ComboMember[] {
   return rows.map(rowToMember);
 }
 
-export function reorderMembers(comboId: string, orderedMemberIds: string[]): void {
+export function reorderMembers(
+  comboId: string,
+  orderedMemberIds: string[],
+): void {
   const combo = getCombo(comboId);
   if (!combo) throw new Error("Combo not found");
 
@@ -170,7 +193,10 @@ export function reorderMembers(comboId: string, orderedMemberIds: string[]): voi
 }
 
 export function removeMember(memberId: string): void {
-  const existing = get<ComboMemberRow>("SELECT id FROM combo_members WHERE id = ?", memberId);
+  const existing = get<ComboMemberRow>(
+    "SELECT id FROM combo_members WHERE id = ?",
+    memberId,
+  );
   if (!existing) throw new Error("Combo member not found");
   run("DELETE FROM combo_members WHERE id = ?", memberId);
 }
@@ -199,14 +225,21 @@ export function resolveTarget(comboId: string): ComboMember | null {
     const idx = (combo.roundRobinCursor + offset) % n;
     const candidate = members[idx];
     if (QuotaTracker.isAvailable(candidate.providerAccountId)) {
-      run("UPDATE combos SET round_robin_cursor = ? WHERE id = ?", idx, comboId);
+      run(
+        "UPDATE combos SET round_robin_cursor = ? WHERE id = ?",
+        idx,
+        comboId,
+      );
       return candidate;
     }
   }
   return null;
 }
 
-export function nextFallback(comboId: string, excludedMemberIds: string[]): ComboMember | null {
+export function nextFallback(
+  comboId: string,
+  excludedMemberIds: string[],
+): ComboMember | null {
   const combo = getCombo(comboId);
   if (!combo) throw new Error("Combo not found");
 
@@ -230,7 +263,11 @@ export function nextFallback(comboId: string, excludedMemberIds: string[]): Comb
     const candidate = members[idx];
     if (excludedMemberIds.includes(candidate.id)) continue;
     if (QuotaTracker.isAvailable(candidate.providerAccountId)) {
-      run("UPDATE combos SET round_robin_cursor = ? WHERE id = ?", idx, comboId);
+      run(
+        "UPDATE combos SET round_robin_cursor = ? WHERE id = ?",
+        idx,
+        comboId,
+      );
       return candidate;
     }
   }

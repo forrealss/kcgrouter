@@ -1,0 +1,257 @@
+import {
+  CheckCircleIcon,
+  EyeIcon,
+  EyeOffIcon,
+  PlayIcon,
+  PlusIcon,
+  TrashIcon,
+  XCircleIcon,
+} from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import type { TestStatus } from "@/hooks/useProviderDetail";
+import type { Provider, ProviderAccount, ProviderModel } from "@/types/provider";
+
+interface ProviderDetailModelsProps {
+  provider: Provider;
+  models: ProviderModel[];
+  accounts: ProviderAccount[];
+  testingModelId: string | null;
+  modelTestStatus: Record<string, TestStatus>;
+  onToggleModel: (model: ProviderModel) => void;
+  onAddModel: (modelId: string, modelName: string) => void;
+  onDeleteModel: (modelId: string) => void;
+  onTestModel: (model: ProviderModel, accountId: string) => void;
+}
+
+export function ProviderDetailModels({
+  provider,
+  models,
+  accounts,
+  testingModelId,
+  modelTestStatus,
+  onToggleModel,
+  onAddModel,
+  onDeleteModel,
+  onTestModel,
+}: ProviderDetailModelsProps) {
+  const [isAddModelOpen, setIsAddModelOpen] = useState(false);
+  const [newModelId, setNewModelId] = useState("");
+  const [newModelName, setNewModelName] = useState("");
+  const [isAddingModel, setIsAddingModel] = useState(false);
+
+  async function handleAddModel() {
+    if (!newModelId.trim() || !newModelName.trim()) return;
+    setIsAddingModel(true);
+    try {
+      await onAddModel(newModelId.trim(), newModelName.trim());
+      setNewModelId("");
+      setNewModelName("");
+      setIsAddModelOpen(false);
+    } finally {
+      setIsAddingModel(false);
+    }
+  }
+
+  function handleTestModel(model: ProviderModel) {
+    const firstAccount = accounts[0];
+    if (!firstAccount) return;
+    onTestModel(model, firstAccount.id);
+  }
+
+  const enabledModels = models.filter((m) => m.enabled);
+  const disabledModels = models.filter((m) => !m.enabled);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Available Models</CardTitle>
+          <CardDescription>
+            Enable models for use via{" "}
+            <code className="text-xs">{provider.prefix}/model-id</code>.
+          </CardDescription>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setIsAddModelOpen(!isAddModelOpen)}
+        >
+          <PlusIcon data-icon="inline-start" />
+          Add Model
+        </Button>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {isAddModelOpen ? (
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Model ID (e.g. gpt-4o)"
+                value={newModelId}
+                onChange={(e) => setNewModelId(e.target.value)}
+                className="flex-1"
+              />
+              <Input
+                placeholder="Display name (e.g. GPT-4o)"
+                value={newModelName}
+                onChange={(e) => setNewModelName(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddModel}
+                disabled={
+                  isAddingModel || !newModelId.trim() || !newModelName.trim()
+                }
+              >
+                {isAddingModel ? <Spinner className="size-4" /> : "Add"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {enabledModels.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Enabled ({enabledModels.length})
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {enabledModels.map((model) => {
+                const isTesting = testingModelId === model.id;
+                const testStatus = modelTestStatus[model.id];
+                return (
+                  <div
+                    key={model.id}
+                    className="flex items-center justify-between rounded-md border bg-green-500/5 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {model.modelName}
+                      </p>
+                      <p className="truncate font-mono text-xs text-muted-foreground">
+                        {provider.prefix}/{model.modelId}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {model.contextLength ? (
+                        <Badge variant="secondary" className="shrink-0">
+                          {(model.contextLength / 1_000).toFixed(0)}K
+                        </Badge>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => handleTestModel(model)}
+                        disabled={isTesting || accounts.length === 0}
+                        title={testStatus === "ok" ? "OK" : testStatus === "error" ? "Error" : "Test model"}
+                      >
+                        {isTesting ? (
+                          <Spinner className="size-4" />
+                        ) : testStatus === "ok" ? (
+                          <CheckCircleIcon className="size-4 text-green-500" />
+                        ) : testStatus === "error" ? (
+                          <XCircleIcon className="size-4 text-red-500" />
+                        ) : (
+                          <PlayIcon className="size-4" />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => onToggleModel(model)}
+                        title="Disable"
+                      >
+                        <EyeIcon className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {disabledModels.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Disabled ({disabledModels.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {disabledModels.map((model) => {
+                const isTesting = testingModelId === model.id;
+                const testStatus = modelTestStatus[model.id];
+                return (
+                  <div
+                    key={model.id}
+                    className="flex items-center gap-2 rounded-md border px-3 py-1.5"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {model.modelName}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => handleTestModel(model)}
+                      disabled={isTesting || accounts.length === 0}
+                      title={testStatus === "ok" ? "OK" : testStatus === "error" ? "Error" : "Test model"}
+                    >
+                      {isTesting ? (
+                        <Spinner className="size-4" />
+                      ) : testStatus === "ok" ? (
+                        <CheckCircleIcon className="size-4 text-green-500" />
+                      ) : testStatus === "error" ? (
+                        <XCircleIcon className="size-4 text-red-500" />
+                      ) : (
+                        <PlayIcon className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => onToggleModel(model)}
+                      title="Enable"
+                    >
+                      <EyeOffIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => onDeleteModel(model.id)}
+                      title="Delete"
+                    >
+                      <TrashIcon className="size-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {models.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No models configured. Click "Add Model" to add one.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}

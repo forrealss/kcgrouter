@@ -1,14 +1,14 @@
-import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import {
-  getState,
-  isAvailable,
-  recordUsage,
-  markError,
-  type ErrorKind,
-} from "../quota-tracker.service";
-import { createProvider, addAccount } from "../provider-registry.service";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
+import { addAccount, createProvider } from "../provider-registry.service";
+import {
+  type ErrorKind,
+  getState,
+  isAvailable,
+  markError,
+  recordUsage,
+} from "../quota-tracker.service";
 
 describe("QuotaTracker", () => {
   beforeAll(() => {
@@ -34,6 +34,7 @@ describe("QuotaTracker", () => {
       name: `QuotaTest-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       transport: "openai",
       baseUrl: "https://test.com",
+      prefix: `quota-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     });
     const acct = addAccount(provider.id, {
       label: "Test Account",
@@ -60,7 +61,11 @@ describe("QuotaTracker", () => {
 
     // Force window_end to the past
     const past = new Date(Date.now() - 1000).toISOString();
-    run("UPDATE quota_state SET window_end = ? WHERE account_id = ?", past, acctId);
+    run(
+      "UPDATE quota_state SET window_end = ? WHERE account_id = ?",
+      past,
+      acctId,
+    );
 
     recordUsage(acctId, 5000);
     const stateBefore = getState(acctId);
@@ -105,7 +110,10 @@ describe("QuotaTracker", () => {
     for (const kind of errorKinds) {
       const acctId = setupAccount("daily", 10000);
       markError(acctId, kind);
-      const row = get<{ status: string }>("SELECT status FROM provider_accounts WHERE id = ?", acctId);
+      const row = get<{ status: string }>(
+        "SELECT status FROM provider_accounts WHERE id = ?",
+        acctId,
+      );
       expect(row?.status).toBe("error");
     }
   });

@@ -1,3 +1,4 @@
+import { listAllEnabledModels } from "../services/model-registry.service";
 import { handleChatRequest } from "../services/router.service";
 import type { RouteHandler } from "./types";
 
@@ -15,7 +16,9 @@ export const v1Routes: Record<string, RouteHandler> = {
     });
 
     return new Response(
-      typeof result.body === "string" ? result.body : JSON.stringify(result.body),
+      typeof result.body === "string"
+        ? result.body
+        : JSON.stringify(result.body),
       { status: result.status, headers: result.headers },
     );
   },
@@ -33,13 +36,21 @@ export const v1Routes: Record<string, RouteHandler> = {
     });
 
     return new Response(
-      typeof result.body === "string" ? result.body : JSON.stringify(result.body),
+      typeof result.body === "string"
+        ? result.body
+        : JSON.stringify(result.body),
       { status: result.status, headers: result.headers },
     );
   },
 
   "GET /v1/models": () => {
-    // Return empty model list for now — models are configured via combos
-    return Response.json({ object: "list", data: [] });
+    const models = listAllEnabledModels();
+    const data = models.map((m) => ({
+      id: `${m.prefix}/${m.modelId}`,
+      object: "model" as const,
+      created: Math.floor(new Date(m.createdAt).getTime() / 1000),
+      owned_by: m.prefix,
+    }));
+    return Response.json({ object: "list", data });
   },
 };

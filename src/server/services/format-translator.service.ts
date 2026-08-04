@@ -1,10 +1,10 @@
 import type {
+  CanonicalContentPart,
+  CanonicalMessage,
   CanonicalRequest,
   CanonicalResponse,
-  CanonicalMessage,
-  CanonicalContentPart,
   CanonicalToolDefinition,
-} from "../adapters/types";
+} from "../providers/types";
 
 export type SourceFormat = "openai" | "anthropic";
 
@@ -37,7 +37,16 @@ interface OpenAIRequest {
 
 interface AnthropicMessage {
   role: "user" | "assistant";
-  content: string | { type: string; text?: string; tool_use_id?: string; name?: string; input?: unknown; content?: string }[];
+  content:
+    | string
+    | {
+        type: string;
+        text?: string;
+        tool_use_id?: string;
+        name?: string;
+        input?: unknown;
+        content?: string;
+      }[];
 }
 
 interface AnthropicRequest {
@@ -56,13 +65,21 @@ interface AnthropicRequest {
 
 // --- FormatTranslator ---
 
-export function toCanonical(body: unknown, sourceFormat: SourceFormat): CanonicalRequest {
-  if (sourceFormat === "openai") return openAIToCanonical(body as OpenAIRequest);
-  if (sourceFormat === "anthropic") return anthropicToCanonical(body as AnthropicRequest);
+export function toCanonical(
+  body: unknown,
+  sourceFormat: SourceFormat,
+): CanonicalRequest {
+  if (sourceFormat === "openai")
+    return openAIToCanonical(body as OpenAIRequest);
+  if (sourceFormat === "anthropic")
+    return anthropicToCanonical(body as AnthropicRequest);
   throw new Error(`Unknown source format: ${sourceFormat}`);
 }
 
-export function fromCanonical(response: CanonicalResponse, targetFormat: SourceFormat): unknown {
+export function fromCanonical(
+  response: CanonicalResponse,
+  targetFormat: SourceFormat,
+): unknown {
   if (targetFormat === "openai") return canonicalToOpenAI(response);
   if (targetFormat === "anthropic") return canonicalToAnthropic(response);
   throw new Error(`Unknown target format: ${targetFormat}`);
@@ -100,7 +117,11 @@ function openAIToCanonical(body: OpenAIRequest): CanonicalRequest {
     }
 
     if (m.role === "tool" && m.tool_call_id) {
-      parts.push({ type: "tool_result", toolCallId: m.tool_call_id, content: m.content ?? "" });
+      parts.push({
+        type: "tool_result",
+        toolCallId: m.tool_call_id,
+        content: m.content ?? "",
+      });
     }
 
     const role = m.role === "tool" ? ("tool" as const) : m.role;
@@ -135,7 +156,10 @@ function anthropicToCanonical(body: AnthropicRequest): CanonicalRequest {
 
   // System message
   if (body.system) {
-    messages.push({ role: "system", content: [{ type: "text", text: body.system }] });
+    messages.push({
+      role: "system",
+      content: [{ type: "text", text: body.system }],
+    });
   }
 
   for (const m of body.messages) {
@@ -148,9 +172,18 @@ function anthropicToCanonical(body: AnthropicRequest): CanonicalRequest {
         if (block.type === "text" && block.text) {
           parts.push({ type: "text", text: block.text });
         } else if (block.type === "tool_use" && block.id && block.name) {
-          parts.push({ type: "tool_call", id: block.id, name: block.name, arguments: block.input ?? {} });
+          parts.push({
+            type: "tool_call",
+            id: block.id,
+            name: block.name,
+            arguments: block.input ?? {},
+          });
         } else if (block.type === "tool_result" && block.tool_use_id) {
-          parts.push({ type: "tool_result", toolCallId: block.tool_use_id, content: block.content ?? "" });
+          parts.push({
+            type: "tool_result",
+            toolCallId: block.tool_use_id,
+            content: block.content ?? "",
+          });
         }
       }
     }
@@ -185,11 +218,22 @@ function canonicalToOpenAI(response: CanonicalResponse): unknown {
   const toolCalls = response.message.content
     .filter((p) => p.type === "tool_call")
     .map((p) => {
-      const tc = p as { type: "tool_call"; id: string; name: string; arguments: unknown };
+      const tc = p as {
+        type: "tool_call";
+        id: string;
+        name: string;
+        arguments: unknown;
+      };
       return {
         id: tc.id,
         type: "function" as const,
-        function: { name: tc.name, arguments: typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments) },
+        function: {
+          name: tc.name,
+          arguments:
+            typeof tc.arguments === "string"
+              ? tc.arguments
+              : JSON.stringify(tc.arguments),
+        },
       };
     });
 
@@ -235,7 +279,10 @@ function canonicalToAnthropic(response: CanonicalResponse): unknown {
         type: "tool_use",
         id: part.id,
         name: part.name,
-        input: typeof part.arguments === "string" ? JSON.parse(part.arguments) : part.arguments,
+        input:
+          typeof part.arguments === "string"
+            ? JSON.parse(part.arguments)
+            : part.arguments,
       });
     }
   }

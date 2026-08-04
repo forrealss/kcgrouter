@@ -26,7 +26,6 @@ type TraceLine = {
   detail: string;
 };
 
-// A representative fallback trace: the router's actual job in three lines.
 const trace: TraceLine[] = [
   {
     at: "14:02:11",
@@ -42,7 +41,7 @@ const trace: TraceLine[] = [
     path: "/v1/chat/completions",
     target: "anthropic:acct-01",
     outcome: "reroute",
-    detail: "fallback via combo \"prod-primary\"",
+    detail: 'fallback via combo "prod-primary"',
   },
   {
     at: "14:02:12",
@@ -111,7 +110,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   return (
     <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl border bg-card shadow-xl lg:grid-cols-[1.1fr_1fr]">
-      {/* Signature panel: a live-looking routing trace */}
       <div className="hidden flex-col justify-between gap-8 bg-sidebar p-10 text-sidebar-foreground lg:flex">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -136,7 +134,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
         </p>
       </div>
 
-      {/* Form panel */}
       <div className="flex flex-col justify-center gap-8 p-8 sm:p-10">
         <div className="flex flex-col gap-2">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

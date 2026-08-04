@@ -10,14 +10,23 @@ export const combosRoutes: Record<string, RouteHandler> = {
   "POST /api/combos": async (req) => {
     const body = (await req.json()) as { name?: string; strategy?: string };
     if (!body.name || !body.strategy) {
-      return Response.json({ error: "name and strategy are required" }, { status: 400 });
+      return Response.json(
+        { error: "name and strategy are required" },
+        { status: 400 },
+      );
     }
 
     try {
-      const combo = ComboEngine.createCombo(body.name, body.strategy as "fallback" | "round_robin");
+      const combo = ComboEngine.createCombo(
+        body.name,
+        body.strategy as "fallback" | "round_robin",
+      );
       return Response.json(combo, { status: 201 });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
     }
   },
 
@@ -26,7 +35,10 @@ export const combosRoutes: Record<string, RouteHandler> = {
       ComboEngine.deleteCombo(params?.id ?? "");
       return Response.json({ ok: true });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 404 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 404 },
+      );
     }
   },
 
@@ -36,9 +48,22 @@ export const combosRoutes: Record<string, RouteHandler> = {
   },
 
   "POST /api/combos/:id/members": async (req, params) => {
-    const body = (await req.json()) as { providerAccountId?: string; modelName?: string; priority?: number; inputCostPer1M?: number; outputCostPer1M?: number };
-    if (!body.providerAccountId || !body.modelName || body.priority === undefined) {
-      return Response.json({ error: "providerAccountId, modelName, and priority are required" }, { status: 400 });
+    const body = (await req.json()) as {
+      providerAccountId?: string;
+      modelName?: string;
+      priority?: number;
+      inputCostPer1M?: number;
+      outputCostPer1M?: number;
+    };
+    if (
+      !body.providerAccountId ||
+      !body.modelName ||
+      body.priority === undefined
+    ) {
+      return Response.json(
+        { error: "providerAccountId, modelName, and priority are required" },
+        { status: 400 },
+      );
     }
 
     try {
@@ -51,21 +76,30 @@ export const combosRoutes: Record<string, RouteHandler> = {
       });
       return Response.json(member, { status: 201 });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
     }
   },
 
   "PATCH /api/combos/:id/members/reorder": async (req, params) => {
     const body = (await req.json()) as { orderedMemberIds?: string[] };
     if (!body.orderedMemberIds) {
-      return Response.json({ error: "orderedMemberIds is required" }, { status: 400 });
+      return Response.json(
+        { error: "orderedMemberIds is required" },
+        { status: 400 },
+      );
     }
 
     try {
       ComboEngine.reorderMembers(params?.id ?? "", body.orderedMemberIds);
       return Response.json({ ok: true });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
     }
   },
 };

@@ -1,16 +1,17 @@
 import { serve } from "bun";
-import index from "./index.html";
 import { runMigrations } from "./db/migrations";
+import index from "./index.html";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
-import { providersRoutes } from "./server/routes/providers.routes";
 import { combosRoutes } from "./server/routes/combos.routes";
-import { usageRoutes } from "./server/routes/usage.routes";
+import { matchRoute as resolveRoute } from "./server/routes/match-route";
+import { providersRoutes } from "./server/routes/providers.routes";
 import { quotaRoutes } from "./server/routes/quota.routes";
 import { settingsRoutes } from "./server/routes/settings.routes";
-import { v1Routes } from "./server/routes/v1.routes";
 import type { RouteHandler } from "./server/routes/types";
+import { usageRoutes } from "./server/routes/usage.routes";
+import { v1Routes } from "./server/routes/v1.routes";
 
 // Run migrations on startup
 runMigrations();
@@ -30,60 +31,8 @@ const v1Handlers: Record<string, RouteHandler> = {
   ...v1Routes,
 };
 
-function matchRoute(method: string, pathname: string): { handler: RouteHandler; params: Record<string, string> } | null {
-  // Try exact match first
-  const exactKey = `${method} ${pathname}`;
-  if (apiRoutes[exactKey]) return { handler: apiRoutes[exactKey], params: {} };
-  if (v1Handlers[exactKey]) return { handler: v1Handlers[exactKey], params: {} };
-
-  // Try pattern match (e.g. /api/providers/:id/accounts)
-  for (const [pattern, handler] of Object.entries(apiRoutes)) {
-    const [pMethod, pPath] = pattern.split(" ");
-    if (pMethod !== method) continue;
-
-    const patternParts = pPath.split("/");
-    const pathParts = pathname.split("/");
-    if (patternParts.length !== pathParts.length) continue;
-
-    const params: Record<string, string> = {};
-    let match = true;
-    for (let i = 0; i < patternParts.length; i++) {
-      const pp = patternParts[i];
-      const vp = pathParts[i];
-      if (pp?.startsWith(":")) {
-        params[pp.slice(1)] = vp ?? "";
-      } else if (pp !== vp) {
-        match = false;
-        break;
-      }
-    }
-    if (match) return { handler, params };
-  }
-
-  for (const [pattern, handler] of Object.entries(v1Handlers)) {
-    const [pMethod, pPath] = pattern.split(" ");
-    if (pMethod !== method) continue;
-
-    const patternParts = pPath.split("/");
-    const pathParts = pathname.split("/");
-    if (patternParts.length !== pathParts.length) continue;
-
-    const params: Record<string, string> = {};
-    let match = true;
-    for (let i = 0; i < patternParts.length; i++) {
-      const pp = patternParts[i];
-      const vp = pathParts[i];
-      if (pp?.startsWith(":")) {
-        params[pp.slice(1)] = vp ?? "";
-      } else if (pp !== vp) {
-        match = false;
-        break;
-      }
-    }
-    if (match) return { handler, params };
-  }
-
-  return null;
+function matchRoute(method: string, pathname: string) {
+  return resolveRoute(method, pathname, [apiRoutes, v1Handlers]);
 }
 
 const server = serve({
@@ -102,7 +51,10 @@ const server = serve({
       if (matched) {
         return matched.handler(req, matched.params);
       }
-      return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     },
 
     "/api/*": async (req) => {
@@ -120,7 +72,10 @@ const server = serve({
       if (matched) {
         return matched.handler(req, matched.params);
       }
-      return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     },
 
     // Static assets / SPA fallback

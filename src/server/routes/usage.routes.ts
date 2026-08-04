@@ -14,11 +14,14 @@ export const usageRoutes: Record<string, RouteHandler> = {
 
   "GET /api/usage/history": (req) => {
     const url = new URL(req.url);
-    const providerAccountId = url.searchParams.get("providerAccountId") ?? undefined;
+    const providerAccountId =
+      url.searchParams.get("providerAccountId") ?? undefined;
     const model = url.searchParams.get("model") ?? undefined;
     const fromDate = url.searchParams.get("from") ?? undefined;
     const toDate = url.searchParams.get("to") ?? undefined;
-    const limit = url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : 50;
+    const limit = url.searchParams.get("limit")
+      ? Number(url.searchParams.get("limit"))
+      : 50;
 
     const history = UsageRecorder.getHistory({
       providerAccountId,

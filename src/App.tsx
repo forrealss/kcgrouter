@@ -1,14 +1,17 @@
 import "./index.css";
 import { AlertCircleIcon } from "lucide-react";
-import { LoginForm } from "@/components/auth/LoginForm";
 import { AppShell } from "@/components/layout/AppShell";
+import { defaultPath } from "@/components/layout/Sidebar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useRouter } from "@/hooks/useRouter";
 import { useSession } from "@/hooks/useSession";
+import { LoginPage } from "@/pages/login/LoginPage";
 
 export function App() {
   const session = useSession();
+  const { pathname, navigate } = useRouter();
 
   if (session.status === "loading") {
     return (
@@ -36,11 +39,25 @@ export function App() {
   }
 
   if (session.status === "unauthenticated") {
+    if (pathname !== "/login") {
+      navigate("/login");
+      return null;
+    }
     return (
       <div className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
-        <LoginForm onLogin={session.login} />
+        <LoginPage
+          onLogin={async (password) => {
+            await session.login(password);
+            navigate(defaultPath);
+          }}
+        />
       </div>
     );
+  }
+
+  if (pathname === "/login") {
+    navigate(defaultPath);
+    return null;
   }
 
   return <AppShell onLogout={session.logout} />;

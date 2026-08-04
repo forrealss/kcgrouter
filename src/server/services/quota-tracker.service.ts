@@ -1,5 +1,5 @@
 import { get, run } from "../../db/client";
-import type { QuotaStateRow, QuotaResetType } from "../../db/schema";
+import type { QuotaResetType, QuotaStateRow } from "../../db/schema";
 
 export interface QuotaState {
   accountId: string;
@@ -35,12 +35,19 @@ function computeWindowEnd(type: QuotaResetType, start: Date): Date {
 }
 
 export function getState(accountId: string): QuotaState {
-  const row = get<QuotaStateRow>("SELECT * FROM quota_state WHERE account_id = ?", accountId);
+  const row = get<QuotaStateRow>(
+    "SELECT * FROM quota_state WHERE account_id = ?",
+    accountId,
+  );
   if (!row) throw new Error(`Quota state not found for account ${accountId}`);
 
   const now = new Date();
 
-  if (row.window_type === "none" || row.window_end === null || now < new Date(row.window_end)) {
+  if (
+    row.window_type === "none" ||
+    row.window_end === null ||
+    now < new Date(row.window_end)
+  ) {
     return rowToState(row);
   }
 
@@ -99,5 +106,9 @@ export function markError(accountId: string, errorKind: ErrorKind): void {
   };
   const status = statusMap[errorKind];
 
-  run("UPDATE provider_accounts SET status = ? WHERE id = ?", status, accountId);
+  run(
+    "UPDATE provider_accounts SET status = ? WHERE id = ?",
+    status,
+    accountId,
+  );
 }

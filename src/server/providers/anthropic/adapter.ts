@@ -1,17 +1,24 @@
 import type {
-  ProviderAdapter,
+  CanonicalContentPart,
   CanonicalRequest,
   CanonicalResponse,
   CanonicalStreamChunk,
-} from "./types";
+  ProviderAdapter,
+} from "../types";
 
-function buildAnthropicMessages(req: CanonicalRequest): { system?: string; messages: unknown[] } {
+function buildAnthropicMessages(req: CanonicalRequest): {
+  system?: string;
+  messages: unknown[];
+} {
   let system: string | undefined;
   const messages: unknown[] = [];
 
   for (const m of req.messages) {
     if (m.role === "system") {
-      system = m.content.filter((p) => p.type === "text").map((p) => (p as { type: "text"; text: string }).text).join("\n");
+      system = m.content
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { type: "text"; text: string }).text)
+        .join("\n");
       continue;
     }
 
@@ -25,7 +32,10 @@ function buildAnthropicMessages(req: CanonicalRequest): { system?: string; messa
           type: "tool_use",
           id: part.id,
           name: part.name,
-          input: typeof part.arguments === "string" ? JSON.parse(part.arguments) : part.arguments,
+          input:
+            typeof part.arguments === "string"
+              ? JSON.parse(part.arguments)
+              : part.arguments,
         });
       } else if (part.type === "tool_result") {
         blocks.push({
@@ -36,8 +46,14 @@ function buildAnthropicMessages(req: CanonicalRequest): { system?: string; messa
       }
     }
 
-    if (blocks.length === 1 && (blocks[0] as { type: string }).type === "text") {
-      messages.push({ role: m.role, content: (blocks[0] as { type: "text"; text: string }).text });
+    if (
+      blocks.length === 1 &&
+      (blocks[0] as { type: string }).type === "text"
+    ) {
+      messages.push({
+        role: m.role,
+        content: (blocks[0] as { type: "text"; text: string }).text,
+      });
     } else if (blocks.length > 0) {
       messages.push({ role: m.role, content: blocks });
     }
@@ -48,7 +64,13 @@ function buildAnthropicMessages(req: CanonicalRequest): { system?: string; messa
 
 function parseAnthropicResponse(data: unknown): CanonicalResponse {
   const res = data as {
-    content: { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
+    content: {
+      type: string;
+      text?: string;
+      id?: string;
+      name?: string;
+      input?: unknown;
+    }[];
     stop_reason: string;
     usage: { input_tokens: number; output_tokens: number };
   };
@@ -58,7 +80,12 @@ function parseAnthropicResponse(data: unknown): CanonicalResponse {
     if (block.type === "text" && block.text) {
       parts.push({ type: "text", text: block.text });
     } else if (block.type === "tool_use" && block.id && block.name) {
-      parts.push({ type: "tool_call", id: block.id, name: block.name, arguments: block.input ?? {} });
+      parts.push({
+        type: "tool_call",
+        id: block.id,
+        name: block.name,
+        arguments: block.input ?? {},
+      });
     }
   }
 
@@ -71,7 +98,10 @@ function parseAnthropicResponse(data: unknown): CanonicalResponse {
 
   return {
     message: { role: "assistant", content: parts },
-    usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+    usage: {
+      inputTokens: res.usage.input_tokens,
+      outputTokens: res.usage.output_tokens,
+    },
     finishReason: finishMap[res.stop_reason] ?? "stop",
   };
 }
@@ -117,7 +147,11 @@ export const anthropicAdapter: ProviderAdapter = {
     return parseAnthropicResponse(await res.json());
   },
 
-  async sendStream(req, credential, model): Promise<ReadableStream<CanonicalStreamChunk>> {
+  async sendStream(
+    req,
+    credential,
+    model,
+  ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const { system, messages } = buildAnthropicMessages(req);
 
     const body: Record<string, unknown> = {
@@ -150,7 +184,10 @@ export const anthropicAdapter: ProviderAdapter = {
 
     return new ReadableStream({
       async pull(controller) {
-        if (!reader) { controller.close(); return; }
+        if (!reader) {
+          controller.close();
+          return;
+        }
         const { done, value } = await reader.read();
         if (done || !value) {
           controller.close();
@@ -170,11 +207,12 @@ export const anthropicAdapter: ProviderAdapter = {
             }
 
             if (parsed.type === "message_delta" && parsed.delta?.stop_reason) {
-              const finishMap: Record<string, "stop" | "length" | "tool_call"> = {
-                end_turn: "stop",
-                max_tokens: "length",
-                tool_use: "tool_call",
-              };
+              const finishMap: Record<string, "stop" | "length" | "tool_call"> =
+                {
+                  end_turn: "stop",
+                  max_tokens: "length",
+                  tool_use: "tool_call",
+                };
               controller.enqueue({
                 delta: "",
                 finishReason: finishMap[parsed.delta.stop_reason] ?? "stop",
@@ -184,7 +222,10 @@ export const anthropicAdapter: ProviderAdapter = {
             if (parsed.type === "message_delta" && parsed.usage) {
               controller.enqueue({
                 delta: "",
-                usage: { inputTokens: 0, outputTokens: parsed.usage.output_tokens },
+                usage: {
+                  inputTokens: 0,
+                  outputTokens: parsed.usage.output_tokens,
+                },
               });
             }
           } catch {

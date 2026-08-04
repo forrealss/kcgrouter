@@ -1,7 +1,5 @@
-"use client";
-
-import { AlertCircleIcon, GaugeIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { GaugeIcon, RefreshCwIcon } from "lucide-react";
+import { QuotaCard } from "@/components/quota/QuotaCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,39 +19,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import { type QuotaAccount, QuotaCard } from "./QuotaCard";
+import { useQuota } from "@/hooks/useQuota";
 
-export function QuotaGrid() {
-  const [accounts, setAccounts] = useState<QuotaAccount[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const requestIdRef = useRef(0);
-
-  const loadQuota = useCallback(async () => {
-    const requestId = ++requestIdRef.current;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.get<QuotaAccount[]>("/api/quota");
-      if (requestId === requestIdRef.current) setAccounts(response);
-    } catch (requestError) {
-      if (requestId === requestIdRef.current) {
-        setError(getApiErrorMessage(requestError));
-      }
-    } finally {
-      if (requestId === requestIdRef.current) setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadQuota();
-
-    return () => {
-      requestIdRef.current += 1;
-    };
-  }, [loadQuota]);
+export function QuotaPage() {
+  const { accounts, error, isLoading, loadQuota } = useQuota();
 
   const isInitialLoading = isLoading && accounts === null;
   const showEmptyState = !isLoading && !error && accounts?.length === 0;
@@ -108,7 +77,7 @@ export function QuotaGrid() {
 
       {!isInitialLoading && error ? (
         <Alert variant="destructive">
-          <AlertCircleIcon />
+          <GaugeIcon />
           <AlertTitle>Quota could not be loaded</AlertTitle>
           <AlertDescription className="gap-3">
             <p>{error}</p>
@@ -164,5 +133,3 @@ export function QuotaGrid() {
     </section>
   );
 }
-
-export default QuotaGrid;

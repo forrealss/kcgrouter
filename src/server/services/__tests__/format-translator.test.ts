@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeAll } from "bun:test";
-import { toCanonical, fromCanonical } from "../format-translator.service";
-import type { CanonicalResponse } from "../../adapters/types";
-import { runMigrations } from "../../../db/migrations";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
+import { runMigrations } from "../../../db/migrations";
+import type { CanonicalResponse } from "../../providers/types";
+import { fromCanonical, toCanonical } from "../format-translator.service";
 
 describe("FormatTranslator — OpenAI", () => {
   beforeAll(() => {
@@ -51,7 +51,13 @@ describe("FormatTranslator — OpenAI", () => {
         {
           role: "assistant",
           content: null,
-          tool_calls: [{ id: "call_1", type: "function", function: { name: "search", arguments: '{"q":"test"}' } }],
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: { name: "search", arguments: '{"q":"test"}' },
+            },
+          ],
         },
         { role: "tool", tool_call_id: "call_1", content: "results" },
       ],
@@ -66,21 +72,32 @@ describe("FormatTranslator — OpenAI", () => {
   // Property 3
   test("Property 3: round-trip OpenAI response", () => {
     const response: CanonicalResponse = {
-      message: { role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Hello!" }],
+      },
       usage: { inputTokens: 10, outputTokens: 5 },
       finishReason: "stop",
     };
 
-    const openaiResp = fromCanonical(response, "openai") as Record<string, unknown>;
+    const openaiResp = fromCanonical(response, "openai") as Record<
+      string,
+      unknown
+    >;
     expect(openaiResp.choices).toBeDefined();
-    const choices = openaiResp.choices as { message: { content: string }; finish_reason: string }[];
+    const choices = openaiResp.choices as {
+      message: { content: string };
+      finish_reason: string;
+    }[];
     expect(choices[0]?.message.content).toBe("Hello!");
     expect(choices[0]?.finish_reason).toBe("stop");
   });
 
   // Property 4 — invalid payload
   test("Property 4: invalid OpenAI body throws", () => {
-    expect(() => toCanonical({ not_messages: true }, "openai")).toThrow(/missing messages/);
+    expect(() => toCanonical({ not_messages: true }, "openai")).toThrow(
+      /missing messages/,
+    );
     expect(() => toCanonical(null, "openai")).toThrow();
   });
 });
@@ -107,11 +124,15 @@ describe("FormatTranslator — Anthropic", () => {
       messages: [
         {
           role: "assistant",
-          content: [{ type: "tool_use", id: "tu_1", name: "calc", input: { x: 1 } }],
+          content: [
+            { type: "tool_use", id: "tu_1", name: "calc", input: { x: 1 } },
+          ],
         },
         {
           role: "user",
-          content: [{ type: "tool_result", tool_use_id: "tu_1", content: "42" }],
+          content: [
+            { type: "tool_result", tool_use_id: "tu_1", content: "42" },
+          ],
         },
       ],
       stream: false,
@@ -129,12 +150,17 @@ describe("FormatTranslator — Anthropic", () => {
       finishReason: "stop",
     };
 
-    const anthropicResp = fromCanonical(response, "anthropic") as Record<string, unknown>;
+    const anthropicResp = fromCanonical(response, "anthropic") as Record<
+      string,
+      unknown
+    >;
     expect(anthropicResp.type).toBe("message");
     expect(anthropicResp.stop_reason).toBe("end_turn");
   });
 
   test("Property 4: invalid Anthropic body throws", () => {
-    expect(() => toCanonical({ messages: "not_array" }, "anthropic")).toThrow(/missing messages/);
+    expect(() => toCanonical({ messages: "not_array" }, "anthropic")).toThrow(
+      /missing messages/,
+    );
   });
 });

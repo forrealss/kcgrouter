@@ -1,10 +1,17 @@
-export type ProviderTransport = "openai" | "anthropic" | "gemini";
+export type ProviderTransport =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "kiro"
+  | "command-code";
 
 export interface Provider {
   id: string;
   name: string;
   transport: ProviderTransport;
   baseUrl: string;
+  isBuiltin: boolean;
+  prefix: string;
   createdAt: string;
   accountCount: number;
 }
@@ -27,6 +34,7 @@ export interface ProviderFormValues {
   name: string;
   transport: ProviderTransport;
   baseUrl: string;
+  prefix: string;
 }
 
 export interface AccountFormValues {
@@ -34,4 +42,15 @@ export interface AccountFormValues {
   apiKey?: string;
   quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
+}
+
+export interface ProviderModel {
+  id: string;
+  providerId: string;
+  modelId: string;
+  modelName: string;
+  contextLength: number | null;
+  maxOutputTokens: number | null;
+  enabled: boolean;
+  createdAt: string;
 }

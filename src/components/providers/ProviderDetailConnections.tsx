@@ -1,8 +1,8 @@
 import {
   CheckCircleIcon,
+  FlaskConicalIcon,
   KeyRoundIcon,
   PencilIcon,
-  PlayIcon,
   PlusIcon,
   TrashIcon,
   XCircleIcon,
@@ -165,7 +165,7 @@ export function ProviderDetailConnections({
                         ) : testStatus === "error" ? (
                           <XCircleIcon className="size-4 text-red-500" />
                         ) : (
-                          <PlayIcon className="size-4" />
+                          <FlaskConicalIcon className="size-4" />
                         )}
                       </Button>
                       <Button

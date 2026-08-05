@@ -38,28 +38,89 @@ interface CommandCodeBody {
   params: CommandCodeParams;
 }
 
+/**
+ * Whether a model routed through Command Code is vision-capable.
+ * mimo-v2.5-pro is text-only; mimo-v2.5 and mimo-v2-omni accept images.
+ */
+function isVisionModel(model: string): boolean {
+  if (/(?:^|\/)mimo-v2\.5-pro$/i.test(model)) return false;
+  if (/(?:^|\/)mimo-v2\.5$/i.test(model)) return true;
+  if (/(?:^|\/)mimo-v2-omni$/i.test(model)) return true;
+  return /vision|multimodal|omni/i.test(model);
+}
+
+/**
+ * Extract image URL from OpenAI-format content part.
+ * OpenAI:  { type: "image_url", image_url: { url: "..." } }
+ * CC CLI:  { type: "image", image: "..." }
+ */
+function extractImageUrl(part: {
+  type: string;
+  image?: string;
+  image_url?: unknown;
+}): string | undefined {
+  if (part.type === "image") return part.image;
+  if (
+    part.type === "image_url" &&
+    part.image_url &&
+    typeof part.image_url === "object"
+  ) {
+    const url = (part.image_url as { url?: string }).url;
+    return url;
+  }
+  return undefined;
+}
+
+/**
+ * Convert user content for Command Code. For vision models, preserves images
+ * as `{ type: "image", image: "..." }`. For non-vision models, extracts text
+ * only and returns a plain string (the API rejects arrays for text-only turns).
+ */
+function convertUserContent(
+  content: unknown[],
+  vision: boolean,
+): string | unknown[] {
+  if (!vision) {
+    return content
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("\n");
+  }
+
+  const parts: unknown[] = [];
+  for (const part of content) {
+    if (part.type === "text") {
+      parts.push({ type: "text", text: part.text });
+      continue;
+    }
+    const imgUrl = extractImageUrl(part);
+    if (imgUrl) {
+      parts.push({ type: "image", image: imgUrl });
+    }
+  }
+  return parts.length > 0 ? parts : [{ type: "text", text: "" }];
+}
+
 // Matches the upstream `/alpha/generate` schema (role at top level, text
 // blocks use `text`, tool messages are wrapped in role:"tool").
-function convertMessages(req: CanonicalRequest): {
+function convertMessages(
+  req: CanonicalRequest,
+  model: string,
+): {
   messages: unknown[];
   system?: string;
 } {
   const messages: unknown[] = [];
   const system = extractSystemText(req);
+  const vision = isVisionModel(model);
 
   for (const msg of req.messages) {
     if (msg.role === "system") continue;
 
     if (msg.role === "user") {
-      const parts: unknown[] = [];
-      for (const part of msg.content) {
-        if (part.type === "text") {
-          parts.push({ type: "text", text: part.text });
-        }
-      }
       messages.push({
         role: "user",
-        content: parts.length > 0 ? parts : [{ type: "text", text: "" }],
+        content: convertUserContent(msg.content, vision),
       });
       continue;
     }
@@ -168,7 +229,7 @@ function buildCommandCodeBody(
   req: CanonicalRequest,
   model: string,
 ): CommandCodeBody {
-  const { messages, system } = convertMessages(req);
+  const { messages, system } = convertMessages(req, model);
 
   const params: CommandCodeParams = {
     model,

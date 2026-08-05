@@ -27,6 +27,17 @@ interface CommandCodeBody {
   params: CommandCodeParams;
 }
 
+interface ForwardedMessage {
+  role: string;
+  content: string | Array<{ type: string; text?: string; image?: string } | { type: string; image_url: { url: string } }>;
+}
+
+interface ForwardedBody {
+  params: {
+    messages: ForwardedMessage[];
+  };
+}
+
 interface CapturedCall {
   url: string;
   headers: Record<string, string>;
@@ -436,5 +447,148 @@ describe("commandCodeAdapter sendStream() parsing", () => {
       chunks.some((c) => c.toolCallDelta?.arguments === '{"path":"a.ts"}'),
     ).toBe(true);
     expect(chunks.some((c) => c.finishReason === "tool_call")).toBe(true);
+  });
+});
+
+describe("image handling", () => {
+  test("sends image parts for vision model mimo-v2.5", async () => {
+    let capturedBody: unknown = null;
+    globalThis.fetch = async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string);
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode('{"type":"text-delta","text":"ok"}\n'),
+          );
+          c.enqueue(
+            new TextEncoder().encode(
+              '{"type":"finish","finishReason":"stop","totalUsage":{"inputTokens":1,"outputTokens":1}}\n',
+            ),
+          );
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    };
+
+    await commandCodeAdapter.send(
+      {
+        stream: false,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "describe this image" },
+              {
+                type: "image_url",
+                image_url: { url: "data:image/png;base64,abc123" },
+              },
+            ],
+          },
+        ],
+      },
+      { apiKey: "k" },
+      "xiaomi/mimo-v2.5",
+    );
+
+    const body = capturedBody as ForwardedBody;
+    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    expect(Array.isArray(userMsg.content)).toBe(true);
+    expect(userMsg.content).toEqual([
+      { type: "text", text: "describe this image" },
+      { type: "image", image: "data:image/png;base64,abc123" },
+    ]);
+  });
+
+  test("sends plain string for non-vision model", async () => {
+    let capturedBody: unknown = null;
+    globalThis.fetch = async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string);
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode('{"type":"text-delta","text":"ok"}\n'),
+          );
+          c.enqueue(
+            new TextEncoder().encode(
+              '{"type":"finish","finishReason":"stop","totalUsage":{"inputTokens":1,"outputTokens":1}}\n',
+            ),
+          );
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    };
+
+    await commandCodeAdapter.send(
+      {
+        stream: false,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "hello" },
+              {
+                type: "image_url",
+                image_url: { url: "data:image/png;base64,abc" },
+              },
+            ],
+          },
+        ],
+      },
+      { apiKey: "k" },
+      "deepseek/deepseek-v4-pro",
+    );
+
+    const body = capturedBody as ForwardedBody;
+    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    expect(typeof userMsg.content).toBe("string");
+    expect(userMsg.content).toBe("hello");
+  });
+
+  test("excludes mimo-v2.5-pro from vision", async () => {
+    let capturedBody: unknown = null;
+    globalThis.fetch = async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string);
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(
+            new TextEncoder().encode('{"type":"text-delta","text":"ok"}\n'),
+          );
+          c.enqueue(
+            new TextEncoder().encode(
+              '{"type":"finish","finishReason":"stop","totalUsage":{"inputTokens":1,"outputTokens":1}}\n',
+            ),
+          );
+          c.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    };
+
+    await commandCodeAdapter.send(
+      {
+        stream: false,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "hello" },
+              {
+                type: "image_url",
+                image_url: { url: "data:image/png;base64,abc" },
+              },
+            ],
+          },
+        ],
+      },
+      { apiKey: "k" },
+      "xiaomi/mimo-v2.5-pro",
+    );
+
+    const body = capturedBody as ForwardedBody;
+    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    expect(typeof userMsg.content).toBe("string");
+    expect(userMsg.content).toBe("hello");
   });
 });

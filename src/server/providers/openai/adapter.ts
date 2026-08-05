@@ -149,6 +149,150 @@ const FINISH_MAP: Record<string, CanonicalResponse["finishReason"]> = {
   content_filter: "error",
 };
 
+function createUpstreamSSEParseTransform(): TransformStream<
+  Uint8Array,
+  CanonicalStreamChunk
+> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done = false;
+  // Streaming tool calls: only the first chunk for a given index carries `id`
+  // and `function.name`; later argument fragments carry just `index`. Track
+  // the id per index so delta chunks can be correlated back to their start.
+  const idByIndex = new Map<number, string>();
+
+  function processToolCalls(
+    toolCalls: Array<{
+      index?: number;
+      id?: string;
+      type?: string;
+      function?: { name?: string; arguments?: string };
+    }>,
+    controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+  ) {
+    for (const tc of toolCalls) {
+      const idx = tc.index ?? 0;
+
+      if (tc.id && tc.function?.name && !idByIndex.has(idx)) {
+        idByIndex.set(idx, tc.id);
+        controller.enqueue({
+          toolCallStart: { toolCallId: tc.id, toolName: tc.function.name },
+        });
+      }
+
+      // Continuation chunks carry an empty-string id (not undefined), so `||`
+      // is required here — `??` would keep "" and lose the fragment.
+      const resolvedId = tc.id || idByIndex.get(idx);
+      if (resolvedId && tc.function?.arguments) {
+        controller.enqueue({
+          toolCallDelta: {
+            toolCallId: resolvedId,
+            arguments: tc.function.arguments,
+          },
+        });
+      }
+    }
+  }
+
+  function parseLine(
+    data: string,
+    controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+  ) {
+    const parsed = JSON.parse(data) as Record<string, unknown>;
+    const delta = parsed.choices?.[0]?.delta as
+      | Record<string, unknown>
+      | undefined;
+    const finish = parsed.choices?.[0]?.finish_reason as string | undefined;
+
+    if (delta?.content) {
+      // Forward streamed content verbatim. Trimming/normalizing per-chunk
+      // collapses the whitespace that separates tokens (chunks are often a
+      // single word or a lone space), which fuses words together downstream.
+      controller.enqueue({ delta: delta.content as string });
+    }
+
+    if (delta?.reasoning_content) {
+      controller.enqueue({ reasoning: delta.reasoning_content as string });
+    }
+
+    if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+      processToolCalls(
+        delta.tool_calls as Array<{
+          index?: number;
+          id?: string;
+          type?: string;
+          function?: { name?: string; arguments?: string };
+        }>,
+        controller,
+      );
+    }
+
+    if (finish) {
+      controller.enqueue({
+        delta: "",
+        finishReason: FINISH_MAP[finish] ?? "stop",
+      });
+    }
+
+    if (parsed.usage) {
+      const u = parsed.usage as {
+        prompt_tokens: number;
+        completion_tokens: number;
+      };
+      controller.enqueue({
+        delta: "",
+        usage: {
+          inputTokens: u.prompt_tokens,
+          outputTokens: u.completion_tokens,
+        },
+      });
+    }
+  }
+
+  return new TransformStream<Uint8Array, CanonicalStreamChunk>({
+    transform(chunk, controller) {
+      if (done) return;
+      buffer += decoder.decode(chunk, { stream: true });
+
+      let nlIndex = buffer.indexOf("\n");
+      while (nlIndex !== -1) {
+        const line = buffer.slice(0, nlIndex).trim();
+        buffer = buffer.slice(nlIndex + 1);
+        nlIndex = buffer.indexOf("\n");
+
+        if (!line) continue;
+        if (!line.startsWith("data:")) continue;
+
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") {
+          done = true;
+          return;
+        }
+
+        try {
+          parseLine(data, controller);
+        } catch {
+          // skip malformed lines
+        }
+      }
+    },
+
+    flush(controller) {
+      const remaining = buffer.trim();
+      if (remaining?.startsWith("data:")) {
+        const data = remaining.slice(5).trim();
+        if (data !== "[DONE]") {
+          try {
+            parseLine(data, controller);
+          } catch {
+            // skip
+          }
+        }
+      }
+    },
+  });
+}
+
 export const openaiAdapter: ProviderAdapter = {
   transport: "openai",
 
@@ -186,6 +330,7 @@ export const openaiAdapter: ProviderAdapter = {
       temperature: req.temperature,
       stream: true,
       stream_options: { include_usage: true },
+      ...(buildToolsParam(req) ? { tools: buildToolsParam(req) } : {}),
     };
 
     const ac = new AbortController();
@@ -213,120 +358,10 @@ export const openaiAdapter: ProviderAdapter = {
       throw new Error(`OpenAI API error ${res.status}: ${text}`);
     }
 
-    const contentType = res.headers.get("content-type") ?? "";
-    if (
-      !contentType.includes("text/event-stream") &&
-      !contentType.includes("application/json") &&
-      !contentType.includes("text/plain")
-    ) {
-      const text = await res.text();
-      throw new Error(
-        `Unexpected response content-type "${contentType}": ${text.slice(0, 200)}`,
-      );
+    if (!res.body) {
+      throw new Error(`OpenAI API returned no body`);
     }
 
-    const upstreamReader = res.body?.getReader();
-    const decoder = new TextDecoder();
-    let lineBuffer = "";
-    let eof = false;
-
-    function parseLine(line: string): {
-      done: boolean;
-      chunks: CanonicalStreamChunk[];
-    } {
-      if (!line.startsWith("data:")) return { done: false, chunks: [] };
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") return { done: true, chunks: [] };
-
-      try {
-        const parsed = JSON.parse(data) as Record<string, unknown>;
-        const delta = parsed.choices?.[0]?.delta as
-          | Record<string, unknown>
-          | undefined;
-        const finish = parsed.choices?.[0]?.finish_reason as string | undefined;
-
-        const chunks: CanonicalStreamChunk[] = [];
-
-        if (delta?.content) {
-          let content = delta.content as string;
-          if (content.includes("<think>")) {
-            content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-          }
-          if (content.length > 0) {
-            chunks.push({ delta: content });
-          }
-        }
-
-        if (finish) {
-          chunks.push({
-            delta: "",
-            finishReason: FINISH_MAP[finish] ?? "stop",
-          });
-        }
-
-        if (parsed.usage) {
-          const u = parsed.usage as {
-            prompt_tokens: number;
-            completion_tokens: number;
-          };
-          chunks.push({
-            delta: "",
-            usage: {
-              inputTokens: u.prompt_tokens,
-              outputTokens: u.completion_tokens,
-            },
-          });
-        }
-
-        return { done: false, chunks };
-      } catch {
-        return { done: false, chunks: [] };
-      }
-    }
-
-    return new ReadableStream<CanonicalStreamChunk>({
-      async pull(controller) {
-        if (!upstreamReader || eof) {
-          controller.close();
-          return;
-        }
-
-        while (true) {
-          const nlIndex = lineBuffer.indexOf("\n");
-          if (nlIndex === -1) break;
-
-          const line = lineBuffer.slice(0, nlIndex).trim();
-          lineBuffer = lineBuffer.slice(nlIndex + 1);
-
-          if (!line) continue;
-          const result = parseLine(line);
-          if (result.done) {
-            eof = true;
-            controller.close();
-            return;
-          }
-          for (const chunk of result.chunks) controller.enqueue(chunk);
-        }
-
-        const { done, value } = await upstreamReader.read();
-        if (done) {
-          const remaining = lineBuffer.trim();
-          if (remaining) {
-            const result = parseLine(remaining);
-            for (const chunk of result.chunks) controller.enqueue(chunk);
-          }
-          eof = true;
-          controller.close();
-          return;
-        }
-
-        lineBuffer += decoder.decode(value, { stream: true });
-      },
-
-      cancel() {
-        eof = true;
-        upstreamReader?.cancel().catch(() => {});
-      },
-    });
+    return res.body.pipeThrough(createUpstreamSSEParseTransform());
   },
 };

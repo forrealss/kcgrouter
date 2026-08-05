@@ -1,14 +1,8 @@
+import { withEarlyStreamKeepalive } from "../services/early-stream-keepalive";
 import { listAllEnabledModels } from "../services/model-registry.service";
 import { handleChatRequest } from "../services/router.service";
 import type { RouteHandler } from "./types";
 
-/**
- * Builds the HTTP response from a router result.
- *
- * Streaming results carry a ReadableStream of pre-encoded SSE bytes, which must
- * be handed to Response untouched — JSON.stringify() on a stream yields "{}",
- * so the client receives two characters and no events.
- */
 function toResponse(result: {
   status: number;
   body: unknown;
@@ -37,13 +31,28 @@ export const v1Routes: Record<string, RouteHandler> = {
   "POST /v1/chat/completions": async (req) => {
     const body = await req.json();
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
+    const stream = body.stream ?? false;
+
+    if (stream) {
+      const handlerPromise = handleChatRequest({
+        rawBody: body,
+        sourceFormat: "openai",
+        targetSelector: body.model ?? "default",
+        tokenSaverOverride: tokenSaver ?? undefined,
+        stream: true,
+      }).then((result) => toResponse(result));
+
+      return withEarlyStreamKeepalive(handlerPromise, {
+        signal: req.signal,
+      });
+    }
 
     const result = await handleChatRequest({
       rawBody: body,
       sourceFormat: "openai",
       targetSelector: body.model ?? "default",
       tokenSaverOverride: tokenSaver ?? undefined,
-      stream: body.stream ?? false,
+      stream: false,
     });
 
     return toResponse(result);

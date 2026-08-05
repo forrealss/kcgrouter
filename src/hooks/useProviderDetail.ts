@@ -83,9 +83,10 @@ export function useProviderDetail(providerId: string) {
     setTestingAccountId(account.id);
     setAccountTestStatus((prev) => ({ ...prev, [account.id]: null }));
     try {
-      const result = await apiClient.post<{ status: "ok" | "error"; latencyMs: number }>(
-        `/api/providers/accounts/${encodeURIComponent(account.id)}/test`,
-      );
+      const result = await apiClient.post<{
+        status: "ok" | "error";
+        latencyMs: number;
+      }>(`/api/providers/accounts/${encodeURIComponent(account.id)}/test`);
       setAccountTestStatus((prev) => ({
         ...prev,
         [account.id]: result.status,
@@ -140,10 +141,12 @@ export function useProviderDetail(providerId: string) {
     setTestingModelId(model.id);
     setModelTestStatus((prev) => ({ ...prev, [model.id]: null }));
     try {
-      const result = await apiClient.post<{ status: "ok" | "error"; latencyMs: number }>(
-        `/api/providers/models/${encodeURIComponent(model.modelId)}/test`,
-        { accountId },
-      );
+      const result = await apiClient.post<{
+        status: "ok" | "error";
+        latencyMs: number;
+      }>(`/api/providers/models/${encodeURIComponent(model.modelId)}/test`, {
+        accountId,
+      });
       setModelTestStatus((prev) => ({
         ...prev,
         [model.id]: result.status,

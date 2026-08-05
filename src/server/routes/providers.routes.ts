@@ -240,10 +240,7 @@ export const providersRoutes: Record<string, RouteHandler> = {
   "POST /api/providers/models/:modelId/test": async (req, params) => {
     const body = (await req.json()) as { accountId?: string };
     if (!body.accountId) {
-      return Response.json(
-        { error: "accountId is required" },
-        { status: 400 },
-      );
+      return Response.json({ error: "accountId is required" }, { status: 400 });
     }
     const modelId = params?.modelId ?? "";
     const result = await TestConnection.testModel(body.accountId, modelId);

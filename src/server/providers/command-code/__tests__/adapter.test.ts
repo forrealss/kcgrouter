@@ -347,7 +347,7 @@ describe("commandCodeAdapter sendStream() parsing", () => {
       await commandCodeAdapter.sendStream(probeRequest, credential, "glm-5"),
     );
 
-    const text = chunks.map((c) => c.delta).join("");
+    const text = chunks.map((c) => c.delta ?? "").join("");
     expect(text).toBe("Hello");
     expect(text).not.toContain("to say hello");
   });
@@ -364,7 +364,7 @@ describe("commandCodeAdapter sendStream() parsing", () => {
       await commandCodeAdapter.sendStream(probeRequest, credential, "glm-5"),
     );
 
-    expect(chunks.map((c) => c.delta).join("")).toBe("Hello");
+    expect(chunks.map((c) => c.delta ?? "").join("")).toBe("Hello");
   });
 
   test("flushes a trailing line with no final newline", async () => {
@@ -374,7 +374,7 @@ describe("commandCodeAdapter sendStream() parsing", () => {
       await commandCodeAdapter.sendStream(probeRequest, credential, "glm-5"),
     );
 
-    expect(chunks.map((c) => c.delta).join("")).toBe("tail");
+    expect(chunks.map((c) => c.delta ?? "").join("")).toBe("tail");
   });
 
   test("emits usage and finish reason", async () => {
@@ -389,5 +389,52 @@ describe("commandCodeAdapter sendStream() parsing", () => {
         (c) => c.usage?.inputTokens === 7416 && c.usage?.outputTokens === 16,
       ),
     ).toBe(true);
+  });
+
+  test("emits tool call chunks from tool-input events", async () => {
+    stubFetch(
+      200,
+      [
+        '{"type":"tool-input-start","id":"tc_1","toolName":"Read"}',
+        '{"type":"tool-input-delta","id":"tc_1","delta":"{\\"path\\":\\"/f"}',
+        '{"type":"tool-input-delta","id":"tc_1","delta":"oo.txt\\"}"}',
+        '{"type":"tool-call","toolCallId":"tc_1","toolName":"Read","input":{"path":"/foo.txt"}}',
+        '{"type":"finish","finishReason":"tool-calls"}',
+      ].join("\n"),
+    );
+
+    const chunks = await drain(
+      await commandCodeAdapter.sendStream(probeRequest, credential, "glm-5"),
+    );
+
+    expect(chunks.some((c) => c.toolCallStart?.toolName === "Read")).toBe(true);
+    expect(
+      chunks.some(
+        (c) =>
+          c.toolCallDelta?.toolCallId === "tc_1" &&
+          c.toolCallDelta?.arguments?.includes("path"),
+      ),
+    ).toBe(true);
+    expect(chunks.some((c) => c.finishReason === "tool_call")).toBe(true);
+  });
+
+  test("emits full tool call when no tool-input deltas precede it", async () => {
+    stubFetch(
+      200,
+      [
+        '{"type":"tool-call","toolCallId":"tc_1","toolName":"Read","input":{"path":"a.ts"}}',
+        '{"type":"finish","finishReason":"tool-calls"}',
+      ].join("\n"),
+    );
+
+    const chunks = await drain(
+      await commandCodeAdapter.sendStream(probeRequest, credential, "glm-5"),
+    );
+
+    expect(chunks.some((c) => c.toolCallStart?.toolName === "Read")).toBe(true);
+    expect(
+      chunks.some((c) => c.toolCallDelta?.arguments === '{"path":"a.ts"}'),
+    ).toBe(true);
+    expect(chunks.some((c) => c.finishReason === "tool_call")).toBe(true);
   });
 });

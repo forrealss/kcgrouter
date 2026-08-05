@@ -35,7 +35,15 @@ export interface CanonicalResponse {
 }
 
 export interface CanonicalStreamChunk {
-  delta: string;
+  delta?: string;
+  toolCallStart?: {
+    toolCallId: string;
+    toolName: string;
+  };
+  toolCallDelta?: {
+    toolCallId: string;
+    arguments: string;
+  };
   finishReason?: "stop" | "length" | "tool_call" | "error";
   usage?: { inputTokens: number; outputTokens: number };
 }

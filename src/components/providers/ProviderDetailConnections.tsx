@@ -7,6 +7,7 @@ import {
   TrashIcon,
   XCircleIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { AccountFormDialog } from "@/components/providers/AccountFormDialog";
 import {
   AlertDialog,
@@ -28,10 +29,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import type { TestStatus } from "@/hooks/useProviderDetail";
 import { cn } from "@/lib/utils";
 import type { Provider, ProviderAccount } from "@/types/provider";
-import type { TestStatus } from "@/hooks/useProviderDetail";
-import { useState } from "react";
 
 interface ProviderDetailConnectionsProps {
   provider: Provider;
@@ -55,8 +55,9 @@ export function ProviderDetailConnections({
   onTestConnection,
 }: ProviderDetailConnectionsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingAccount, setEditingAccount] =
-    useState<ProviderAccount | null>(null);
+  const [editingAccount, setEditingAccount] = useState<ProviderAccount | null>(
+    null,
+  );
 
   function handleAdd() {
     setEditingAccount(null);
@@ -149,7 +150,13 @@ export function ProviderDetailConnections({
                         size="icon-xs"
                         onClick={() => onTestConnection(account)}
                         disabled={isTesting || isDeleting}
-                        title={testStatus === "ok" ? "OK" : testStatus === "error" ? "Error" : "Test connection"}
+                        title={
+                          testStatus === "ok"
+                            ? "OK"
+                            : testStatus === "error"
+                              ? "Error"
+                              : "Test connection"
+                        }
                       >
                         {isTesting ? (
                           <Spinner className="size-4" />

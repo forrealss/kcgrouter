@@ -17,7 +17,9 @@ import {
 describe("ProviderRegistry — Provider CRUD", () => {
   beforeAll(() => {
     runMigrations();
-    run("DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)");
+    run(
+      "DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)",
+    );
     run("DELETE FROM providers WHERE is_builtin = 0");
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {
@@ -116,7 +118,9 @@ describe("ProviderRegistry — Provider CRUD", () => {
 describe("ProviderRegistry — Provider Account CRUD", () => {
   beforeAll(() => {
     runMigrations();
-    run("DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)");
+    run(
+      "DELETE FROM provider_accounts WHERE provider_id IN (SELECT id FROM providers WHERE is_builtin = 0)",
+    );
     run("DELETE FROM providers WHERE is_builtin = 0");
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {

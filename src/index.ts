@@ -37,6 +37,7 @@ function matchRoute(method: string, pathname: string) {
 
 const server = serve({
   port: Number(process.env.PORT) || 3000,
+  idleTimeout: 0,
   routes: {
     "/v1/*": async (req) => {
       const url = new URL(req.url);

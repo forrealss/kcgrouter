@@ -333,11 +333,11 @@ export const commandCodeAdapter: ProviderAdapter = {
       throw new Error(`Command Code API error ${res.status}: ${text}`);
     }
 
-    const reader = res.body?.getReader();
+    if (!res.body) throw new Error("Empty response body");
+
     const decoder = new TextDecoder();
-    // Events can straddle chunk boundaries, so hold the trailing partial line
-    // between pulls instead of discarding it.
     let buffer = "";
+    const seenToolDeltas = new Set<string>();
 
     const streamFinishMap: Record<string, "stop" | "length" | "tool_call"> = {
       stop: "stop",
@@ -347,7 +347,7 @@ export const commandCodeAdapter: ProviderAdapter = {
     };
 
     function emit(
-      controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+      controller: TransformStreamDefaultController<CanonicalStreamChunk>,
       line: string,
     ) {
       const parsed = parseEventLine(line);
@@ -357,12 +357,40 @@ export const commandCodeAdapter: ProviderAdapter = {
         controller.enqueue({ delta: parsed.text });
       }
 
-      // reasoning-delta is the model's internal chain of thought. It is
-      // deliberately not forwarded as visible output (and send() likewise
-      // excludes it) to avoid leaking thinking into the assistant message.
+      if (parsed.type === "tool-input-start") {
+        const toolCallId = (parsed.id ||
+          parsed.toolCallId ||
+          `tc_${Date.now()}`) as string;
+        const toolName = (parsed.toolName || "") as string;
+        seenToolDeltas.add(toolCallId);
+        controller.enqueue({ toolCallStart: { toolCallId, toolName } });
+      }
+
+      if (parsed.type === "tool-input-delta") {
+        const toolCallId = (parsed.id || parsed.toolCallId) as string;
+        const args = (parsed.delta || parsed.inputTextDelta || "") as string;
+        if (toolCallId && args) {
+          seenToolDeltas.add(toolCallId);
+          controller.enqueue({
+            toolCallDelta: { toolCallId, arguments: args },
+          });
+        }
+      }
 
       if (parsed.type === "tool-call") {
-        controller.enqueue({ delta: "", finishReason: "tool_call" });
+        const toolCallId = parsed.toolCallId as string;
+        if (toolCallId && !seenToolDeltas.has(toolCallId)) {
+          const toolName = (parsed.toolName || parsed.name || "") as string;
+          const input =
+            typeof parsed.input === "string"
+              ? parsed.input
+              : JSON.stringify(parsed.input ?? {});
+          controller.enqueue({
+            toolCallStart: { toolCallId, toolName },
+            toolCallDelta: { toolCallId, arguments: input },
+          });
+        }
+        controller.enqueue({ finishReason: "tool_call" });
       }
 
       if (parsed.type === "finish" || parsed.type === "finish-step") {
@@ -371,38 +399,28 @@ export const commandCodeAdapter: ProviderAdapter = {
             ? parsed.finishReason
             : "stop";
         controller.enqueue({
-          delta: "",
           finishReason: streamFinishMap[reason] ?? "stop",
         });
       }
 
       const usage = readUsage(parsed);
-      if (usage) controller.enqueue({ delta: "", usage });
+      if (usage) controller.enqueue({ usage });
     }
 
-    return new ReadableStream({
-      async pull(controller) {
-        if (!reader) {
-          controller.close();
-          return;
-        }
-        const { done, value } = await reader.read();
-        if (done) {
-          // Flush whatever remained after the final newline.
+    return res.body.pipeThrough(
+      new TransformStream<Uint8Array, CanonicalStreamChunk>({
+        transform(chunk, controller) {
+          buffer += decoder.decode(chunk, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) emit(controller, line);
+        },
+        flush(controller) {
           if (buffer.trim()) emit(controller, buffer);
-          buffer = "";
-          controller.close();
-          return;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        // The last element is an incomplete line (or "" if the chunk ended on
-        // a newline); keep it for the next pull.
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) emit(controller, line);
-      },
-    });
+          seenToolDeltas.clear();
+        },
+      }),
+    );
   },
 };

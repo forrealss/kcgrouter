@@ -20,7 +20,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { TestStatus } from "@/hooks/useProviderDetail";
-import type { Provider, ProviderAccount, ProviderModel } from "@/types/provider";
+import type {
+  Provider,
+  ProviderAccount,
+  ProviderModel,
+} from "@/types/provider";
 
 interface ProviderDetailModelsProps {
   provider: Provider;
@@ -156,7 +160,13 @@ export function ProviderDetailModels({
                         size="icon-xs"
                         onClick={() => handleTestModel(model)}
                         disabled={isTesting || accounts.length === 0}
-                        title={testStatus === "ok" ? "OK" : testStatus === "error" ? "Error" : "Test model"}
+                        title={
+                          testStatus === "ok"
+                            ? "OK"
+                            : testStatus === "error"
+                              ? "Error"
+                              : "Test model"
+                        }
                       >
                         {isTesting ? (
                           <Spinner className="size-4" />
@@ -208,7 +218,13 @@ export function ProviderDetailModels({
                       size="icon-xs"
                       onClick={() => handleTestModel(model)}
                       disabled={isTesting || accounts.length === 0}
-                      title={testStatus === "ok" ? "OK" : testStatus === "error" ? "Error" : "Test model"}
+                      title={
+                        testStatus === "ok"
+                          ? "OK"
+                          : testStatus === "error"
+                            ? "Error"
+                            : "Test model"
+                      }
                     >
                       {isTesting ? (
                         <Spinner className="size-4" />

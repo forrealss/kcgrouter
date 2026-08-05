@@ -1,5 +1,8 @@
 import { getAdapter } from "../providers/registry";
-import type { CanonicalRequest } from "../providers/types";
+import type {
+  CanonicalRequest,
+  CanonicalStreamChunk,
+} from "../providers/types";
 import * as ComboEngine from "./combo-engine.service";
 import {
   fromCanonical,
@@ -12,6 +15,7 @@ import {
   getTokenSaverDefault,
   recordTokenSaverSavings,
 } from "./settings.service";
+import { encodeOpenAIStream, OPENAI_SSE_HEADERS } from "./sse-encoder.service";
 import { compress } from "./token-saver.service";
 import * as UsageRecorder from "./usage-recorder.service";
 
@@ -32,6 +36,44 @@ export interface RouterResult {
 interface ParsedModel {
   providerPrefix: string | null;
   modelName: string;
+}
+
+interface StreamHandoff {
+  modelName: string;
+  includeUsage: boolean;
+  tokenSaverEstimate: number;
+  startedAt: number;
+  onComplete: (
+    usage: { inputTokens: number; outputTokens: number },
+    latencyMs: number,
+  ) => void;
+}
+
+/**
+ * Turns a canonical chunk stream into an SSE byte stream plus headers.
+ *
+ * Usage is reported from the encoder's completion hook rather than inline,
+ * because the stream can also end via client disconnect — recording it here
+ * means a cancelled request still gets accounted for.
+ */
+function buildStreamResult(
+  source: ReadableStream<CanonicalStreamChunk>,
+  handoff: StreamHandoff,
+): RouterResult {
+  const body = encodeOpenAIStream(
+    source,
+    { model: handoff.modelName, includeUsage: handoff.includeUsage },
+    (usage) => handoff.onComplete(usage, Date.now() - handoff.startedAt),
+  );
+
+  return {
+    status: 200,
+    body,
+    headers: {
+      ...OPENAI_SSE_HEADERS,
+      "x-router-tokens-saved": String(handoff.tokenSaverEstimate),
+    },
+  };
 }
 
 function parseModel(modelStr: string): ParsedModel {
@@ -89,6 +131,7 @@ async function handlePrefixRoute(
   sourceFormat: SourceFormat,
   stream: boolean,
   tokenSaverEstimate: number,
+  includeUsage: boolean,
 ): Promise<RouterResult> {
   // Find provider by prefix
   const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
@@ -131,51 +174,28 @@ async function handlePrefixRoute(
         modelName,
       );
 
-      const reader = streamResult.getReader();
-      let outputTokens = 0;
-      let inputTokens = 0;
-
-      const transformStream = new ReadableStream({
-        async pull(controller) {
-          const result = await reader.read();
-          if (result.done) {
-            controller.close();
-            const latencyMs = Date.now() - startedAt;
-            UsageRecorder.record({
-              providerAccountId: activeAccount.id,
-              comboId: null,
-              model: modelName,
-              inputTokens,
-              outputTokens,
-              status: "success",
-              latencyMs,
-              estimatedCost: 0,
-            });
-            QuotaTracker.recordUsage(
-              activeAccount.id,
-              inputTokens + outputTokens,
-            );
-            return;
-          }
-          const chunk = result.value;
-          if (chunk.usage) {
-            inputTokens = chunk.usage.inputTokens;
-            outputTokens = chunk.usage.outputTokens;
-          }
-          controller.enqueue(chunk);
+      return buildStreamResult(streamResult, {
+        modelName,
+        includeUsage,
+        tokenSaverEstimate,
+        startedAt,
+        onComplete: (usage, latencyMs) => {
+          UsageRecorder.record({
+            providerAccountId: activeAccount.id,
+            comboId: null,
+            model: modelName,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            status: "success",
+            latencyMs,
+            estimatedCost: 0,
+          });
+          QuotaTracker.recordUsage(
+            activeAccount.id,
+            usage.inputTokens + usage.outputTokens,
+          );
         },
       });
-
-      return {
-        status: 200,
-        body: transformStream,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-          "x-router-tokens-saved": String(tokenSaverEstimate),
-        },
-      };
     }
 
     // Non-streaming
@@ -220,6 +240,7 @@ async function handleComboRoute(
   sourceFormat: SourceFormat,
   stream: boolean,
   tokenSaverEstimate: number,
+  includeUsage: boolean,
 ): Promise<RouterResult> {
   const combo = ComboEngine.getCombo(comboName);
   if (!combo) {
@@ -274,51 +295,28 @@ async function handleComboRoute(
           member.modelName,
         );
 
-        const reader = streamResult.getReader();
-        let outputTokens = 0;
-        let inputTokens = 0;
-
-        const transformStream = new ReadableStream({
-          async pull(controller) {
-            const result = await reader.read();
-            if (result.done) {
-              controller.close();
-              const latencyMs = Date.now() - startedAt;
-              UsageRecorder.record({
-                providerAccountId: account.id,
-                comboId: combo.id,
-                model: member.modelName,
-                inputTokens,
-                outputTokens,
-                status: "success",
-                latencyMs,
-                estimatedCost: estimateCost(member, {
-                  inputTokens,
-                  outputTokens,
-                }),
-              });
-              QuotaTracker.recordUsage(account.id, inputTokens + outputTokens);
-              return;
-            }
-            const chunk = result.value;
-            if (chunk.usage) {
-              inputTokens = chunk.usage.inputTokens;
-              outputTokens = chunk.usage.outputTokens;
-            }
-            controller.enqueue(chunk);
+        return buildStreamResult(streamResult, {
+          modelName: member.modelName,
+          includeUsage,
+          tokenSaverEstimate,
+          startedAt,
+          onComplete: (usage, latencyMs) => {
+            UsageRecorder.record({
+              providerAccountId: account.id,
+              comboId: combo.id,
+              model: member.modelName,
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              status: "success",
+              latencyMs,
+              estimatedCost: estimateCost(member, usage),
+            });
+            QuotaTracker.recordUsage(
+              account.id,
+              usage.inputTokens + usage.outputTokens,
+            );
           },
         });
-
-        return {
-          status: 200,
-          body: transformStream,
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            "x-router-tokens-saved": String(tokenSaverEstimate),
-          },
-        };
       }
 
       // Non-streaming
@@ -359,9 +357,38 @@ async function handleComboRoute(
   }
 }
 
+/**
+ * OpenAI clients opt into a trailing usage chunk via
+ * `stream_options: { include_usage: true }`. Sending it unconditionally breaks
+ * stricter clients, so it is only emitted when asked for.
+ */
+function wantsUsageChunk(rawBody: unknown): boolean {
+  if (!rawBody || typeof rawBody !== "object") return false;
+  const opts = (rawBody as { stream_options?: { include_usage?: unknown } })
+    .stream_options;
+  return opts?.include_usage === true;
+}
+
 export async function handleChatRequest(
   input: RouterInput,
 ): Promise<RouterResult> {
+  // Streaming is only implemented for the OpenAI SSE dialect so far. Anthropic
+  // clients need a different, stateful event sequence (message_start /
+  // content_block_* / message_stop); emitting OpenAI frames there would look
+  // like a silent hang, so fail loudly instead.
+  if (input.stream && input.sourceFormat === "anthropic") {
+    return {
+      status: 501,
+      body: formatErrorResponse(
+        new Error(
+          "Streaming is not yet supported on /v1/messages. Use stream:false, or call /v1/chat/completions.",
+        ),
+        input.sourceFormat,
+      ),
+      headers: { "Content-Type": "application/json" },
+    };
+  }
+
   // 1. Parse + validate
   let canonical: CanonicalRequest;
   try {
@@ -385,6 +412,7 @@ export async function handleChatRequest(
 
   // 3. Parse model string for prefix
   const { providerPrefix, modelName } = parseModel(input.targetSelector);
+  const includeUsage = wantsUsageChunk(input.rawBody);
 
   // 4. Route based on prefix or combo
   if (providerPrefix) {
@@ -395,6 +423,7 @@ export async function handleChatRequest(
       input.sourceFormat,
       input.stream,
       tokensSavedEstimate,
+      includeUsage,
     );
   }
 
@@ -404,5 +433,6 @@ export async function handleChatRequest(
     input.sourceFormat,
     input.stream,
     tokensSavedEstimate,
+    includeUsage,
   );
 }

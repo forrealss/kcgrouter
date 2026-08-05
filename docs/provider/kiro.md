@@ -199,7 +199,7 @@ log mentah menyelesaikannya dalam satu iterasi.
 
 ## Bug yang sudah diperbaiki
 
-Sepuluh bug, tiga lapisan.
+Sebelas bug, tiga lapisan.
 
 **Payload**
 1. `req.tools` tidak pernah dikirim ke Kiro — model tidak tahu ada tool sama sekali
@@ -210,10 +210,11 @@ Sepuluh bug, tiga lapisan.
 6. History bisa dibuka assistant turn / peran tidak beralternasi
 7. Tool result orphan tidak di-inline
 8. Tools tidak disintesis dari history
+9. Tool results ditempatkan di ujung history setelah assistant berikutnya → `400 TOOL_USE_RESULT_MISMATCH`
 
 **Stream**
-9. Terminasi turn — `messageStopEvent` diasumsikan selalu ada
-10. Tool args bentuk object digabung, bukan dibuffer; flush tidak idempotent
+10. Terminasi turn — `messageStopEvent` diasumsikan selalu ada
+11. Tool args bentuk object digabung, bukan dibuffer; flush tidak idempotent
 
 ## Yang masih terbuka
 
@@ -258,7 +259,7 @@ payload `meteringEvent` untuk memastikan nama fieldnya.
 
 ## Test
 
-27 test, 2 file:
+28 test, 2 file:
 
 | File | Cakupan |
 |---|---|

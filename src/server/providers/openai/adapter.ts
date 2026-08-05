@@ -1,3 +1,4 @@
+import { createSSEStream, fetchJson, parseToolArguments } from "../helpers";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -88,17 +89,11 @@ function parseOpenAIResponse(data: unknown): CanonicalResponse {
         id: string;
         function: { name: string; arguments: string };
       };
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(t.function.arguments);
-      } catch {
-        parsed = t.function.arguments;
-      }
       parts.push({
         type: "tool_call",
         id: t.id,
         name: t.function.name,
-        arguments: parsed,
+        arguments: parseToolArguments(t.function.arguments),
       });
     }
   }
@@ -120,50 +115,56 @@ function parseOpenAIResponse(data: unknown): CanonicalResponse {
   };
 }
 
+function buildToolsParam(
+  req: CanonicalRequest,
+): Record<string, unknown>[] | undefined {
+  if (!req.tools || req.tools.length === 0) return undefined;
+  return req.tools.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+}
+
+const URL = "https://api.openai.com/v1/chat/completions";
+
+function headers(apiKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+}
+
+const FINISH_MAP: Record<string, CanonicalResponse["finishReason"]> = {
+  stop: "stop",
+  length: "length",
+  tool_calls: "tool_call",
+  content_filter: "error",
+};
+
 export const openaiAdapter: ProviderAdapter = {
   transport: "openai",
 
   async send(req, credential, model): Promise<CanonicalResponse> {
-    const url = new URL(
-      "/chat/completions",
-      "https://api.openai.com/v1",
-    ).toString();
-
     const body = {
       model,
       messages: buildOpenAIMessages(req),
       max_tokens: req.maxTokens,
       temperature: req.temperature,
       stream: false,
-      ...(req.tools && req.tools.length > 0
-        ? {
-            tools: req.tools.map((t) => ({
-              type: "function",
-              function: {
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters,
-              },
-            })),
-          }
-        : {}),
+      ...(buildToolsParam(req) ? { tools: buildToolsParam(req) } : {}),
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${credential.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`OpenAI API error ${res.status}: ${text}`);
-    }
-
-    return parseOpenAIResponse(await res.json());
+    const data = await fetchJson(
+      URL,
+      headers(credential.apiKey),
+      body,
+      "OpenAI",
+    );
+    return parseOpenAIResponse(data);
   },
 
   async sendStream(
@@ -171,11 +172,6 @@ export const openaiAdapter: ProviderAdapter = {
     credential,
     model,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
-    const url = new URL(
-      "/chat/completions",
-      "https://api.openai.com/v1",
-    ).toString();
-
     const body = {
       model,
       messages: buildOpenAIMessages(req),
@@ -185,12 +181,9 @@ export const openaiAdapter: ProviderAdapter = {
       stream_options: { include_usage: true },
     };
 
-    const res = await fetch(url, {
+    const res = await fetch(URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${credential.apiKey}`,
-      },
+      headers: headers(credential.apiKey),
       body: JSON.stringify(body),
     });
 
@@ -199,61 +192,34 @@ export const openaiAdapter: ProviderAdapter = {
       throw new Error(`OpenAI API error ${res.status}: ${text}`);
     }
 
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
+    return createSSEStream(res, (parsed, controller) => {
+      const delta = parsed.choices?.[0]?.delta;
+      const finish = parsed.choices?.[0]?.finish_reason;
 
-    return new ReadableStream({
-      async pull(controller) {
-        if (!reader) {
-          controller.close();
-          return;
-        }
-        const { done, value } = await reader.read();
-        if (done || !value) {
-          controller.close();
-          return;
-        }
+      if (delta?.content) {
+        controller.enqueue({ delta: delta.content as string });
+      }
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+      if (finish) {
+        controller.enqueue({
+          delta: "",
+          finishReason: FINISH_MAP[finish as string] ?? "stop",
+        });
+      }
 
-        for (const line of lines) {
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta;
-            const finish = parsed.choices?.[0]?.finish_reason;
-
-            if (delta?.content) {
-              controller.enqueue({ delta: delta.content });
-            }
-
-            if (finish) {
-              controller.enqueue({
-                delta: "",
-                finishReason:
-                  finish === "tool_calls"
-                    ? "tool_call"
-                    : (finish as "stop" | "length"),
-              });
-            }
-
-            if (parsed.usage) {
-              controller.enqueue({
-                delta: "",
-                usage: {
-                  inputTokens: parsed.usage.prompt_tokens,
-                  outputTokens: parsed.usage.completion_tokens,
-                },
-              });
-            }
-          } catch {
-            // skip malformed chunks
-          }
-        }
-      },
+      if (parsed.usage) {
+        const usage = parsed.usage as {
+          prompt_tokens: number;
+          completion_tokens: number;
+        };
+        controller.enqueue({
+          delta: "",
+          usage: {
+            inputTokens: usage.prompt_tokens,
+            outputTokens: usage.completion_tokens,
+          },
+        });
+      }
     });
   },
 };

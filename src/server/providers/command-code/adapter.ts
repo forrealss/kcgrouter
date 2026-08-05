@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { extractSystemText, parseToolArguments } from "../helpers";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -44,16 +45,10 @@ function convertMessages(req: CanonicalRequest): {
   system?: string;
 } {
   const messages: unknown[] = [];
-  let system: string | undefined;
+  const system = extractSystemText(req);
 
   for (const msg of req.messages) {
-    if (msg.role === "system") {
-      system = msg.content
-        .filter((p) => p.type === "text")
-        .map((p) => (p as { type: "text"; text: string }).text)
-        .join("\n");
-      continue;
-    }
+    if (msg.role === "system") continue;
 
     if (msg.role === "user") {
       const parts: unknown[] = [];
@@ -80,10 +75,7 @@ function convertMessages(req: CanonicalRequest): {
             type: "tool-call",
             toolCallId: part.id,
             toolName: part.name,
-            input:
-              typeof part.arguments === "string"
-                ? JSON.parse(part.arguments)
-                : part.arguments,
+            input: parseToolArguments(part.arguments),
           });
         }
       }

@@ -338,3 +338,80 @@ test("tools are synthesized from history when the caller omits them", async () =
   expect(tools?.length).toBeGreaterThan(0);
   expect(tools?.[0]?.toolSpecification?.name).toBe("bash");
 });
+
+test("tool results are placed before the next assistant turn, not at the end", async () => {
+  // When the OpenAI history is:
+  //   [system, user, assistant(tool_calls), tool, tool, tool, assistant(text)]
+  // the tool results must appear BEFORE the second assistant, not after it.
+  // Otherwise Kiro sees tool_uses with no following tool_results and returns
+  // 400 TOOL_USE_RESULT_MISMATCH.
+  const payload = await buildPayload({
+    stream: false,
+    messages: [
+      { role: "user", content: [{ type: "text", text: "list files" }] },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            id: "t1",
+            name: "bash",
+            arguments: { command: "ls" },
+          },
+          {
+            type: "tool_call",
+            id: "t2",
+            name: "read",
+            arguments: { path: "x.ts" },
+          },
+          {
+            type: "tool_call",
+            id: "t3",
+            name: "read",
+            arguments: { path: "y.ts" },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool_result", toolCallId: "t1", content: "output1" },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool_result", toolCallId: "t2", content: "output2" },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool_result", toolCallId: "t3", content: "output3" },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Here is the result" }],
+      },
+    ],
+  });
+
+  const state = conversationState(payload);
+  const all = [...state.history, state.currentMessage];
+
+  // Find the assistant with toolUses — its immediate successor must have toolResults
+  for (let i = 0; i < all.length; i++) {
+    const item = all[i];
+    if (!item.assistantResponseMessage?.toolUses?.length) continue;
+
+    const next = all[i + 1];
+    expect(next?.userInputMessage).toBeDefined();
+    expect(
+      next?.userInputMessage?.userInputMessageContext?.toolResults,
+    ).toBeDefined();
+    const results = next?.userInputMessage?.userInputMessageContext?.toolResults;
+    expect(Array.isArray(results) ? results.length : 0).toBe(3);
+    break;
+  }
+});

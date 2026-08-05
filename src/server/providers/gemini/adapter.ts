@@ -1,3 +1,8 @@
+import {
+  createSSEStream,
+  extractSystemText,
+  parseToolArguments,
+} from "../helpers";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -10,18 +15,17 @@ function buildGeminiContents(req: CanonicalRequest): {
   systemInstruction?: unknown;
   contents: unknown[];
 } {
-  let systemInstruction: unknown;
+  const system = extractSystemText(req);
+  const systemInstruction = system
+    ? {
+        parts: system.split("\n").map((text) => ({ text })),
+      }
+    : undefined;
+
   const contents: unknown[] = [];
 
   for (const m of req.messages) {
-    if (m.role === "system") {
-      systemInstruction = {
-        parts: m.content
-          .filter((p) => p.type === "text")
-          .map((p) => ({ text: (p as { type: "text"; text: string }).text })),
-      };
-      continue;
-    }
+    if (m.role === "system") continue;
 
     const parts: unknown[] = [];
     for (const part of m.content) {
@@ -31,10 +35,7 @@ function buildGeminiContents(req: CanonicalRequest): {
         parts.push({
           functionCall: {
             name: part.name,
-            args:
-              typeof part.arguments === "string"
-                ? JSON.parse(part.arguments)
-                : part.arguments,
+            args: parseToolArguments(part.arguments),
           },
         });
       } else if (part.type === "tool_result") {
@@ -110,27 +111,38 @@ function parseGeminiResponse(data: unknown): CanonicalResponse {
   };
 }
 
+function headers(): Record<string, string> {
+  return { "Content-Type": "application/json" };
+}
+
+function buildBody(req: CanonicalRequest): Record<string, unknown> {
+  const { systemInstruction, contents } = buildGeminiContents(req);
+  const body: Record<string, unknown> = {
+    contents,
+    generationConfig: {
+      maxOutputTokens: req.maxTokens,
+      temperature: req.temperature,
+    },
+  };
+  if (systemInstruction) body.systemInstruction = systemInstruction;
+  return body;
+}
+
+const STREAM_FINISH_MAP: Record<string, "stop" | "length"> = {
+  STOP: "stop",
+  MAX_TOKENS: "length",
+};
+
 export const geminiAdapter: ProviderAdapter = {
   transport: "gemini",
 
   async send(req, credential, model): Promise<CanonicalResponse> {
-    const { systemInstruction, contents } = buildGeminiContents(req);
-
-    const body: Record<string, unknown> = {
-      contents,
-      generationConfig: {
-        maxOutputTokens: req.maxTokens,
-        temperature: req.temperature,
-      },
-    };
-
-    if (systemInstruction) body.systemInstruction = systemInstruction;
-
+    const body = buildBody(req);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${credential.apiKey}`;
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers(),
       body: JSON.stringify(body),
     });
 
@@ -147,23 +159,12 @@ export const geminiAdapter: ProviderAdapter = {
     credential,
     model,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
-    const { systemInstruction, contents } = buildGeminiContents(req);
-
-    const body: Record<string, unknown> = {
-      contents,
-      generationConfig: {
-        maxOutputTokens: req.maxTokens,
-        temperature: req.temperature,
-      },
-    };
-
-    if (systemInstruction) body.systemInstruction = systemInstruction;
-
+    const body = buildBody(req);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${credential.apiKey}`;
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers(),
       body: JSON.stringify(body),
     });
 
@@ -172,60 +173,39 @@ export const geminiAdapter: ProviderAdapter = {
       throw new Error(`Gemini API error ${res.status}: ${text}`);
     }
 
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
+    return createSSEStream(res, (parsed, controller) => {
+      const candidate = parsed.candidates?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      const part = candidate?.content?.parts?.[0] as
+        | Record<string, unknown>
+        | undefined;
 
-    return new ReadableStream({
-      async pull(controller) {
-        if (!reader) {
-          controller.close();
-          return;
-        }
-        const { done, value } = await reader.read();
-        if (done || !value) {
-          controller.close();
-          return;
-        }
+      if (part?.text) {
+        controller.enqueue({ delta: part.text as string });
+      }
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+      if (candidate?.finishReason) {
+        controller.enqueue({
+          delta: "",
+          finishReason:
+            STREAM_FINISH_MAP[candidate.finishReason as string] ?? "stop",
+        });
+      }
 
-        for (const line of lines) {
-          const data = line.slice(6);
-          try {
-            const parsed = JSON.parse(data);
-            const candidate = parsed.candidates?.[0];
-            const part = candidate?.content?.parts?.[0];
-
-            if (part?.text) {
-              controller.enqueue({ delta: part.text });
-            }
-
-            if (candidate?.finishReason) {
-              const finishMap: Record<string, "stop" | "length"> = {
-                STOP: "stop",
-                MAX_TOKENS: "length",
-              };
-              controller.enqueue({
-                delta: "",
-                finishReason: finishMap[candidate.finishReason] ?? "stop",
-              });
-            }
-
-            if (parsed.usageMetadata) {
-              controller.enqueue({
-                delta: "",
-                usage: {
-                  inputTokens: parsed.usageMetadata.promptTokenCount ?? 0,
-                  outputTokens: parsed.usageMetadata.candidatesTokenCount ?? 0,
-                },
-              });
-            }
-          } catch {
-            // skip malformed chunks
-          }
-        }
-      },
+      if (parsed.usageMetadata) {
+        const usage = parsed.usageMetadata as {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+        };
+        controller.enqueue({
+          delta: "",
+          usage: {
+            inputTokens: usage.promptTokenCount ?? 0,
+            outputTokens: usage.candidatesTokenCount ?? 0,
+          },
+        });
+      }
     });
   },
 };

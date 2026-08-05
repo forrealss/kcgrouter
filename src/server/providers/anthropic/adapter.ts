@@ -1,3 +1,8 @@
+import {
+  createSSEStream,
+  extractSystemText,
+  parseToolArguments,
+} from "../helpers";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -10,17 +15,11 @@ function buildAnthropicMessages(req: CanonicalRequest): {
   system?: string;
   messages: unknown[];
 } {
-  let system: string | undefined;
+  const system = extractSystemText(req);
   const messages: unknown[] = [];
 
   for (const m of req.messages) {
-    if (m.role === "system") {
-      system = m.content
-        .filter((p) => p.type === "text")
-        .map((p) => (p as { type: "text"; text: string }).text)
-        .join("\n");
-      continue;
-    }
+    if (m.role === "system") continue;
 
     const blocks: unknown[] = [];
 
@@ -32,10 +31,7 @@ function buildAnthropicMessages(req: CanonicalRequest): {
           type: "tool_use",
           id: part.id,
           name: part.name,
-          input:
-            typeof part.arguments === "string"
-              ? JSON.parse(part.arguments)
-              : part.arguments,
+          input: parseToolArguments(part.arguments),
         });
       } else if (part.type === "tool_result") {
         blocks.push({
@@ -106,6 +102,22 @@ function parseAnthropicResponse(data: unknown): CanonicalResponse {
   };
 }
 
+const URL = "https://api.anthropic.com/v1/messages";
+
+function headers(apiKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+  };
+}
+
+const STREAM_FINISH_MAP: Record<string, "stop" | "length" | "tool_call"> = {
+  end_turn: "stop",
+  max_tokens: "length",
+  tool_use: "tool_call",
+};
+
 export const anthropicAdapter: ProviderAdapter = {
   transport: "anthropic",
 
@@ -129,13 +141,9 @@ export const anthropicAdapter: ProviderAdapter = {
       }));
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": credential.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: headers(credential.apiKey),
       body: JSON.stringify(body),
     });
 
@@ -164,13 +172,9 @@ export const anthropicAdapter: ProviderAdapter = {
     if (system) body.system = system;
     if (req.temperature !== undefined) body.temperature = req.temperature;
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": credential.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: headers(credential.apiKey),
       body: JSON.stringify(body),
     });
 
@@ -179,60 +183,29 @@ export const anthropicAdapter: ProviderAdapter = {
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }
 
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
+    return createSSEStream(res, (parsed, controller) => {
+      if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+        controller.enqueue({ delta: parsed.delta.text as string });
+      }
 
-    return new ReadableStream({
-      async pull(controller) {
-        if (!reader) {
-          controller.close();
-          return;
-        }
-        const { done, value } = await reader.read();
-        if (done || !value) {
-          controller.close();
-          return;
-        }
+      if (parsed.type === "message_delta" && parsed.delta?.stop_reason) {
+        controller.enqueue({
+          delta: "",
+          finishReason:
+            STREAM_FINISH_MAP[parsed.delta.stop_reason as string] ?? "stop",
+        });
+      }
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
-
-        for (const line of lines) {
-          const data = line.slice(6);
-          try {
-            const parsed = JSON.parse(data);
-
-            if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-              controller.enqueue({ delta: parsed.delta.text });
-            }
-
-            if (parsed.type === "message_delta" && parsed.delta?.stop_reason) {
-              const finishMap: Record<string, "stop" | "length" | "tool_call"> =
-                {
-                  end_turn: "stop",
-                  max_tokens: "length",
-                  tool_use: "tool_call",
-                };
-              controller.enqueue({
-                delta: "",
-                finishReason: finishMap[parsed.delta.stop_reason] ?? "stop",
-              });
-            }
-
-            if (parsed.type === "message_delta" && parsed.usage) {
-              controller.enqueue({
-                delta: "",
-                usage: {
-                  inputTokens: 0,
-                  outputTokens: parsed.usage.output_tokens,
-                },
-              });
-            }
-          } catch {
-            // skip malformed chunks
-          }
-        }
-      },
+      if (parsed.type === "message_delta" && parsed.usage) {
+        const usage = parsed.usage as { output_tokens: number };
+        controller.enqueue({
+          delta: "",
+          usage: {
+            inputTokens: 0,
+            outputTokens: usage.output_tokens,
+          },
+        });
+      }
     });
   },
 };

@@ -1,4 +1,5 @@
 import { GaugeIcon, RefreshCwIcon } from "lucide-react";
+import { useEffect } from "react";
 import { QuotaCard } from "@/components/quota/QuotaCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,25 @@ import { Spinner } from "@/components/ui/spinner";
 import { useQuota } from "@/hooks/useQuota";
 
 export function QuotaPage() {
-  const { accounts, error, isLoading, loadQuota } = useQuota();
+  const {
+    accounts,
+    providerUsage,
+    error,
+    isLoading,
+    isLoadingUsage,
+    loadQuota,
+    loadProviderUsage,
+  } = useQuota();
+
+  useEffect(() => {
+    void loadProviderUsage();
+  }, [loadProviderUsage]);
 
   const isInitialLoading = isLoading && accounts === null;
   const showEmptyState = !isLoading && !error && accounts?.length === 0;
   const showGrid = accounts !== null && accounts.length > 0;
+
+  const usageMap = new Map((providerUsage ?? []).map((u) => [u.accountId, u]));
 
   return (
     <section className="flex flex-col gap-6" aria-labelledby="quota-heading">
@@ -45,10 +60,13 @@ export function QuotaPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => void loadQuota()}
-          disabled={isLoading}
+          onClick={() => {
+            void loadQuota();
+            void loadProviderUsage();
+          }}
+          disabled={isLoading || isLoadingUsage}
         >
-          {isLoading ? (
+          {isLoading || isLoadingUsage ? (
             <Spinner data-icon="inline-start" />
           ) : (
             <RefreshCwIcon data-icon="inline-start" />
@@ -125,9 +143,17 @@ export function QuotaPage() {
 
       {showGrid ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {accounts.map((account) => (
-            <QuotaCard key={account.id} account={account} />
-          ))}
+          {accounts.map((account) => {
+            const usage = usageMap.get(account.id);
+            return (
+              <QuotaCard
+                key={account.id}
+                account={account}
+                providerQuotas={usage?.quotas}
+                plan={usage?.plan}
+              />
+            );
+          })}
         </div>
       ) : null}
     </section>

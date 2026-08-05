@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import type { QuotaAccount } from "@/types/quota";
+import type { ProviderUsageData, QuotaAccount } from "@/types/quota";
 
 export function useQuota() {
   const [accounts, setAccounts] = useState<QuotaAccount[] | null>(null);
+  const [providerUsage, setProviderUsage] = useState<
+    ProviderUsageData[] | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
   const requestIdRef = useRef(0);
 
   const loadQuota = useCallback(async () => {
@@ -25,6 +29,19 @@ export function useQuota() {
     }
   }, []);
 
+  const loadProviderUsage = useCallback(async () => {
+    setIsLoadingUsage(true);
+    try {
+      const response =
+        await apiClient.get<ProviderUsageData[]>("/api/quota/usage");
+      setProviderUsage(response);
+    } catch {
+      // ignore error
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadQuota();
 
@@ -33,5 +50,13 @@ export function useQuota() {
     };
   }, [loadQuota]);
 
-  return { accounts, error, isLoading, loadQuota };
+  return {
+    accounts,
+    providerUsage,
+    error,
+    isLoading,
+    isLoadingUsage,
+    loadQuota,
+    loadProviderUsage,
+  };
 }

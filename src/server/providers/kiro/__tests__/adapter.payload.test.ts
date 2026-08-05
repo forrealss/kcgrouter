@@ -410,7 +410,8 @@ test("tool results are placed before the next assistant turn, not at the end", a
     expect(
       next?.userInputMessage?.userInputMessageContext?.toolResults,
     ).toBeDefined();
-    const results = next?.userInputMessage?.userInputMessageContext?.toolResults;
+    const results =
+      next?.userInputMessage?.userInputMessageContext?.toolResults;
     expect(Array.isArray(results) ? results.length : 0).toBe(3);
     break;
   }

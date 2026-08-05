@@ -8,134 +8,6 @@ interface ModelSeed {
   maxOutputTokens: number;
 }
 
-const openaiModels: ModelSeed[] = [
-  {
-    provider: "builtin-openai",
-    modelId: "gpt-4o",
-    modelName: "GPT-4o",
-    contextLength: 128000,
-    maxOutputTokens: 16384,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "gpt-4o-mini",
-    modelName: "GPT-4o Mini",
-    contextLength: 128000,
-    maxOutputTokens: 16384,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "gpt-4.1",
-    modelName: "GPT-4.1",
-    contextLength: 1048576,
-    maxOutputTokens: 32768,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "gpt-4.1-mini",
-    modelName: "GPT-4.1 Mini",
-    contextLength: 1048576,
-    maxOutputTokens: 32768,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "gpt-4.1-nano",
-    modelName: "GPT-4.1 Nano",
-    contextLength: 1048576,
-    maxOutputTokens: 32768,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "o3",
-    modelName: "o3",
-    contextLength: 200000,
-    maxOutputTokens: 100000,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "o3-mini",
-    modelName: "o3-mini",
-    contextLength: 200000,
-    maxOutputTokens: 100000,
-  },
-  {
-    provider: "builtin-openai",
-    modelId: "o4-mini",
-    modelName: "o4-mini",
-    contextLength: 200000,
-    maxOutputTokens: 100000,
-  },
-];
-
-const anthropicModels: ModelSeed[] = [
-  {
-    provider: "builtin-anthropic",
-    modelId: "claude-sonnet-4-20250514",
-    modelName: "Claude Sonnet 4",
-    contextLength: 200000,
-    maxOutputTokens: 64000,
-  },
-  {
-    provider: "builtin-anthropic",
-    modelId: "claude-haiku-4-20250514",
-    modelName: "Claude Haiku 4",
-    contextLength: 200000,
-    maxOutputTokens: 64000,
-  },
-  {
-    provider: "builtin-anthropic",
-    modelId: "claude-3-5-sonnet-20241022",
-    modelName: "Claude 3.5 Sonnet",
-    contextLength: 200000,
-    maxOutputTokens: 8192,
-  },
-  {
-    provider: "builtin-anthropic",
-    modelId: "claude-3-5-haiku-20241022",
-    modelName: "Claude 3.5 Haiku",
-    contextLength: 200000,
-    maxOutputTokens: 8192,
-  },
-];
-
-const geminiModels: ModelSeed[] = [
-  {
-    provider: "builtin-gemini",
-    modelId: "gemini-2.5-pro",
-    modelName: "Gemini 2.5 Pro",
-    contextLength: 1048576,
-    maxOutputTokens: 65536,
-  },
-  {
-    provider: "builtin-gemini",
-    modelId: "gemini-2.5-flash",
-    modelName: "Gemini 2.5 Flash",
-    contextLength: 1048576,
-    maxOutputTokens: 65536,
-  },
-  {
-    provider: "builtin-gemini",
-    modelId: "gemini-2.0-flash",
-    modelName: "Gemini 2.0 Flash",
-    contextLength: 1048576,
-    maxOutputTokens: 8192,
-  },
-  {
-    provider: "builtin-gemini",
-    modelId: "gemini-1.5-pro",
-    modelName: "Gemini 1.5 Pro",
-    contextLength: 2097152,
-    maxOutputTokens: 8192,
-  },
-  {
-    provider: "builtin-gemini",
-    modelId: "gemini-1.5-flash",
-    modelName: "Gemini 1.5 Flash",
-    contextLength: 1048576,
-    maxOutputTokens: 8192,
-  },
-];
-
 const kiroModels: ModelSeed[] = [
   {
     provider: "builtin-kiro",
@@ -254,13 +126,7 @@ const commandCodeModels: ModelSeed[] = [
   },
 ];
 
-const allModels = [
-  ...openaiModels,
-  ...anthropicModels,
-  ...geminiModels,
-  ...kiroModels,
-  ...commandCodeModels,
-];
+const allModels = [...kiroModels, ...commandCodeModels];
 
 export function seed(): void {
   for (const m of allModels) {

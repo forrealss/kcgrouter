@@ -18,3 +18,19 @@ export interface QuotaAccount {
     requestCount: number;
   };
 }
+
+export interface ProviderQuotaItem {
+  name: string;
+  used: number;
+  total: number;
+  resetAt: string | null;
+}
+
+export interface ProviderUsageData {
+  provider: string;
+  accountId: string;
+  label: string;
+  plan?: string;
+  quotas: ProviderQuotaItem[];
+  message?: string;
+}

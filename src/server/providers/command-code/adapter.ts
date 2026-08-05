@@ -357,6 +357,13 @@ export const commandCodeAdapter: ProviderAdapter = {
         controller.enqueue({ delta: parsed.text });
       }
 
+      if (
+        parsed.type === "reasoning-delta" &&
+        typeof parsed.text === "string"
+      ) {
+        controller.enqueue({ reasoning: parsed.text });
+      }
+
       if (parsed.type === "tool-input-start") {
         const toolCallId = (parsed.id ||
           parsed.toolCallId ||

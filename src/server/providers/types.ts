@@ -36,6 +36,7 @@ export interface CanonicalResponse {
 
 export interface CanonicalStreamChunk {
   delta?: string;
+  reasoning?: string;
   toolCallStart?: {
     toolCallId: string;
     toolName: string;

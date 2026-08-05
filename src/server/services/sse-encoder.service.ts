@@ -229,6 +229,26 @@ export function encodeOpenAIStream(
         controller.enqueue(contentChunkBytes(meta, chunk.delta));
       }
 
+      if (chunk.reasoning) {
+        const delta: Record<string, unknown> = {};
+        if (!roleSent) {
+          delta.role = "assistant";
+          roleSent = true;
+        }
+        delta.reasoning_content = chunk.reasoning;
+        controller.enqueue(
+          frame(
+            JSON.stringify({
+              id: meta.id,
+              object: "chat.completion.chunk",
+              created: meta.created,
+              model: meta.model,
+              choices: [{ index: 0, delta, finish_reason: null }],
+            }),
+          ),
+        );
+      }
+
       if (chunk.finishReason && !finishSent) {
         controller.enqueue(finishChunkBytes(meta, chunk.finishReason));
         finishSent = true;

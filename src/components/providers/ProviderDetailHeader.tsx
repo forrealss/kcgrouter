@@ -12,7 +12,6 @@ interface ProviderDetailHeaderProps {
 export function ProviderDetailHeader({ provider }: ProviderDetailHeaderProps) {
   const { navigate } = useRouter();
   const meta = transportMeta[provider.transport];
-  const TransportIcon = meta.icon;
 
   return (
     <div className="flex flex-col gap-4">
@@ -34,7 +33,11 @@ export function ProviderDetailHeader({ provider }: ProviderDetailHeaderProps) {
             meta.accentClassName,
           )}
         >
-          <TransportIcon className="size-5" />
+          {meta.icon ? (
+            <img src={meta.icon} alt="" className="size-5" />
+          ) : (
+            <meta.fallbackIcon className="size-5" />
+          )}
         </span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">

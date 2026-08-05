@@ -1,3 +1,5 @@
+import type { ProviderTransport } from "./provider";
+
 export interface QuotaAccount {
   id: string;
   providerId: string;
@@ -8,6 +10,7 @@ export interface QuotaAccount {
   lastUsedAt: string | null;
   createdAt: string;
   providerName: string;
+  transport: ProviderTransport;
   available: boolean;
   quotaState: {
     accountId: string;

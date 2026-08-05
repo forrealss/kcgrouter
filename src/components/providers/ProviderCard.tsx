@@ -2,7 +2,6 @@ import {
   BotIcon,
   BrainCircuitIcon,
   CpuIcon,
-  type LucideIcon,
   SparklesIcon,
   TerminalIcon,
   TrashIcon,
@@ -37,31 +36,40 @@ import type { Provider, ProviderTransport } from "@/types/provider";
 
 export const transportMeta: Record<
   ProviderTransport,
-  { label: string; icon: LucideIcon; accentClassName: string }
+  {
+    label: string;
+    icon?: string;
+    fallbackIcon: typeof BotIcon;
+    accentClassName: string;
+  }
 > = {
   openai: {
     label: "OpenAI-compatible",
-    icon: BotIcon,
+    icon: "/images/providers/openai.svg",
+    fallbackIcon: BotIcon,
     accentClassName: "border-chart-3/40 bg-chart-3/10 text-chart-3",
   },
   anthropic: {
     label: "Anthropic",
-    icon: BrainCircuitIcon,
+    icon: "/images/providers/anthropic.svg",
+    fallbackIcon: BrainCircuitIcon,
     accentClassName: "border-chart-4/40 bg-chart-4/10 text-chart-4",
   },
   gemini: {
     label: "Google Gemini",
-    icon: SparklesIcon,
+    fallbackIcon: SparklesIcon,
     accentClassName: "border-chart-2/40 bg-chart-2/10 text-chart-2",
   },
   kiro: {
     label: "Kiro (AWS CodeWhisperer)",
-    icon: CpuIcon,
+    icon: "/images/providers/kiro.svg",
+    fallbackIcon: CpuIcon,
     accentClassName: "border-orange-400/40 bg-orange-400/10 text-orange-400",
   },
   "command-code": {
     label: "Command Code",
-    icon: TerminalIcon,
+    icon: "/images/providers/command-code.svg",
+    fallbackIcon: TerminalIcon,
     accentClassName: "border-gray-400/40 bg-gray-400/10 text-gray-400",
   },
 };
@@ -88,7 +96,6 @@ export function ProviderCard({
   onDelete,
 }: ProviderCardProps) {
   const meta = transportMeta[provider.transport];
-  const TransportIcon = meta.icon;
   const [isDeleting, setIsDeleting] = useState(false);
 
   async function handleDelete() {
@@ -115,13 +122,14 @@ export function ProviderCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-md border",
-              meta.accentClassName,
-            )}
+            className="flex size-7 shrink-0 items-center justify-center"
             aria-hidden
           >
-            <TransportIcon className="size-3.5" />
+            {meta.icon ? (
+              <img src={meta.icon} alt="" className="w-full" />
+            ) : (
+              <meta.fallbackIcon className="size-3.5" />
+            )}
           </span>
           <span className="truncate">{provider.name}</span>
         </CardTitle>

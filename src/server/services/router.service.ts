@@ -43,9 +43,13 @@ interface StreamHandoff {
   includeUsage: boolean;
   tokenSaverEstimate: number;
   startedAt: number;
+  rawBody: unknown;
+  providerAccountId: string;
+  comboId: string | null;
   onComplete: (
     usage: { inputTokens: number; outputTokens: number },
     latencyMs: number,
+    collectedChunks: CanonicalStreamChunk[],
   ) => void;
 }
 
@@ -60,10 +64,32 @@ function buildStreamResult(
   source: ReadableStream<CanonicalStreamChunk>,
   handoff: StreamHandoff,
 ): RouterResult {
+  const collectedChunks: CanonicalStreamChunk[] = [];
+  const collectingReader = source.getReader();
+  const collectedStream = new ReadableStream<CanonicalStreamChunk>({
+    async pull(controller) {
+      const { done, value } = await collectingReader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      collectedChunks.push(value);
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      collectingReader.cancel(reason).catch(() => {});
+    },
+  });
+
   const body = encodeOpenAIStream(
-    source,
+    collectedStream,
     { model: handoff.modelName, includeUsage: handoff.includeUsage },
-    (usage) => handoff.onComplete(usage, Date.now() - handoff.startedAt),
+    (usage) =>
+      handoff.onComplete(
+        usage,
+        Date.now() - handoff.startedAt,
+        collectedChunks,
+      ),
   );
 
   return {
@@ -132,6 +158,7 @@ async function handlePrefixRoute(
   stream: boolean,
   tokenSaverEstimate: number,
   includeUsage: boolean,
+  rawBody: unknown,
 ): Promise<RouterResult> {
   // Find provider by prefix
   const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
@@ -179,7 +206,24 @@ async function handlePrefixRoute(
         includeUsage,
         tokenSaverEstimate,
         startedAt,
-        onComplete: (usage, latencyMs) => {
+        rawBody,
+        providerAccountId: activeAccount.id,
+        comboId: null,
+        onComplete: (usage, latencyMs, collectedChunks) => {
+          const responseBody = collectedChunks.map((c) => ({
+            role: "assistant" as const,
+            content: c.delta ?? "",
+            reasoning: c.reasoning,
+            toolCalls: c.toolCallStart
+              ? [
+                  {
+                    id: c.toolCallStart.toolCallId,
+                    name: c.toolCallStart.toolName,
+                    arguments: "",
+                  },
+                ]
+              : undefined,
+          }));
           UsageRecorder.record({
             providerAccountId: activeAccount.id,
             comboId: null,
@@ -189,6 +233,8 @@ async function handlePrefixRoute(
             status: "success",
             latencyMs,
             estimatedCost: 0,
+            requestBody: JSON.stringify(rawBody),
+            responseBody: JSON.stringify(responseBody),
           });
           QuotaTracker.recordUsage(
             activeAccount.id,
@@ -201,6 +247,7 @@ async function handlePrefixRoute(
     // Non-streaming
     const response = await adapter.send(reqWithModel, credential, modelName);
     const latencyMs = Date.now() - startedAt;
+    const responseBody = fromCanonical(response, sourceFormat);
 
     UsageRecorder.record({
       providerAccountId: activeAccount.id,
@@ -211,6 +258,8 @@ async function handlePrefixRoute(
       status: "success",
       latencyMs,
       estimatedCost: 0,
+      requestBody: JSON.stringify(rawBody),
+      responseBody: JSON.stringify(responseBody),
     });
     QuotaTracker.recordUsage(
       activeAccount.id,
@@ -219,7 +268,7 @@ async function handlePrefixRoute(
 
     return {
       status: 200,
-      body: fromCanonical(response, sourceFormat),
+      body: responseBody,
       headers: {
         "Content-Type": "application/json",
         "x-router-tokens-saved": String(tokenSaverEstimate),
@@ -241,6 +290,7 @@ async function handleComboRoute(
   stream: boolean,
   tokenSaverEstimate: number,
   includeUsage: boolean,
+  rawBody: unknown,
 ): Promise<RouterResult> {
   const combo = ComboEngine.getCombo(comboName);
   if (!combo) {
@@ -300,7 +350,24 @@ async function handleComboRoute(
           includeUsage,
           tokenSaverEstimate,
           startedAt,
-          onComplete: (usage, latencyMs) => {
+          rawBody,
+          providerAccountId: account.id,
+          comboId: combo.id,
+          onComplete: (usage, latencyMs, collectedChunks) => {
+            const responseBody = collectedChunks.map((c) => ({
+              role: "assistant" as const,
+              content: c.delta ?? "",
+              reasoning: c.reasoning,
+              toolCalls: c.toolCallStart
+                ? [
+                    {
+                      id: c.toolCallStart.toolCallId,
+                      name: c.toolCallStart.toolName,
+                      arguments: "",
+                    },
+                  ]
+                : undefined,
+            }));
             UsageRecorder.record({
               providerAccountId: account.id,
               comboId: combo.id,
@@ -310,6 +377,8 @@ async function handleComboRoute(
               status: "success",
               latencyMs,
               estimatedCost: estimateCost(member, usage),
+              requestBody: JSON.stringify(rawBody),
+              responseBody: JSON.stringify(responseBody),
             });
             QuotaTracker.recordUsage(
               account.id,
@@ -326,6 +395,7 @@ async function handleComboRoute(
         member.modelName,
       );
       const latencyMs = Date.now() - startedAt;
+      const responseBody = fromCanonical(response, sourceFormat);
 
       UsageRecorder.record({
         providerAccountId: account.id,
@@ -336,6 +406,8 @@ async function handleComboRoute(
         status: "success",
         latencyMs,
         estimatedCost: estimateCost(member, response.usage),
+        requestBody: JSON.stringify(rawBody),
+        responseBody: JSON.stringify(responseBody),
       });
       QuotaTracker.recordUsage(
         account.id,
@@ -344,7 +416,7 @@ async function handleComboRoute(
 
       return {
         status: 200,
-        body: fromCanonical(response, sourceFormat),
+        body: responseBody,
         headers: {
           "Content-Type": "application/json",
           "x-router-tokens-saved": String(tokenSaverEstimate),
@@ -424,6 +496,7 @@ export async function handleChatRequest(
       input.stream,
       tokensSavedEstimate,
       includeUsage,
+      input.rawBody,
     );
   }
 
@@ -434,5 +507,6 @@ export async function handleChatRequest(
     input.stream,
     tokensSavedEstimate,
     includeUsage,
+    input.rawBody,
   );
 }

@@ -12,7 +12,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import type { ProviderTransport } from "@/types/provider";
 import type { ProviderQuotaItem, QuotaAccount } from "@/types/quota";
+
+const providerIcons: Record<ProviderTransport, string> = {
+  openai: "/images/providers/openai.svg",
+  anthropic: "/images/providers/anthropic.svg",
+  gemini: "",
+  kiro: "/images/providers/kiro.svg",
+  "command-code": "/images/providers/command-code.svg",
+};
 
 interface QuotaCardProps {
   account: QuotaAccount;
@@ -113,6 +122,8 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
     return () => window.clearInterval(intervalId);
   }, [quota.resetAt]);
 
+  const isCredit = quota.name === "credit";
+  const remaining = quota.total - quota.used;
   const percentage =
     quota.total > 0
       ? Math.round(((quota.total - quota.used) / quota.total) * 100)
@@ -128,7 +139,13 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{quota.name}</span>
-        <span className={colorClass}>{percentage}%</span>
+        {isCredit ? (
+          <span className="text-muted-foreground">
+            {remaining.toFixed(2)} / {quota.total.toFixed(2)}
+          </span>
+        ) : (
+          <span className={colorClass}>{percentage}%</span>
+        )}
       </div>
       <Progress
         value={100 - percentage}
@@ -136,9 +153,15 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
         className="h-2"
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          {quota.used.toLocaleString()} / {quota.total.toLocaleString()}
-        </span>
+        {isCredit ? (
+          <span className={remaining > 0 ? "text-green-500" : "text-red-500"}>
+            {remaining > 0 ? "active" : "depleted"}
+          </span>
+        ) : (
+          <span>
+            {quota.used.toLocaleString()} / {quota.total.toLocaleString()}
+          </span>
+        )}
         {resetMs !== null && resetMs > 0 && (
           <span>in {formatCountdown(resetMs)}</span>
         )}
@@ -185,11 +208,18 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
     <Card>
       <CardHeader>
         <CardTitle className="truncate">{account.label}</CardTitle>
-        <CardDescription className="truncate flex items-center gap-2">
+        <CardDescription className="truncate flex items-center gap-1.5">
+          {providerIcons[account.transport] ? (
+            <img
+              src={providerIcons[account.transport]}
+              alt=""
+              className="size-3.5"
+            />
+          ) : null}
           {account.providerName}
           {plan && (
             <Badge variant="secondary" className="ml-1">
-              {plan}
+              {plan.toUpperCase()}
             </Badge>
           )}
         </CardDescription>

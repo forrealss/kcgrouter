@@ -109,6 +109,106 @@ async function fetchKiroUsage(
   return null;
 }
 
+function epochMsToIso(ms: number): string | null {
+  if (!ms || ms <= 0) return null;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+async function fetchCommandCodeUsage(
+  apiKey: string,
+): Promise<ProviderUsageResult | null> {
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "application/json",
+  };
+
+  const [creditsRes, subsRes] = await Promise.all([
+    fetch("https://api.commandcode.ai/alpha/billing/credits", {
+      method: "GET",
+      headers,
+    }),
+    fetch("https://api.commandcode.ai/alpha/billing/subscriptions", {
+      method: "GET",
+      headers,
+    }),
+  ]);
+
+  if (!creditsRes.ok) return null;
+
+  const data = (await creditsRes.json()) as {
+    credits?: {
+      monthlyCredits?: number;
+      purchasedCredits?: number;
+      freeCredits?: number;
+    };
+    windowLimits?: {
+      fiveHour?: {
+        used?: number;
+        cap?: number;
+        resetAt?: number;
+      };
+      weekly?: {
+        used?: number;
+        cap?: number;
+        resetAt?: number;
+      };
+    };
+  };
+
+  let plan: string | undefined;
+  if (subsRes.ok) {
+    const subsData = (await subsRes.json()) as {
+      data?: { planId?: string };
+    };
+    plan = subsData.data?.planId;
+  }
+
+  const quotas: ProviderQuota[] = [];
+
+  if (data.windowLimits?.fiveHour) {
+    const wh = data.windowLimits.fiveHour;
+    quotas.push({
+      name: "5-hour",
+      used: wh.used || 0,
+      total: wh.cap || 0,
+      resetAt: epochMsToIso(wh.resetAt ?? 0),
+    });
+  }
+
+  if (data.windowLimits?.weekly) {
+    const w = data.windowLimits.weekly;
+    quotas.push({
+      name: "weekly",
+      used: w.used || 0,
+      total: w.cap || 0,
+      resetAt: epochMsToIso(w.resetAt ?? 0),
+    });
+  }
+
+  if (data.credits) {
+    const c = data.credits;
+    const total =
+      (c.monthlyCredits || 0) +
+      (c.purchasedCredits || 0) +
+      (c.freeCredits || 0);
+    quotas.push({
+      name: "credit",
+      used: total - (c.monthlyCredits || 0),
+      total,
+      resetAt: null,
+    });
+  }
+
+  return {
+    provider: "command-code",
+    accountId: "",
+    label: "",
+    plan,
+    quotas,
+  };
+}
+
 const usageFetchers: Partial<
   Record<
     ProviderTransport,
@@ -116,6 +216,7 @@ const usageFetchers: Partial<
   >
 > = {
   kiro: fetchKiroUsage,
+  "command-code": fetchCommandCodeUsage,
 };
 
 export async function getProviderUsage(

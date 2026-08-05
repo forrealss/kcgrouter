@@ -13,6 +13,8 @@ export interface UsageRecord {
   status: "success" | "error";
   latencyMs: number;
   estimatedCost: number;
+  requestBody?: string | null;
+  responseBody?: string | null;
 }
 
 export interface UsageSummary {
@@ -40,6 +42,8 @@ function rowToRecord(row: UsageRecordRow): UsageRecord {
     status: row.status,
     latencyMs: row.latency_ms,
     estimatedCost: row.estimated_cost,
+    requestBody: row.request_body,
+    responseBody: row.response_body,
   };
 }
 
@@ -48,8 +52,8 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
   const now = new Date().toISOString();
 
   run(
-    `INSERT INTO usage_records (id, timestamp, provider_account_id, combo_id, model, input_tokens, output_tokens, status, latency_ms, estimated_cost)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO usage_records (id, timestamp, provider_account_id, combo_id, model, input_tokens, output_tokens, status, latency_ms, estimated_cost, request_body, response_body)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     now,
     entry.providerAccountId,
@@ -60,6 +64,8 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
     entry.status,
     entry.latencyMs,
     entry.estimatedCost,
+    entry.requestBody ?? null,
+    entry.responseBody ?? null,
   );
 }
 

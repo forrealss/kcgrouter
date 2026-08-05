@@ -29,6 +29,8 @@ export interface UsageRecord {
   status: "success" | "error";
   latencyMs: number;
   estimatedCost: number;
+  requestBody?: string | null;
+  responseBody?: string | null;
 }
 
 export interface HistoryFilters {

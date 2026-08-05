@@ -17,6 +17,7 @@ export const quotaRoutes: Record<string, RouteHandler> = {
           result.push({
             ...account,
             providerName: provider.name,
+            transport: provider.transport,
             quotaState: state,
             available,
           });

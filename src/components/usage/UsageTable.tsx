@@ -40,11 +40,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import type {
   HistoryFilters,
   UsageAccountOption,
   UsageRecord,
 } from "@/types/usage";
+import { UsageDetailModal } from "./UsageDetailModal";
 
 interface UsageTableProps {
   accounts: readonly UsageAccountOption[];
@@ -119,6 +121,10 @@ export function UsageTable({
   const [error, setError] = useState<string | null>(null);
   const [filterError, setFilterError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRecord, setSelectedRecord] = useState<UsageRecord | null>(
+    null,
+  );
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const accountLabels = useMemo(
     () => new Map(accounts.map((account) => [account.id, account.label])),
@@ -178,6 +184,12 @@ export function UsageTable({
     setFilterError(null);
     setDraftFilters(initialFilters);
     setFilters(initialFilters);
+  }
+
+  function handleRowClick(record: UsageRecord) {
+    if (!record.requestBody && !record.responseBody) return;
+    setSelectedRecord(record);
+    setIsModalOpen(true);
   }
 
   const hasActiveFilters =
@@ -358,39 +370,49 @@ export function UsageTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell>{formatTimestamp(record.timestamp)}</TableCell>
-                  <TableCell className="font-medium">
-                    {accountLabels.get(record.providerAccountId) ??
-                      record.providerAccountId}
-                  </TableCell>
-                  <TableCell>{record.model}</TableCell>
-                  <TableCell className="text-right">
-                    {formatTokens(record.inputTokens)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatTokens(record.outputTokens)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        record.status === "success"
-                          ? "secondary"
-                          : "destructive"
-                      }
-                    >
-                      {record.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatTokens(record.latencyMs)} ms
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCost(record.estimatedCost)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {records.map((record) => {
+                const hasPayload =
+                  Boolean(record.requestBody) || Boolean(record.responseBody);
+                return (
+                  <TableRow
+                    key={record.id}
+                    onClick={() => handleRowClick(record)}
+                    className={cn(
+                      hasPayload && "cursor-pointer hover:bg-muted/50",
+                    )}
+                  >
+                    <TableCell>{formatTimestamp(record.timestamp)}</TableCell>
+                    <TableCell className="font-medium">
+                      {accountLabels.get(record.providerAccountId) ??
+                        record.providerAccountId}
+                    </TableCell>
+                    <TableCell>{record.model}</TableCell>
+                    <TableCell className="text-right">
+                      {formatTokens(record.inputTokens)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatTokens(record.outputTokens)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          record.status === "success"
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {record.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatTokens(record.latencyMs)} ms
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCost(record.estimatedCost)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         ) : null}
@@ -400,6 +422,17 @@ export function UsageTable({
           ? "Loading the latest records…"
           : `Showing ${records.length} of up to 50 latest records.`}
       </CardFooter>
+
+      <UsageDetailModal
+        record={selectedRecord}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        accountLabel={
+          selectedRecord
+            ? accountLabels.get(selectedRecord.providerAccountId)
+            : undefined
+        }
+      />
     </Card>
   );
 }

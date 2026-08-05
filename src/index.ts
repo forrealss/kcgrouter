@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { serve } from "bun";
 import { runMigrations } from "./db/migrations";
 import index from "./index.html";
@@ -12,6 +13,26 @@ import { settingsRoutes } from "./server/routes/settings.routes";
 import type { RouteHandler } from "./server/routes/types";
 import { usageRoutes } from "./server/routes/usage.routes";
 import { v1Routes } from "./server/routes/v1.routes";
+
+const MIME_TYPES: Record<string, string> = {
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+function getMimeType(pathname: string): string | null {
+  const ext = pathname.slice(pathname.lastIndexOf("."));
+  return MIME_TYPES[ext] ?? null;
+}
 
 // Run migrations on startup
 runMigrations();
@@ -80,6 +101,30 @@ const server = serve({
     },
 
     // Static assets / SPA fallback
+    "/images/*": async (req) => {
+      const url = new URL(req.url);
+      const filePath = join(import.meta.dir, "../public", url.pathname);
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        const mime = getMimeType(url.pathname);
+        return new Response(file, {
+          headers: mime ? { "Content-Type": mime } : {},
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    },
+    "/fonts/*": async (req) => {
+      const url = new URL(req.url);
+      const filePath = join(import.meta.dir, "../public", url.pathname);
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        const mime = getMimeType(url.pathname);
+        return new Response(file, {
+          headers: mime ? { "Content-Type": mime } : {},
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    },
     "/*": index,
   },
 

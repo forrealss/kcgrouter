@@ -82,6 +82,8 @@ export interface UsageRecordRow {
   status: "success" | "error";
   latency_ms: number;
   estimated_cost: number;
+  request_body: string | null;
+  response_body: string | null;
 }
 
 export type ProviderTransport =

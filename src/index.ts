@@ -6,6 +6,7 @@ import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware"
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
 import { combosRoutes } from "./server/routes/combos.routes";
+import { eventsRoutes } from "./server/routes/events.routes";
 import { matchRoute as resolveRoute } from "./server/routes/match-route";
 import { providersRoutes } from "./server/routes/providers.routes";
 import { quotaRoutes } from "./server/routes/quota.routes";
@@ -45,6 +46,7 @@ const apiRoutes: Record<string, RouteHandler> = {
   ...usageRoutes,
   ...quotaRoutes,
   ...settingsRoutes,
+  ...eventsRoutes,
 };
 
 // V1 routes (API key auth protected)

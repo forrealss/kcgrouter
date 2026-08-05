@@ -4,6 +4,7 @@ import type {
   CanonicalStreamChunk,
 } from "../providers/types";
 import * as ComboEngine from "./combo-engine.service";
+import * as EventBus from "./event-bus";
 import {
   fromCanonical,
   type SourceFormat,
@@ -223,6 +224,14 @@ async function handlePrefixRoute(
             requestBody: JSON.stringify(rawBody),
             responseBody: JSON.stringify(responseBody),
           });
+          EventBus.publish("request:complete", {
+            providerAccountId: activeAccount.id,
+            comboId: null,
+            model: modelName,
+            transport: provider.transport,
+            latencyMs,
+            timestamp: Date.now(),
+          });
           QuotaTracker.recordUsage(
             activeAccount.id,
             usage.inputTokens + usage.outputTokens,
@@ -252,6 +261,14 @@ async function handlePrefixRoute(
       estimatedCost: 0,
       requestBody: JSON.stringify(rawBody),
       responseBody: JSON.stringify(responseBody),
+    });
+    EventBus.publish("request:complete", {
+      providerAccountId: activeAccount.id,
+      comboId: null,
+      model: modelName,
+      transport: provider.transport,
+      latencyMs,
+      timestamp: Date.now(),
     });
     QuotaTracker.recordUsage(
       activeAccount.id,
@@ -373,6 +390,14 @@ async function handleComboRoute(
               requestBody: JSON.stringify(rawBody),
               responseBody: JSON.stringify(responseBody),
             });
+            EventBus.publish("request:complete", {
+              providerAccountId: account.id,
+              comboId: combo.id,
+              model: member.modelName,
+              transport: provider.transport,
+              latencyMs,
+              timestamp: Date.now(),
+            });
             QuotaTracker.recordUsage(
               account.id,
               usage.inputTokens + usage.outputTokens,
@@ -402,6 +427,14 @@ async function handleComboRoute(
         estimatedCost: estimateCost(member, response.usage),
         requestBody: JSON.stringify(rawBody),
         responseBody: JSON.stringify(responseBody),
+      });
+      EventBus.publish("request:complete", {
+        providerAccountId: account.id,
+        comboId: combo.id,
+        model: member.modelName,
+        transport: provider.transport,
+        latencyMs,
+        timestamp: Date.now(),
       });
       QuotaTracker.recordUsage(
         account.id,

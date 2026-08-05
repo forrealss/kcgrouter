@@ -6,7 +6,7 @@
 <title>Usage Graph — Packet Cats</title>
 <!-- Tailwind CDN: DEKORASI SAJA (badge, text util, spacing).
      FALLBACK: kalau CDN gagal load (offline), semua warna & layout kritikal
-     (background, node card, posisi absolut %, SVG edges, animasi) tetap jalan
+     (background, node card, posisi absolut %, laser & kucing, animasi) tetap jalan
      karena didefinisikan di <style> custom di bawah. -->
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -20,7 +20,6 @@
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
   .wrap{min-height:100%;display:flex;flex-direction:column}
   .graph{position:relative;width:100%;flex:1;min-height:520px;overflow:hidden}
-  .edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 
   /* ---------- NODES ---------- */
   .node{
@@ -47,19 +46,67 @@
     100%{box-shadow:0 0 0 10px transparent,0 0 0 transparent;border-color:var(--bd)}
   }
   .node.ping{animation:nodePing .7s ease-out}
+  .node.streaming{border-color:var(--nc,#3f3f3f);
+    box-shadow:0 0 0 1px var(--nc,#3f3f3f),0 0 18px -4px var(--nc,#3f3f3f)}
 
-  /* ---------- EDGES ---------- */
-  .edge{stroke:#1f1f1f;stroke-width:2;fill:none;transition:stroke .3s ease,opacity .3s ease;opacity:.9}
-  .edge.live{stroke-width:2.4;stroke-dasharray:7 9;animation:dashFlow .6s linear infinite;
-    filter:drop-shadow(0 0 6px currentColor)}
-  @keyframes dashFlow{to{stroke-dashoffset:-32}}
+  /* ---------- EDGE GUIDE LINE (garis bergelombang & kelap-kelip ke arah anthropic) ---------- */
+  /* viewBox 0 0 100 100 + preserveAspectRatio none -> koordinat path memakai
+     angka yang SAMA dengan left/top persen node, jadi tidak perlu hitung ulang
+     saat resize. z-index 0: di belakang node & kucing (biar seperti jalur bawaan).
+     Bentuk gelombangnya sendiri di-generate di JS (lihat wavyPath), di sini
+     cuma dua animasi: dash yang "mengalir" (edgeFlow) + opacity yang naik turun
+     acak-acakan (edgeFlicker) biar kesannya hidup/berdenyut, bukan garis statis. */
+  .edge-svg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+  .edge-line{fill:none;stroke:#e07a5f;stroke-width:1.3;stroke-dasharray:4 5;
+    stroke-linecap:round;vector-effect:non-scaling-stroke;
+    animation:edgeFlow 2.4s linear infinite, edgeFlicker 2.8s ease-in-out infinite}
+  @keyframes edgeFlow{ to{ stroke-dashoffset:-18; } }
+  @keyframes edgeFlicker{
+    0%,100%{opacity:.14}
+    18%{opacity:.34}
+    32%{opacity:.16}
+    50%{opacity:.4}
+    64%{opacity:.15}
+    80%{opacity:.3}
+    90%{opacity:.18}
+  }
 
-  /* ---------- CAT ---------- */
+  /* ---------- CAT + LASER (satu komposisi) ---------- */
+  /* z-index:2 (dan laser-impact z-index:1) < node z-index:3, jadi keduanya
+     selalu lewat DI BAWAH card & Router Hub, seolah tenggelam masuk ke dalamnya */
   .packet-cat{position:absolute;left:0;top:0;width:54px;height:54px;
-    transform-origin:50% 50%;pointer-events:none;z-index:5;will-change:transform,opacity}
-  .cat-rot{width:100%;height:100%;transform-origin:50% 50%}
+    transform-origin:50% 50%;pointer-events:none;z-index:2;will-change:transform,opacity}
+  .cat-rot{position:relative;width:100%;height:100%;transform-origin:50% 50%}
   .cat-body{transform-origin:50% 50%}
   .leg{transform-box:fill-box;animation-play-state:paused;animation:none}
+
+  /* titik laser MENEMPEL di depan kepala kucing, jadi ikut ke mana pun
+     cat-rot berputar/bergerak — satu unit gerak, bukan dua elemen terpisah.
+     hasilnya: kelihatan seperti kucing terus mengejar titik laser di depannya. */
+  .laser-lead{position:absolute;left:50%;top:-13px;width:2px;height:18px;
+    transform:translateX(-50%);pointer-events:none}
+  .laser-lead .laser-tail{position:absolute;left:50%;top:0;width:2px;height:100%;
+    transform:translateX(-50%);border-radius:2px;
+    background:linear-gradient(to top, rgba(255,43,77,0), rgba(255,43,77,.85))}
+  .laser-lead .laser-dot{position:absolute;left:50%;top:-3px;width:8px;height:8px;
+    transform:translateX(-50%);border-radius:50%;background:#ff2b4d;
+    box-shadow:0 0 6px 2px #ff2b4d,0 0 16px 5px rgba(255,43,77,.55)}
+
+  /* resident cat that lives inside the hub card at all times */
+  .hub-cat{width:46px;height:46px;margin:0 auto}
+  .hub-cat svg{width:100%;height:100%;display:block}
+  .hub-cat .cat-body{animation:idleBreath 2.6s ease-in-out infinite}
+  @keyframes idleBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+
+  /* percikan saat komposisi kucing+laser "menembus" masuk ke card tujuan */
+  .laser-impact{position:absolute;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle, rgba(255,43,77,.85), rgba(255,43,77,0) 70%);
+    pointer-events:none;z-index:1}
+  @keyframes laserImpact{
+    0%{transform:translate(-50%,-50%) scale(.3);opacity:1}
+    100%{transform:translate(-50%,-50%) scale(2.3);opacity:0}
+  }
+  .laser-impact.play{animation:laserImpact .5s ease-out forwards}
   @keyframes stepA{0%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}100%{transform:rotate(-18deg)}}
   @keyframes stepB{0%{transform:rotate(18deg)}50%{transform:rotate(-18deg)}100%{transform:rotate(18deg)}}
   @keyframes bodyBob{0%,100%{transform:translateY(0)}25%{transform:translateY(-1.5px)}75%{transform:translateY(1.5px)}}
@@ -82,7 +129,7 @@
     <div class="flex items-center justify-between gap-4">
       <div>
         <h1 class="text-sm font-semibold tracking-wide">Usage Graph</h1>
-        <p class="text-[11px]" style="color:var(--muted)">Klik node untuk kirim paket · setiap kabel punya aliran kucing sendiri</p>
+        <p class="text-[11px]" style="color:var(--muted)">Klik node untuk kirim paket · laser & kucing menuju tiap card lewat jalur acak</p>
       </div>
       <span class="text-[10px] px-2 py-1 rounded-full border"
         style="border-color:var(--bd);color:var(--muted)">live · dummy data</span>
@@ -90,7 +137,7 @@
   </header>
 
   <div class="graph" id="graph">
-    <svg class="edges" id="edges" preserveAspectRatio="none"></svg>
+    <svg class="edge-svg" id="edgeSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
     <div class="node hub" id="hub" style="left:50%;top:50%;--nc:#f5a623">
       <div class="text-center">
         <div class="text-[22px]">🐾</div>
@@ -113,7 +160,6 @@ const NODES = [
 ];
 const RADIUS_X = 34, RADIUS_Y = 33;           // persen -> auto re-center saat resize
 const graph = document.getElementById('graph');
-const svg   = document.getElementById('edges');
 const HUB   = { x:50, y:50 };
 const state = {};                              // per-node counter + refs
 
@@ -122,12 +168,6 @@ NODES.forEach(n=>{
   const rad = n.angle*Math.PI/180;
   const px = HUB.x + Math.cos(rad)*RADIUS_X;
   const py = HUB.y + Math.sin(rad)*RADIUS_Y;
-
-  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-  line.setAttribute('class','edge');
-  line.setAttribute('x1',HUB.x+'%'); line.setAttribute('y1',HUB.y+'%');
-  line.setAttribute('x2',px+'%');    line.setAttribute('y2',py+'%');
-  svg.appendChild(line);
 
   const el = document.createElement('div');
   el.className='node';
@@ -139,12 +179,45 @@ NODES.forEach(n=>{
   el.addEventListener('click',()=>sendCat(n.id));
   graph.appendChild(el);
 
-  state[n.id]={ node:n, el, line, px, py, active:0, glowTimer:null };
+  state[n.id]={ node:n, el, px, py, active:0, glowTimer:null };
 });
 
-/* ---------- CAT SVG ---------- */
+/* ---------- EDGE GUIDE LINE (garis bergelombang & kelap-kelip hub -> anthropic) ---------- */
+// viewBox SVG "0 0 100 100" dengan preserveAspectRatio="none" -> koordinat path
+// bisa langsung pakai angka persen yang sama dengan HUB.x/y dan px/py node,
+// jadi otomatis ikut posisi node saat resize tanpa hitung ulang px.
+// Bentuk gelombang: sample banyak titik di sepanjang garis hub->target, tiap
+// titik digeser tegak lurus arah garis sejauh sin(t) * amplitude -> hasilnya
+// path zig-zag halus yang membentuk gelombang sinus, bukan garis lurus.
+function wavyPath(hx, hy, ex, ey, waves, amp){
+  const dx = ex-hx, dy = ey-hy;
+  const dist = Math.hypot(dx,dy) || 1;
+  const nx = -dy/dist, ny = dx/dist; // vektor tegak lurus arah garis
+  const steps = waves*10; // titik per gelombang, makin banyak makin halus
+  let d = `M ${hx.toFixed(2)} ${hy.toFixed(2)}`;
+  for(let i=1;i<=steps;i++){
+    const t = i/steps;
+    const bx = hx + dx*t, by = hy + dy*t;
+    const off = Math.sin(t*Math.PI*2*waves) * amp;
+    d += ` L ${(bx+nx*off).toFixed(2)} ${(by+ny*off).toFixed(2)}`;
+  }
+  return d;
+}
+(function drawAnthropicEdge(){
+  const target = state['anthropic'];
+  if(!target) return;
+  const svg = document.getElementById('edgeSvg');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('class','edge-line');
+  path.setAttribute('d', wavyPath(HUB.x, HUB.y, target.px, target.py, 6, 2.2));
+  svg.appendChild(path);
+})();
+
+/* ---------- CAT + LASER SVG (satu komposisi) ---------- */
 function catSVG(color){
   return `<div class="cat-rot">
+  <!-- titik laser menempel di depan kepala, ikut arah hadap kucing -->
+  <div class="laser-lead"><div class="laser-tail"></div><div class="laser-dot"></div></div>
   <svg viewBox="0 0 54 54" width="54" height="54">
     <!-- legs: pangkal nempel body, transform-origin di pangkal (atas) -->
     <g class="leg leg-front-left"  style="transform-origin:50% 0%"><rect x="15" y="20" width="3.2" height="11" rx="1.6" fill="#3b3b3b"/></g>
@@ -169,14 +242,48 @@ function catSVG(color){
   </svg></div>`;
 }
 
-/* ---------- EDGE GLOW ---------- */
+/* ---------- NODE GLOW (tidak ada garis lagi, jadi highlight di card tujuan) ---------- */
 function glow(s,on){
-  if(on){ s.line.classList.add('live'); s.line.style.stroke=s.node.color; s.line.style.color=s.node.color; }
-  else  { s.line.classList.remove('live'); s.line.style.stroke=''; }
+  s.el.classList.toggle('streaming', on);
+  if(on) s.el.style.setProperty('--nc', s.node.color);
 }
 
 /* ---------- SPAWN + WALK ---------- */
 const easeOut = t => 1-Math.pow(1-t,3);
+const ENTER_AT = 0.72; // % perjalanan saat komposisi mulai "menyelam" masuk ke card
+
+/* jalur random berupa quadratic bezier: hub -> titik kontrol acak -> tujuan.
+   jadi tidak lurus/patah-patah, tapi tetap menuju card tujuan. */
+function randomPath(hx, hy, ex, ey){
+  const mx = (hx+ex)/2, my = (hy+ey)/2;
+  const dx = ex-hx, dy = ey-hy;
+  const dist = Math.hypot(dx,dy) || 1;
+  // normal vector, offset acak agar lengkungannya bervariasi tiap perjalanan
+  const nx = -dy/dist, ny = dx/dist;
+  const bow = (Math.random()-0.5) * Math.max(60, dist*0.5);
+  return { cx: mx + nx*bow, cy: my + ny*bow };
+}
+function bezierPoint(t, hx, hy, cx, cy, ex, ey){
+  const u = 1-t;
+  const x = u*u*hx + 2*u*t*cx + t*t*ex;
+  const y = u*u*hy + 2*u*t*cy + t*t*ey;
+  // turunan (arah gerak) untuk rotasi menghadap jalur
+  const dx = 2*u*(cx-hx) + 2*t*(ex-cx);
+  const dy = 2*u*(cy-hy) + 2*t*(ey-cy);
+  return { x, y, ang: Math.atan2(dy,dx) };
+}
+
+/* percikan merah saat komposisi "menembus" permukaan card */
+function laserImpact(x, y) {
+  const fx = document.createElement("div");
+  fx.className = "laser-impact play";
+  fx.style.left = x + "px";
+  fx.style.top = y + "px";
+  graph.appendChild(fx);
+  const cleanup = () => fx.remove();
+  fx.addEventListener("animationend", cleanup, { once: true });
+  setTimeout(cleanup, 600); // fallback kalau animationend tidak kepanggil
+}
 
 function sendCat(id){
   const s = state[id];
@@ -187,18 +294,27 @@ function sendCat(id){
   const r = graph.getBoundingClientRect();
   const hx = r.width*HUB.x/100, hy = r.height*HUB.y/100;
   const tx = r.width*s.px/100,  ty = r.height*s.py/100;
-  const ang = Math.atan2(ty-hy, tx-hx);
-  // jalan sampai node tujuan (berhenti ~46px sebelum kartu supaya tidak menimpa)
+  // sekarang kucing jalan SAMPAI titik di dalam card (bukan berhenti di luar)
   const full = Math.hypot(tx-hx, ty-hy);
-  const dist = Math.max(60, full - 46);
-  const jx = (Math.random()-0.5)*18, jy = (Math.random()-0.5)*18; // jitter anti-tumpuk
+  const dist = Math.max(60, full);
+  // jitter kecil supaya titik "masuk"-nya tidak selalu pas di tengah,
+  // tapi tetap ada di area kartu tujuan
+  const jx = (Math.random()-0.5)*80, jy = (Math.random()-0.5)*32;
+  const ex = tx+jx, ey = ty+jy;
+  // jalur melengkung acak (bukan garis lurus) dari hub menuju card tujuan
+  const { cx, cy } = randomPath(hx, hy, ex, ey);
+  const path = { hx, hy, cx, cy, ex, ey };
+  const dur = Math.min(4200, Math.max(1200, dist/150*1000));
 
+  // satu komposisi kucing+laser: titik laser menempel di depan kepala kucing
+  // (lihat .laser-lead di catSVG), jadi kucing selalu tampak "mengejar" laser
+  // yang ada tepat di depannya sepanjang jalur, bukan dua elemen terpisah.
   const cat = document.createElement('div');
   cat.className='packet-cat';
   cat.innerHTML = catSVG(s.node.color);
   graph.appendChild(cat);
   const rot = cat.querySelector('.cat-rot');
-  rot.style.transform = `rotate(${ang*180/Math.PI + 90}deg)`; // SVG kucing default hadap "atas"
+  rot.style.transform = `rotate(90deg)`; // SVG kucing default hadap "atas", diupdate tiap frame saat walk
 
   const place=(x,y,sc,op)=>{
     cat.style.transform=`translate(${x-27}px,${y-27}px) scale(${sc})`;
@@ -213,50 +329,61 @@ function sendCat(id){
     t<1 ? requestAnimationFrame(pop) : walk();
   })(T0);
 
-  // 2) walk (rAF posisi + CSS keyframes kaki, terpisah)
+  // 2) walk — komposisi menyusuri jalur melengkung menuju card tujuan
   function walk(){
     cat.classList.add('walking');
-    // durasi proporsional jarak, kecepatan ~150px/s biar langkah kaki tetap jelas
-    const dur = Math.min(4200, Math.max(1200, dist/150*1000)), t0=performance.now();
-    const ex = hx+Math.cos(ang)*dist+jx, ey = hy+Math.sin(ang)*dist+jy;
+    const t0=performance.now();
     (function step(now){
       const t=Math.min(1,(now-t0)/dur), e=easeOut(t);
-      place(hx+(ex-hx)*e, hy+(ey-hy)*e, 1, 1);
-      t<1 ? requestAnimationFrame(step) : vanish(ex,ey);
+      const p = bezierPoint(e, path.hx, path.hy, path.cx, path.cy, path.ex, path.ey);
+      rot.style.transform = `rotate(${p.ang*180/Math.PI + 90}deg)`;
+      let scale=1, op=1;
+      if(t>ENTER_AT){
+        // dekat tujuan: mengecil & memudar, seolah tenggelam masuk ke dalam card
+        // (sudah di bawah card & hub sejak awal lewat z-index, lihat .packet-cat)
+        const et=(t-ENTER_AT)/(1-ENTER_AT);
+        scale = 1-0.55*et;
+        op = 1-0.45*et;
+      }
+      place(p.x,p.y,scale,op);
+      t<1 ? requestAnimationFrame(step) : vanish(p.x,p.y,scale,op);
     })(t0);
   }
 
-  // 3) vanish
-  function vanish(x,y){
+  // 3) vanish — impact laser + kucing menghilang di titik yang sama (di dalam card)
+  function vanish(x,y,fromScale,fromOp){
     cat.classList.remove('walking');
-    const dur=500, t0=performance.now();
+    laserImpact(x,y);
+    s.el.classList.remove("ping");
+    void s.el.offsetWidth;
+    s.el.classList.add("ping");
+
+    const vdur=280, v0=performance.now();
     (function fade(now){
-      const t=Math.min(1,(now-t0)/dur);
-      place(x,y-6*t,1-t*0.95,1-t);
+      const t=Math.min(1,(now-v0)/vdur);
+      place(x, y, fromScale*(1-t*0.35), fromOp*(1-t));
       if(t<1) requestAnimationFrame(fade);
       else{
         cat.remove(); s.active--;
-        s.el.classList.remove('ping'); void s.el.offsetWidth; s.el.classList.add('ping');
         s.glowTimer=setTimeout(()=>{ if(s.active===0) glow(s,false); },900);
       }
-    })(t0);
+    })(v0);
   }
 }
 
 /* ---------- AUTO CYCLE ---------- */
-// Setiap kabel/edge punya stream kucing sendiri (bukan 1 kucing global):
-// tiap node terus-menerus dikirimi paket, jadi semua kabel selalu "hidup".
-const MAX_PER_NODE = 6;
-function stream(id, rate){
-  sendCat(id);
-  setTimeout(()=>stream(id, rate), rate*(0.6+Math.random()*0.9));
+// Hanya node 'anthropic' yang dikirimi kucing otomatis, terus-menerus.
+// Setiap TICK_RATE ms muncul kucing baru menuju anthropic, TIDAK menunggu
+// kucing sebelumnya sampai dulu (boleh overlap beberapa kucing berjalan
+// bersamaan di jalur yang sama). Node lain tidak ada auto-stream sama sekali
+// (klik manual ke node lain tetap jalan kalau mau dites satu-satu).
+const MAX_PER_NODE = 12; // dinaikkan supaya kucing baru tidak terblokir walau yang lama belum tiba
+const TICK_RATE = 500;   // ms antar kemunculan kucing, konstan, looping terus
+function tick(){
+  sendCat('anthropic');
+  setTimeout(tick, TICK_RATE);
 }
-NODES.forEach((n,i)=>{
-  // node dengan traffic lebih besar (combo/openai) dikirimi lebih rapat
-  const rate = 380 + i*90;
-  for(let k=0;k<2;k++) setTimeout(()=>sendCat(n.id), 150 + i*90 + k*260);
-  setTimeout(()=>stream(n.id, rate), 400 + i*110);
-});
+setTimeout(tick, TICK_RATE);
 </script>
 </body>
 </html>

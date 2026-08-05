@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
-import path from "node:path";
 import { mkdirSync } from "node:fs";
+import path from "node:path";
 
 const DB_DIR = path.join(import.meta.dir, "../../db");
 mkdirSync(DB_DIR, { recursive: true });

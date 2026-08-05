@@ -3,7 +3,9 @@ import { get, getDb } from "../client";
 export const DEFAULT_PASSWORD = "admin";
 
 export function seed(): void {
-  const existing = get<{ id: number }>("SELECT id FROM app_settings WHERE id = 1");
+  const existing = get<{ id: number }>(
+    "SELECT id FROM app_settings WHERE id = 1",
+  );
   if (existing) return;
 
   const passwordHash = Bun.password.hashSync(DEFAULT_PASSWORD);
@@ -14,5 +16,7 @@ export function seed(): void {
     now,
     now,
   );
-  console.log(`Seeded default app_settings with default password "${DEFAULT_PASSWORD}"`);
+  console.log(
+    `Seeded default app_settings with default password "${DEFAULT_PASSWORD}"`,
+  );
 }

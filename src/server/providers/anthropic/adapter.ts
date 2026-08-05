@@ -102,7 +102,11 @@ function parseAnthropicResponse(data: unknown): CanonicalResponse {
   };
 }
 
-const URL = "https://api.anthropic.com/v1/messages";
+const DEFAULT_BASE_URL = "https://api.anthropic.com";
+
+function buildUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/v1/messages`;
+}
 
 function headers(apiKey: string): Record<string, string> {
   return {
@@ -121,7 +125,8 @@ const STREAM_FINISH_MAP: Record<string, "stop" | "length" | "tool_call"> = {
 export const anthropicAdapter: ProviderAdapter = {
   transport: "anthropic",
 
-  async send(req, credential, model): Promise<CanonicalResponse> {
+  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const { system, messages } = buildAnthropicMessages(req);
 
     const body: Record<string, unknown> = {
@@ -141,7 +146,7 @@ export const anthropicAdapter: ProviderAdapter = {
       }));
     }
 
-    const res = await fetch(URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: headers(credential.apiKey),
       body: JSON.stringify(body),
@@ -159,7 +164,9 @@ export const anthropicAdapter: ProviderAdapter = {
     req,
     credential,
     model,
+    baseUrl,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const { system, messages } = buildAnthropicMessages(req);
 
     const body: Record<string, unknown> = {
@@ -172,7 +179,7 @@ export const anthropicAdapter: ProviderAdapter = {
     if (system) body.system = system;
     if (req.temperature !== undefined) body.temperature = req.temperature;
 
-    const res = await fetch(URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: headers(credential.apiKey),
       body: JSON.stringify(body),

@@ -57,11 +57,13 @@ export interface ProviderAdapter {
     request: CanonicalRequest,
     credential: { apiKey: string },
     model: string,
+    baseUrl?: string,
   ): Promise<CanonicalResponse>;
   sendStream(
     request: CanonicalRequest,
     credential: { apiKey: string },
     model: string,
+    baseUrl?: string,
   ): Promise<ReadableStream<CanonicalStreamChunk>>;
 }
 

@@ -65,24 +65,9 @@ function buildStreamResult(
   handoff: StreamHandoff,
 ): RouterResult {
   const collectedChunks: CanonicalStreamChunk[] = [];
-  const collectingReader = source.getReader();
-  const collectedStream = new ReadableStream<CanonicalStreamChunk>({
-    async pull(controller) {
-      const { done, value } = await collectingReader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-      collectedChunks.push(value);
-      controller.enqueue(value);
-    },
-    cancel(reason) {
-      collectingReader.cancel(reason).catch(() => {});
-    },
-  });
 
   const body = encodeOpenAIStream(
-    collectedStream,
+    source,
     { model: handoff.modelName, includeUsage: handoff.includeUsage },
     (usage) =>
       handoff.onComplete(
@@ -90,6 +75,7 @@ function buildStreamResult(
         Date.now() - handoff.startedAt,
         collectedChunks,
       ),
+    collectedChunks,
   );
 
   return {
@@ -199,6 +185,7 @@ async function handlePrefixRoute(
         reqWithModel,
         credential,
         modelName,
+        provider.baseUrl,
       );
 
       return buildStreamResult(streamResult, {
@@ -245,7 +232,12 @@ async function handlePrefixRoute(
     }
 
     // Non-streaming
-    const response = await adapter.send(reqWithModel, credential, modelName);
+    const response = await adapter.send(
+      reqWithModel,
+      credential,
+      modelName,
+      provider.baseUrl,
+    );
     const latencyMs = Date.now() - startedAt;
     const responseBody = fromCanonical(response, sourceFormat);
 
@@ -343,6 +335,7 @@ async function handleComboRoute(
           reqWithModel,
           credential,
           member.modelName,
+          provider.baseUrl,
         );
 
         return buildStreamResult(streamResult, {
@@ -393,6 +386,7 @@ async function handleComboRoute(
         reqWithModel,
         credential,
         member.modelName,
+        provider.baseUrl,
       );
       const latencyMs = Date.now() - startedAt;
       const responseBody = fromCanonical(response, sourceFormat);

@@ -162,11 +162,15 @@ export interface EncodeOptions {
  * Wraps a canonical chunk stream into OpenAI SSE bytes, guaranteeing the
  * role-first / [DONE]-last contract even when the source stream is empty or
  * fails midway.
+ *
+ * When `collectedChunks` is provided, each chunk is pushed into it for
+ * post-stream usage recording — avoids an extra collecting-reader wrapper.
  */
 export function encodeOpenAIStream(
   source: ReadableStream<CanonicalStreamChunk>,
   options: EncodeOptions,
   onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void,
+  collectedChunks?: CanonicalStreamChunk[],
 ): ReadableStream<Uint8Array> {
   const meta = newChunkMeta(options.model);
 
@@ -178,6 +182,7 @@ export function encodeOpenAIStream(
 
   const sseTransform = new TransformStream<CanonicalStreamChunk, Uint8Array>({
     transform(chunk, controller) {
+      collectedChunks?.push(chunk);
       if (!roleSent) {
         controller.enqueue(roleChunkBytes(meta));
         roleSent = true;

@@ -213,12 +213,18 @@ function buildCommandCodeBody(
   };
 }
 
+const DEFAULT_BASE_URL = "https://api.commandcode.ai";
+
+function buildUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/alpha/generate`;
+}
+
 export const commandCodeAdapter: ProviderAdapter = {
   transport: "command-code",
 
-  async send(req, credential, model): Promise<CanonicalResponse> {
+  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
     const body = buildCommandCodeBody(req, model);
-    const url = "https://api.commandcode.ai/alpha/generate";
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
 
     const res = await fetch(url, {
       method: "POST",
@@ -310,9 +316,10 @@ export const commandCodeAdapter: ProviderAdapter = {
     req,
     credential,
     model,
+    baseUrl,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const body = buildCommandCodeBody(req, model);
-    const url = "https://api.commandcode.ai/alpha/generate";
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
 
     const res = await fetch(url, {
       method: "POST",

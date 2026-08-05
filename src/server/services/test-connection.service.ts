@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProviderTransport } from "../../db/schema";
 import { getAdapter } from "../providers/registry";
+import * as ModelRegistry from "./model-registry.service";
 import * as ProviderRegistry from "./provider-registry.service";
 
 export interface TestConnectionResult {
@@ -25,6 +26,87 @@ export interface TestModelResult {
 const PROBE_PROMPT = "Reply with exactly one word: OK";
 const PROBE_MAX_TOKENS = 256;
 
+function resolveTestModelId(
+  providerId: string,
+  transport: ProviderTransport,
+): string {
+  const enabled = ModelRegistry.listEnabledModels(providerId);
+  const first = enabled[0];
+  if (first) return first.modelId;
+
+  const defaults: Record<ProviderTransport, string> = {
+    openai: "gpt-4o-mini",
+    anthropic: "claude-3-5-haiku-20241022",
+    gemini: "gemini-1.5-flash",
+    kiro: "claude-haiku-4.5",
+    "command-code": "deepseek/deepseek-v4-flash",
+  };
+  return defaults[transport];
+}
+
+async function testOpenAIModelsEndpoint(
+  baseUrl: string,
+  apiKey: string,
+): Promise<{ ok: boolean; status: number }> {
+  const url = `${baseUrl.replace(/\/+$/, "")}/models`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  return { ok: res.ok, status: res.status };
+}
+
+async function testOpenAIConnection(
+  providerId: string,
+  baseUrl: string,
+  credential: { apiKey: string },
+): Promise<TestConnectionResult> {
+  const start = Date.now();
+
+  // 1. Try GET /models first (cheapest, no model dependency)
+  const modelsResult = await testOpenAIModelsEndpoint(
+    baseUrl,
+    credential.apiKey,
+  );
+
+  if (modelsResult.ok) {
+    return { status: "ok", latencyMs: Date.now() - start };
+  }
+
+  // 401/403 = definitely bad key
+  if (modelsResult.status === 401 || modelsResult.status === 403) {
+    return {
+      status: "error",
+      latencyMs: Date.now() - start,
+      error: "Invalid API key",
+    };
+  }
+
+  // 2. /models unavailable — fallback to a minimal chat completion
+  const modelId = resolveTestModelId(providerId, "openai");
+  const adapter = getAdapter("openai");
+
+  try {
+    await adapter.send(
+      {
+        messages: [{ role: "user", content: [{ type: "text", text: "test" }] }],
+        maxTokens: 1,
+        stream: false,
+      },
+      credential,
+      modelId,
+      baseUrl,
+    );
+    return { status: "ok", latencyMs: Date.now() - start };
+  } catch (err) {
+    return {
+      status: "error",
+      latencyMs: Date.now() - start,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
 export async function testConnection(
   accountId: string,
 ): Promise<TestConnectionResult> {
@@ -40,28 +122,31 @@ export async function testConnection(
 
   const credential = ProviderRegistry.getDecryptedCredential(accountId);
 
-  // Command Code uses a special validation approach (like omnirouter)
+  // Command Code uses a special validation approach
   if (provider.transport === "command-code") {
     return testCommandCodeConnection(credential.apiKey);
   }
 
+  // OpenAI-compatible: GET /models first, fallback to chat completion
+  if (provider.transport === "openai") {
+    return testOpenAIConnection(provider.id, provider.baseUrl, credential);
+  }
+
+  // Anthropic, Gemini, Kiro: use adapter with a resolved model
   const adapter = getAdapter(provider.transport);
+  const modelId = resolveTestModelId(provider.id, provider.transport);
 
   const start = Date.now();
   try {
     await adapter.send(
       {
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: "test" }],
-          },
-        ],
+        messages: [{ role: "user", content: [{ type: "text", text: "test" }] }],
         maxTokens: 1,
         stream: false,
       },
       credential,
-      getTestModelId(provider.transport),
+      modelId,
+      provider.baseUrl,
     );
     return { status: "ok", latencyMs: Date.now() - start };
   } catch (err) {
@@ -193,6 +278,7 @@ export async function testModel(
       },
       credential,
       modelId,
+      provider.baseUrl,
     );
 
     // A 2xx alone isn't proof the model works — verify it actually produced
@@ -221,15 +307,4 @@ export async function testModel(
       error: err instanceof Error ? err.message : "Unknown error",
     };
   }
-}
-
-function getTestModelId(transport: ProviderTransport): string {
-  const testModels: Record<ProviderTransport, string> = {
-    openai: "gpt-4o-mini",
-    anthropic: "claude-3-5-haiku-20241022",
-    gemini: "gemini-1.5-flash",
-    kiro: "claude-haiku-4.5",
-    "command-code": "deepseek/deepseek-v4-flash",
-  };
-  return testModels[transport];
 }

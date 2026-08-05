@@ -95,8 +95,8 @@ type SSEParseCallback = (
  * Handles the common pattern of: read chunks -> decode -> split on newlines
  * -> filter "data: " lines -> JSON.parse -> delegate to provider-specific parser.
  *
- * The `parseChunk` callback receives each parsed JSON object and the stream
- * controller, and is responsible for calling `controller.enqueue()`.
+ * Guarantees the stream closes properly even if the upstream connection drops
+ * mid-event or the final chunk lacks a trailing newline.
  */
 export function createSSEStream(
   res: Response,
@@ -104,6 +104,7 @@ export function createSSEStream(
 ): ReadableStream<CanonicalStreamChunk> {
   const reader = res.body?.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
 
   return new ReadableStream<CanonicalStreamChunk>({
     async pull(controller) {
@@ -113,25 +114,64 @@ export function createSSEStream(
       }
 
       const { done, value } = await reader.read();
-      if (done || !value) {
+
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+      }
+
+      if (done) {
+        // Flush remaining buffer — the last event may lack a trailing newline
+        if (buffer.length > 0) {
+          processLines(buffer, parseChunk, controller);
+          buffer = "";
+        }
         controller.close();
         return;
       }
 
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+      // Process complete lines, keep the (potentially incomplete) tail
+      const nlIndex = buffer.lastIndexOf("\n");
+      if (nlIndex === -1) return; // no complete line yet
 
-      for (const line of lines) {
-        const data = line.slice(6);
-        if (data === "[DONE]") continue;
+      const complete = buffer.slice(0, nlIndex + 1);
+      buffer = buffer.slice(nlIndex + 1);
 
-        try {
-          const parsed = JSON.parse(data) as Record<string, unknown>;
-          parseChunk(parsed, controller);
-        } catch {
-          // skip malformed chunks
-        }
-      }
+      processLines(complete, parseChunk, controller);
     },
   });
+}
+
+function processLines(
+  text: string,
+  parseChunk: SSEParseCallback,
+  controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+): void {
+  const lines = text.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Standard SSE: "data: {...}"
+    if (trimmed.startsWith("data: ")) {
+      const data = trimmed.slice(6);
+      if (data === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(data) as Record<string, unknown>;
+        parseChunk(parsed, controller);
+      } catch {
+        // skip malformed chunks
+      }
+      continue;
+    }
+
+    // Some providers send bare JSON lines without "data: " prefix
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        parseChunk(parsed, controller);
+      } catch {
+        // skip malformed chunks
+      }
+    }
+  }
 }

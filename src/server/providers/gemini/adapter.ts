@@ -133,12 +133,15 @@ const STREAM_FINISH_MAP: Record<string, "stop" | "length"> = {
   MAX_TOKENS: "length",
 };
 
+const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
+
 export const geminiAdapter: ProviderAdapter = {
   transport: "gemini",
 
-  async send(req, credential, model): Promise<CanonicalResponse> {
+  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+    const base = (baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     const body = buildBody(req);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${credential.apiKey}`;
+    const url = `${base}/v1beta/models/${model}:generateContent?key=${credential.apiKey}`;
 
     const res = await fetch(url, {
       method: "POST",
@@ -158,9 +161,11 @@ export const geminiAdapter: ProviderAdapter = {
     req,
     credential,
     model,
+    baseUrl,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
+    const base = (baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     const body = buildBody(req);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${credential.apiKey}`;
+    const url = `${base}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${credential.apiKey}`;
 
     const res = await fetch(url, {
       method: "POST",

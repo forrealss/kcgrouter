@@ -2,12 +2,18 @@ import { randomUUID } from "node:crypto";
 import type {
   CanonicalContentPart,
   CanonicalResponse,
+  CanonicalStreamChunk,
   ProviderAdapter,
 } from "../types";
 import { parseEventFrame } from "./eventstream";
 import { buildKiroPayload } from "./payload";
 import { createKiroStream } from "./stream";
-import { KIRO_URL } from "./types";
+
+const DEFAULT_BASE_URL = "https://codewhisperer.us-east-1.amazonaws.com";
+
+function buildUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/generateAssistantResponse`;
+}
 
 function buildKiroHeaders(apiKey: string): Record<string, string> {
   return {
@@ -28,10 +34,11 @@ function buildKiroHeaders(apiKey: string): Record<string, string> {
 export const kiroAdapter: ProviderAdapter = {
   transport: "kiro",
 
-  async send(req, credential, model): Promise<CanonicalResponse> {
+  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = buildKiroPayload(req, model);
 
-    const res = await fetch(KIRO_URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: buildKiroHeaders(credential.apiKey),
       body: JSON.stringify(body),
@@ -119,10 +126,12 @@ export const kiroAdapter: ProviderAdapter = {
     req,
     credential,
     model,
+    baseUrl,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
+    const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = buildKiroPayload(req, model);
 
-    const res = await fetch(KIRO_URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: buildKiroHeaders(credential.apiKey),
       body: JSON.stringify(body),

@@ -3,7 +3,8 @@ export type ProviderTransport =
   | "anthropic"
   | "gemini"
   | "kiro"
-  | "command-code";
+  | "command-code"
+  | "mimo";
 
 export interface Provider {
   id: string;

@@ -14,6 +14,7 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "gemini",
   "kiro",
   "command-code",
+  "mimo",
 ];
 const VALID_QUOTA_RESET: QuotaResetType[] = ["5h", "daily", "weekly", "none"];
 

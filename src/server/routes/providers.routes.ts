@@ -11,6 +11,7 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "gemini",
   "kiro",
   "command-code",
+  "mimo",
 ];
 
 export const providersRoutes: Record<string, RouteHandler> = {

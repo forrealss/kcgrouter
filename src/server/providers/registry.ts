@@ -11,6 +11,7 @@ import {
 } from "./command-code";
 import { geminiAdapter, geminiConfig, geminiModels } from "./gemini";
 import { kiroAdapter, kiroConfig, kiroModels } from "./kiro";
+import { mimoAdapter, mimoConfig, mimoModels } from "./mimo";
 import { openaiAdapter, openaiConfig, openaiModels } from "./openai";
 import type { ModelInfo, ProviderAdapter, ProviderConfig } from "./types";
 
@@ -20,6 +21,7 @@ const adapters: Record<ProviderTransport, ProviderAdapter> = {
   gemini: geminiAdapter,
   kiro: kiroAdapter,
   "command-code": commandCodeAdapter,
+  mimo: mimoAdapter,
 };
 
 const configs: Record<ProviderTransport, ProviderConfig> = {
@@ -28,6 +30,7 @@ const configs: Record<ProviderTransport, ProviderConfig> = {
   gemini: geminiConfig,
   kiro: kiroConfig,
   "command-code": commandCodeConfig,
+  mimo: mimoConfig,
 };
 
 const models: Record<ProviderTransport, ModelInfo[]> = {
@@ -36,6 +39,7 @@ const models: Record<ProviderTransport, ModelInfo[]> = {
   gemini: geminiModels,
   kiro: kiroModels,
   "command-code": commandCodeModels,
+  mimo: mimoModels,
 };
 
 export function getAdapter(transport: ProviderTransport): ProviderAdapter {

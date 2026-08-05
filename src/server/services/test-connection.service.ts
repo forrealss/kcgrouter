@@ -40,6 +40,7 @@ function resolveTestModelId(
     gemini: "gemini-1.5-flash",
     kiro: "claude-haiku-4.5",
     "command-code": "deepseek/deepseek-v4-flash",
+    mimo: "mimo-v2-flash",
   };
   return defaults[transport];
 }
@@ -128,7 +129,7 @@ export async function testConnection(
   }
 
   // OpenAI-compatible: GET /models first, fallback to chat completion
-  if (provider.transport === "openai") {
+  if (provider.transport === "openai" || provider.transport === "mimo") {
     return testOpenAIConnection(provider.id, provider.baseUrl, credential);
   }
 

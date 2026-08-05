@@ -120,7 +120,10 @@ function MiniBarChart({
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <div className="flex items-end gap-1 h-32">
         {data.map((d) => (
-          <div key={d.label} className="flex flex-col items-center gap-1 flex-1">
+          <div
+            key={d.label}
+            className="flex flex-col items-center gap-1 flex-1"
+          >
             <div
               className="w-full rounded-t-sm transition-all duration-300"
               style={{
@@ -329,8 +332,11 @@ export function UsageDashboard() {
               {recordsLoading ? (
                 <div className="flex flex-col gap-3">
                   {Array.from({ length: 5 }).map((_val, i) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                    <div key={`act-${i}`} className="flex items-start gap-3 py-2.5">
+                    <div
+                      // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                      key={`act-${i}`}
+                      className="flex items-start gap-3 py-2.5"
+                    >
                       <Skeleton className="size-4 rounded-full mt-0.5" />
                       <div className="flex-1 flex flex-col gap-1.5">
                         <Skeleton className="h-4 w-32" />

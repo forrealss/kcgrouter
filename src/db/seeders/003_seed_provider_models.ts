@@ -126,7 +126,38 @@ const commandCodeModels: ModelSeed[] = [
   },
 ];
 
-const allModels = [...kiroModels, ...commandCodeModels];
+const mimoModels: ModelSeed[] = [
+  {
+    provider: "builtin-mimo",
+    modelId: "mimo-v2.5-pro",
+    modelName: "MiMo V2.5 Pro",
+    contextLength: 1050000,
+    maxOutputTokens: 32768,
+  },
+  {
+    provider: "builtin-mimo",
+    modelId: "mimo-v2.5",
+    modelName: "MiMo V2.5",
+    contextLength: 1050000,
+    maxOutputTokens: 32768,
+  },
+  {
+    provider: "builtin-mimo",
+    modelId: "mimo-v2-omni",
+    modelName: "MiMo V2 Omni",
+    contextLength: 1050000,
+    maxOutputTokens: 32768,
+  },
+  {
+    provider: "builtin-mimo",
+    modelId: "mimo-v2-flash",
+    modelName: "MiMo V2 Flash",
+    contextLength: 1050000,
+    maxOutputTokens: 32768,
+  },
+];
+
+const allModels = [...kiroModels, ...commandCodeModels, ...mimoModels];
 
 export function seed(): void {
   for (const m of allModels) {

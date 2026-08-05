@@ -72,6 +72,12 @@ export const transportMeta: Record<
     fallbackIcon: TerminalIcon,
     accentClassName: "border-gray-400/40 bg-gray-400/10 text-gray-400",
   },
+  mimo: {
+    label: "Xiaomi MiMo",
+    icon: "/images/providers/xiaomimimo.svg",
+    fallbackIcon: BotIcon,
+    accentClassName: "border-orange-500/40 bg-orange-500/10 text-orange-500",
+  },
 };
 
 export function formatDate(value: string): string {

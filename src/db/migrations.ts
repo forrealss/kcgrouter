@@ -5,6 +5,7 @@ import * as m003 from "./migrations/003_recreate_providers";
 import * as m004 from "./migrations/004_add_provider_prefix";
 import * as m005 from "./migrations/005_create_provider_models";
 import * as m006 from "./migrations/006_add_usage_payloads";
+import * as m007 from "./migrations/007_add_mimo_provider";
 import * as s001 from "./seeders/001_seed_builtin_providers";
 import * as s002 from "./seeders/002_seed_default_app_settings";
 import * as s003 from "./seeders/003_seed_provider_models";
@@ -24,7 +25,7 @@ interface SeederModule {
   seed: () => void;
 }
 
-const migrations: MigrationModule[] = [m001, m002, m003, m004, m005, m006].sort(
+const migrations: MigrationModule[] = [m001, m002, m003, m004, m005, m006, m007].sort(
   (a, b) => a.id - b.id,
 );
 

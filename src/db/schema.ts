@@ -91,7 +91,8 @@ export type ProviderTransport =
   | "anthropic"
   | "gemini"
   | "kiro"
-  | "command-code";
+  | "command-code"
+  | "mimo";
 export type QuotaResetType = "5h" | "daily" | "weekly" | "none";
 export type AccountStatus = "active" | "error" | "expired";
 export type ComboStrategy = "fallback" | "round_robin";

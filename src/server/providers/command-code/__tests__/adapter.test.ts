@@ -29,7 +29,12 @@ interface CommandCodeBody {
 
 interface ForwardedMessage {
   role: string;
-  content: string | Array<{ type: string; text?: string; image?: string } | { type: string; image_url: { url: string } }>;
+  content:
+    | string
+    | Array<
+        | { type: string; text?: string; image?: string }
+        | { type: string; image_url: { url: string } }
+      >;
 }
 
 interface ForwardedBody {
@@ -492,7 +497,9 @@ describe("image handling", () => {
     );
 
     const body = capturedBody as ForwardedBody;
-    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    const userMsg = body.params.messages.find(
+      (m: ForwardedMessage) => m.role === "user",
+    );
     expect(Array.isArray(userMsg.content)).toBe(true);
     expect(userMsg.content).toEqual([
       { type: "text", text: "describe this image" },
@@ -541,7 +548,9 @@ describe("image handling", () => {
     );
 
     const body = capturedBody as ForwardedBody;
-    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    const userMsg = body.params.messages.find(
+      (m: ForwardedMessage) => m.role === "user",
+    );
     expect(typeof userMsg.content).toBe("string");
     expect(userMsg.content).toBe("hello");
   });
@@ -587,7 +596,9 @@ describe("image handling", () => {
     );
 
     const body = capturedBody as ForwardedBody;
-    const userMsg = body.params.messages.find((m: ForwardedMessage) => m.role === "user");
+    const userMsg = body.params.messages.find(
+      (m: ForwardedMessage) => m.role === "user",
+    );
     expect(typeof userMsg.content).toBe("string");
     expect(userMsg.content).toBe("hello");
   });

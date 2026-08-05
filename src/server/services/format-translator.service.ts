@@ -96,7 +96,22 @@ function openAIToCanonical(body: OpenAIRequest): CanonicalRequest {
     const parts: CanonicalContentPart[] = [];
 
     if (m.content && m.role !== "tool") {
-      parts.push({ type: "text", text: m.content });
+      if (Array.isArray(m.content)) {
+        for (const block of m.content) {
+          if (block.type === "text" && typeof block.text === "string") {
+            parts.push({ type: "text", text: block.text });
+          } else if (
+            block.type === "image_url" &&
+            block.image_url &&
+            typeof block.image_url === "object"
+          ) {
+            const url = (block.image_url as { url?: string }).url;
+            if (url) parts.push({ type: "image", image: url });
+          }
+        }
+      } else {
+        parts.push({ type: "text", text: m.content });
+      }
     }
 
     if (m.tool_calls) {

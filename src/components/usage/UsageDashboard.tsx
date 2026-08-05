@@ -119,8 +119,8 @@ function MiniBarChart({
     <div className="flex flex-col gap-2">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <div className="flex items-end gap-1 h-32">
-        {data.map((d, i) => (
-          <div key={i} className="flex flex-col items-center gap-1 flex-1">
+        {data.map((d) => (
+          <div key={d.label} className="flex flex-col items-center gap-1 flex-1">
             <div
               className="w-full rounded-t-sm transition-all duration-300"
               style={{
@@ -259,8 +259,9 @@ export function UsageDashboard() {
       {/* ── Stats Cards Row ────────────────────────────────────────── */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {isSummaryLoading
-          ? Array.from({ length: 5 }).map((_, i) => (
-              <Card key={i} className="py-4">
+          ? Array.from({ length: 5 }).map((_val, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+              <Card key={`stat-${i}`} className="py-4">
                 <CardContent className="flex flex-col gap-2">
                   <Skeleton className="h-3 w-20" />
                   <Skeleton className="h-7 w-28" />
@@ -327,8 +328,9 @@ export function UsageDashboard() {
             <CardContent className="flex-1 overflow-y-auto px-5 pb-5 max-h-[500px]">
               {recordsLoading ? (
                 <div className="flex flex-col gap-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-start gap-3 py-2.5">
+                  {Array.from({ length: 5 }).map((_val, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                    <div key={`act-${i}`} className="flex items-start gap-3 py-2.5">
                       <Skeleton className="size-4 rounded-full mt-0.5" />
                       <div className="flex-1 flex flex-col gap-1.5">
                         <Skeleton className="h-4 w-32" />

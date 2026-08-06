@@ -35,9 +35,8 @@ export function ProvidersPage() {
     <section className="flex flex-col gap-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Providers</h1>
           <p className="text-muted-foreground">
-            Manage your AI provider connections.
+            Kelola koneksi penyedia AI Anda.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -52,11 +51,11 @@ export function ProvidersPage() {
             ) : (
               <RefreshCwIcon data-icon="inline-start" />
             )}
-            Reload
+            Muat ulang
           </Button>
           <Button type="button" onClick={() => setIsProviderDialogOpen(true)}>
             <PlusIcon data-icon="inline-start" />
-            Add provider
+            Tambah penyedia
           </Button>
         </div>
       </div>
@@ -64,7 +63,7 @@ export function ProvidersPage() {
       {error ? (
         <Alert variant="destructive">
           <BoxesIcon />
-          <AlertTitle>Providers cannot be updated</AlertTitle>
+          <AlertTitle>Penyedia tidak dapat dimuat</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
@@ -74,7 +73,7 @@ export function ProvidersPage() {
           <div
             className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
             role="status"
-            aria-label="Loading providers"
+            aria-label="Memuat penyedia"
           >
             <ProviderCardSkeleton />
             <ProviderCardSkeleton />
@@ -87,15 +86,15 @@ export function ProvidersPage() {
             <EmptyMedia variant="icon">
               <BoxesIcon />
             </EmptyMedia>
-            <EmptyTitle>No providers yet</EmptyTitle>
+            <EmptyTitle>Belum ada penyedia</EmptyTitle>
             <EmptyDescription>
-              Add a provider to start routing requests.
+              Tambahkan penyedia untuk mulai meneruskan permintaan.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button type="button" onClick={() => setIsProviderDialogOpen(true)}>
               <PlusIcon data-icon="inline-start" />
-              Add provider
+              Tambah penyedia
             </Button>
           </EmptyContent>
         </Empty>
@@ -104,9 +103,9 @@ export function ProvidersPage() {
           {/* Built-in Providers */}
           {builtinProviders.length > 0 ? (
             <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Built-in Providers
-              </h2>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Penyedia Bawaan
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {builtinProviders.map((provider) => (
                   <ProviderCard
@@ -122,9 +121,9 @@ export function ProvidersPage() {
           {/* Custom Providers */}
           {customProviders.length > 0 ? (
             <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Custom Providers
-              </h2>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Penyedia Kustom
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {customProviders.map((provider) => (
                   <ProviderCard

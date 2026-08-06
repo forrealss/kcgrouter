@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,23 +27,23 @@ interface QuotaCardProps {
   plan?: string;
 }
 
-const numberFormatter = new Intl.NumberFormat("en-US");
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
+const numberFormatter = new Intl.NumberFormat("id-ID");
+const dateFormatter = new Intl.DateTimeFormat("id-ID", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
 const resetTypeLabels: Record<QuotaAccount["quotaResetType"], string> = {
-  "5h": "5h",
-  daily: "daily",
-  weekly: "weekly",
-  none: "none",
+  "5h": "5 jam",
+  daily: "harian",
+  weekly: "mingguan",
+  none: "tanpa reset",
 };
 
 const statusLabels: Record<QuotaAccount["status"], string> = {
-  active: "Active",
+  active: "Aktif",
   error: "Error",
-  expired: "Expired",
+  expired: "Kedaluwarsa",
 };
 
 function getStatusBadgeVariant(
@@ -82,7 +80,7 @@ function getProgressValue(
 }
 
 function formatCountdown(remainingMs: number): string {
-  if (remainingMs <= 0) return "Resetting soon";
+  if (remainingMs <= 0) return "Segera reset";
 
   const totalSeconds = Math.ceil(remainingMs / 1_000);
   const days = Math.floor(totalSeconds / 86_400);
@@ -90,10 +88,10 @@ function formatCountdown(remainingMs: number): string {
   const minutes = Math.floor((totalSeconds % 3_600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  if (days > 0) return `${days}h ${hours}j ${minutes}m`;
+  if (hours > 0) return `${hours}j ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}d`;
+  return `${seconds}d`;
 }
 
 function getQuotaColor(percentage: number): "green" | "yellow" | "red" {
@@ -105,11 +103,11 @@ function getQuotaColor(percentage: number): "green" | "yellow" | "red" {
 function getQuotaColorClass(color: "green" | "yellow" | "red"): string {
   switch (color) {
     case "green":
-      return "text-green-500";
+      return "text-emerald-500";
     case "yellow":
-      return "text-yellow-500";
+      return "text-amber-500";
     case "red":
-      return "text-red-500";
+      return "text-destructive";
   }
 }
 
@@ -154,8 +152,10 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         {isCredit ? (
-          <span className={remaining > 0 ? "text-green-500" : "text-red-500"}>
-            {remaining > 0 ? "active" : "depleted"}
+          <span
+            className={remaining > 0 ? "text-emerald-500" : "text-destructive"}
+          >
+            {remaining > 0 ? "aktif" : "habis"}
           </span>
         ) : (
           <span>
@@ -188,10 +188,10 @@ function ResetCountdown({ windowEnd }: { windowEnd: string | null }) {
     return () => window.clearInterval(intervalId);
   }, [resetAt]);
 
-  if (!windowEnd) return "No scheduled reset";
-  if (resetAt === null) return "Reset schedule unavailable";
+  if (!windowEnd) return "Tidak ada jadwal reset";
+  if (resetAt === null) return "Jadwal reset tidak tersedia";
 
-  return `Resets in ${formatCountdown(resetAt - now)}`;
+  return `Reset dalam ${formatCountdown(resetAt - now)}`;
 }
 
 export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
@@ -224,9 +224,6 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
           )}
         </CardDescription>
         <CardAction className="flex items-center gap-2">
-          {!account.available ? (
-            <Badge variant="outline">Unavailable</Badge>
-          ) : null}
           <Badge variant={getStatusBadgeVariant(account.status)}>
             {statusLabels[account.status]}
           </Badge>
@@ -237,7 +234,7 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
         {hasProviderQuotas ? (
           <div className="flex flex-col gap-3">
             <span className="text-sm font-medium text-muted-foreground">
-              {providerQuotas.length} quota
+              {providerQuotas.length} kuota
             </span>
             {providerQuotas.map((quota) => (
               <ProviderQuotaBar key={quota.name} quota={quota} />
@@ -248,9 +245,9 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
         {/* Internal token quota */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-muted-foreground">Token quota</span>
+            <span className="text-muted-foreground">Kuota token</span>
             {quotaLimitTokens === null ? (
-              <Badge variant="secondary">Unlimited</Badge>
+              <Badge variant="secondary">Tidak terbatas</Badge>
             ) : (
               <span className="font-medium">
                 {Math.round(progressValue ?? 0)}%
@@ -259,17 +256,17 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
           </div>
           {quotaLimitTokens === null ? (
             <p className="text-sm text-muted-foreground">
-              {formatTokens(quotaState.tokensUsed)} tokens used
+              {formatTokens(quotaState.tokensUsed)} token terpakai
             </p>
           ) : (
             <>
               <Progress
                 value={progressValue ?? 0}
-                aria-label={`${formatTokens(quotaState.tokensUsed)} of ${formatTokens(quotaLimitTokens)} tokens used`}
+                aria-label={`${formatTokens(quotaState.tokensUsed)} dari ${formatTokens(quotaLimitTokens)} token terpakai`}
               />
               <p className="text-sm text-muted-foreground">
-                {formatTokens(quotaState.tokensUsed)} of{" "}
-                {formatTokens(quotaLimitTokens)} tokens used
+                {formatTokens(quotaState.tokensUsed)} dari{" "}
+                {formatTokens(quotaLimitTokens)} token terpakai
               </p>
             </>
           )}
@@ -277,13 +274,13 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
 
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Requests</dt>
+            <dt className="text-muted-foreground">Permintaan</dt>
             <dd className="font-medium">
               {formatTokens(quotaState.requestCount)}
             </dd>
           </div>
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Last used</dt>
+            <dt className="text-muted-foreground">Terakhir dipakai</dt>
             <dd className="font-medium">
               {formatTimestamp(account.lastUsedAt)}
             </dd>

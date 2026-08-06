@@ -4,14 +4,6 @@ import { QuotaCard } from "@/components/quota/QuotaCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -44,17 +36,12 @@ export function QuotaPage() {
   const usageMap = new Map((providerUsage ?? []).map((u) => [u.accountId, u]));
 
   return (
-    <section className="flex flex-col gap-6" aria-labelledby="quota-heading">
+    <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h2
-            id="quota-heading"
-            className="text-2xl font-semibold tracking-tight"
-          >
-            Quota
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Monitor token usage and reset windows for each provider account.
+          <p className="text-muted-foreground">
+            Pantau penggunaan token dan jendela reset untuk setiap akun
+            penyedia.
           </p>
         </div>
         <Button
@@ -71,32 +58,21 @@ export function QuotaPage() {
           ) : (
             <RefreshCwIcon data-icon="inline-start" />
           )}
-          Refresh
+          Muat ulang
         </Button>
       </div>
 
       {isInitialLoading ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Loading quota</CardTitle>
-            <CardDescription>
-              Retrieving the latest quota state for your provider accounts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Spinner />
-            Loading quota…
-          </CardContent>
-          <CardFooter className="text-sm text-muted-foreground">
-            This may take a moment.
-          </CardFooter>
-        </Card>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner />
+          Memuat quota…
+        </div>
       ) : null}
 
       {!isInitialLoading && error ? (
         <Alert variant="destructive">
           <GaugeIcon />
-          <AlertTitle>Quota could not be loaded</AlertTitle>
+          <AlertTitle>Quota tidak dapat dimuat</AlertTitle>
           <AlertDescription className="gap-3">
             <p>{error}</p>
             <Button
@@ -111,7 +87,7 @@ export function QuotaPage() {
               ) : (
                 <RefreshCwIcon data-icon="inline-start" />
               )}
-              Retry
+              Coba lagi
             </Button>
           </AlertDescription>
         </Alert>
@@ -123,9 +99,9 @@ export function QuotaPage() {
             <EmptyMedia variant="icon">
               <GaugeIcon />
             </EmptyMedia>
-            <EmptyTitle>No quota accounts yet</EmptyTitle>
+            <EmptyTitle>Belum ada akun quota</EmptyTitle>
             <EmptyDescription>
-              Quota details will appear after provider accounts are configured.
+              Detail quota akan muncul setelah akun penyedia dikonfigurasi.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -135,7 +111,7 @@ export function QuotaPage() {
               onClick={() => void loadQuota()}
             >
               <RefreshCwIcon data-icon="inline-start" />
-              Refresh quota
+              Muat ulang quota
             </Button>
           </EmptyContent>
         </Empty>

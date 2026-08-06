@@ -206,7 +206,7 @@ function ApiKeyManager() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>API Access</CardTitle>
+          <CardTitle>Akses API</CardTitle>
           <CardDescription>
             Kelola App API Key untuk mengautentikasi CLI ke endpoint router.
           </CardDescription>

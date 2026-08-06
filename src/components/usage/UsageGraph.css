@@ -1,0 +1,457 @@
+/* ─── UsageGraph scoped styles ─────────────────────────────────────────────── */
+/* Theme-aware: uses CSS custom properties from globals.css                  */
+
+.ug-wrap {
+  position: relative;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  background: var(--card);
+  border-radius: 0;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+  cursor: grab;
+  user-select: none;
+}
+
+.ug-wrap:active {
+  cursor: grabbing;
+}
+
+.ug-graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  user-select: none;
+}
+
+/* ─── nodes ───────────────────────────────────────────────────────────────── */
+.ug-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-width: 130px;
+  cursor: default;
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s,
+    transform 0.25s,
+    opacity 0.3s;
+  z-index: 3;
+  user-select: none;
+}
+
+.ug-node:hover {
+  border-color: var(--ug-nc, #3f3f3f);
+  box-shadow:
+    0 0 0 1px var(--ug-nc, #3f3f3f),
+    0 0 22px -4px var(--ug-nc, #3f3f3f);
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.ug-node .ug-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ug-node .ug-ico {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  background: color-mix(in oklab, var(--ug-nc) 22%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--ug-nc) 45%, var(--foreground));
+}
+
+.ug-node .ug-lb {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--foreground);
+}
+
+.ug-node .ug-sb {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  margin-top: 1px;
+}
+
+/* ─── hub ─────────────────────────────────────────────────────────────────── */
+.ug-hub.ug-node {
+  min-width: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #e8e8e8, #d0d0d0);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.dark .ug-hub.ug-node {
+  background: radial-gradient(circle at 50% 40%, #1b1b1b, #0d0d0d);
+}
+
+.ug-hub-text {
+  text-align: center;
+}
+
+.ug-hub-emoji {
+  font-size: 18px;
+}
+
+.ug-hub-title {
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 2px;
+  color: var(--foreground);
+}
+
+.ug-hub-sub {
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+
+/* ─── states ──────────────────────────────────────────────────────────────── */
+.ug-muted {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.ug-muted .ug-ico {
+  opacity: 0.5;
+}
+
+@keyframes ug-node-ping {
+  0% {
+    box-shadow:
+      0 0 0 0 var(--ug-nc),
+      0 0 26px -2px var(--ug-nc);
+    border-color: var(--ug-nc);
+  }
+  100% {
+    box-shadow:
+      0 0 0 10px transparent,
+      0 0 0 transparent;
+    border-color: var(--border);
+  }
+}
+
+.ug-ping {
+  animation: ug-node-ping 0.7s ease-out;
+}
+
+.ug-streaming {
+  border-color: var(--ug-nc, #3f3f3f);
+  box-shadow:
+    0 0 0 1px var(--ug-nc, #3f3f3f),
+    0 0 18px -4px var(--ug-nc, #3f3f3f);
+}
+
+/* ─── edges ───────────────────────────────────────────────────────────────── */
+.ug-edge-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ug-edge-line {
+  fill: none;
+  stroke-width: 1.3;
+  stroke-dasharray: 4 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.12;
+}
+
+.ug-edge-line.ug-active {
+  animation:
+    ug-edge-flow 2.4s linear infinite,
+    ug-edge-flicker 2.8s ease-in-out infinite;
+}
+
+.ug-edge-line.ug-edge-muted {
+  animation: none;
+  opacity: 0.08;
+}
+
+@keyframes ug-edge-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+@keyframes ug-edge-flicker {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  18% {
+    opacity: 0.34;
+  }
+  32% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  64% {
+    opacity: 0.15;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  90% {
+    opacity: 0.18;
+  }
+}
+
+/* ─── cat (delivery animation) ────────────────────────────────────────────── */
+.ug-pcat {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 54px;
+  height: 54px;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  z-index: 2;
+  will-change: transform, opacity;
+}
+
+.ug-cat-rot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 50%;
+}
+
+.ug-cat-body {
+  transform-origin: 50% 50%;
+}
+
+.ug-leg {
+  transform-box: fill-box;
+  animation: none;
+  animation-play-state: paused;
+}
+
+.ug-laser-lead {
+  position: absolute;
+  left: 50%;
+  top: -13px;
+  width: 2px;
+  height: 18px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ug-laser-tail {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: linear-gradient(
+    to top,
+    rgba(255, 43, 77, 0),
+    rgba(255, 43, 77, 0.85)
+  );
+}
+
+.ug-laser-dot {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #ff2b4d;
+  box-shadow:
+    0 0 6px 2px #ff2b4d,
+    0 0 16px 5px rgba(255, 43, 77, 0.55);
+}
+
+@keyframes ug-stepA {
+  0% {
+    transform: rotate(-18deg);
+  }
+  50% {
+    transform: rotate(18deg);
+  }
+  100% {
+    transform: rotate(-18deg);
+  }
+}
+
+@keyframes ug-stepB {
+  0% {
+    transform: rotate(18deg);
+  }
+  50% {
+    transform: rotate(-18deg);
+  }
+  100% {
+    transform: rotate(18deg);
+  }
+}
+
+@keyframes ug-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-1.5px);
+  }
+  75% {
+    transform: translateY(1.5px);
+  }
+}
+
+.ug-walking .ug-leg {
+  animation-duration: 0.45s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-play-state: running;
+}
+
+.ug-walking .ug-leg-fl,
+.ug-walking .ug-leg-br {
+  animation-name: ug-stepA;
+}
+
+.ug-walking .ug-leg-fr,
+.ug-walking .ug-leg-bl {
+  animation-name: ug-stepB;
+}
+
+.ug-walking .ug-cat-body {
+  animation: ug-bob 0.45s ease-in-out infinite;
+}
+
+@keyframes ug-tail-wag {
+  0%,
+  100% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(14deg);
+  }
+}
+
+.ug-tail {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  animation: ug-tail-wag 0.9s ease-in-out infinite;
+}
+
+@keyframes ug-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
+.ug-eyes {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: ug-blink 3.4s ease-in-out infinite;
+}
+
+/* ─── impact burst ────────────────────────────────────────────────────────── */
+.ug-impact {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 43, 77, 0.85),
+    rgba(255, 43, 77, 0) 70%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes ug-impact-anim {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.3);
+    opacity: 0;
+  }
+}
+
+.ug-impact.ug-impact-play {
+  animation: ug-impact-anim 0.5s ease-out forwards;
+}
+
+/* ─── icon text ───────────────────────────────────────────────────────────── */
+.ug-node .ug-ico-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ug-nc, #e5e5e5);
+}
+
+/* ─── zoom controls ───────────────────────────────────────────────────────── */
+.ug-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  backdrop-filter: blur(8px);
+}
+
+.ug-zoom-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+
+.ug-zoom-btn:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.ug-zoom-pct {
+  min-width: 32px;
+  text-align: center;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  font-size: 11px;
+}

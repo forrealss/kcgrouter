@@ -98,16 +98,16 @@ function catSVG(color: string): string {
   return `<div class="ug-cat-rot">
   <div class="ug-laser-lead"><div class="ug-laser-tail"></div><div class="ug-laser-dot"></div></div>
   <svg viewBox="0 0 54 54" width="54" height="54">
-    <g class="ug-leg ug-leg-fl" style="transform-origin:50% 0%"><rect x="15" y="20" width="3.2" height="11" rx="1.6" fill="#3b3b3b"/></g>
-    <g class="ug-leg ug-leg-fr" style="transform-origin:50% 0%"><rect x="34" y="20" width="3.2" height="11" rx="1.6" fill="#3b3b3b"/></g>
-    <g class="ug-leg ug-leg-bl" style="transform-origin:50% 0%"><rect x="16" y="30" width="3.2" height="12" rx="1.6" fill="#333"/></g>
-    <g class="ug-leg ug-leg-br" style="transform-origin:50% 0%"><rect x="33" y="30" width="3.2" height="12" rx="1.6" fill="#333"/></g>
+    <g class="ug-leg ug-leg-fl" style="transform-origin:50% 0%"><rect x="15" y="20" width="3.2" height="11" rx="1.6" fill="var(--ug-cat-leg)"/></g>
+    <g class="ug-leg ug-leg-fr" style="transform-origin:50% 0%"><rect x="34" y="20" width="3.2" height="11" rx="1.6" fill="var(--ug-cat-leg)"/></g>
+    <g class="ug-leg ug-leg-bl" style="transform-origin:50% 0%"><rect x="16" y="30" width="3.2" height="12" rx="1.6" fill="var(--ug-cat-leg-dark)"/></g>
+    <g class="ug-leg ug-leg-br" style="transform-origin:50% 0%"><rect x="33" y="30" width="3.2" height="12" rx="1.6" fill="var(--ug-cat-leg-dark)"/></g>
     <g class="ug-tail"><path d="M27 41 C27 47, 33 49, 36 45" stroke="${color}" stroke-width="3" fill="none" stroke-linecap="round"/></g>
     <g class="ug-cat-body">
-      <ellipse cx="27" cy="30" rx="10.5" ry="13" fill="#1e1e1e" stroke="${color}" stroke-width="1.4"/>
-      <path d="M20 15 L18 8 L24.5 12 Z" fill="#232323" stroke="${color}" stroke-width="1.1"/>
-      <path d="M34 15 L36 8 L29.5 12 Z" fill="#232323" stroke="${color}" stroke-width="1.1"/>
-      <circle cx="27" cy="16" r="8.4" fill="#242424" stroke="${color}" stroke-width="1.4"/>
+      <ellipse cx="27" cy="30" rx="10.5" ry="13" fill="var(--ug-cat-fill)" stroke="${color}" stroke-width="1.4"/>
+      <path d="M20 15 L18 8 L24.5 12 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.1"/>
+      <path d="M34 15 L36 8 L29.5 12 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.1"/>
+      <circle cx="27" cy="16" r="8.4" fill="var(--ug-cat-fill-darker)" stroke="${color}" stroke-width="1.4"/>
       <g class="ug-eyes">
         <circle cx="24" cy="15" r="1.5" fill="${color}"/>
         <circle cx="30" cy="15" r="1.5" fill="${color}"/>
@@ -117,120 +117,7 @@ function catSVG(color: string): string {
   </svg></div>`;
 }
 
-// ─── scoped CSS ───────────────────────────────────────────────────────────────
-const GRAPH_CSS = `
-.ug-wrap{position:relative;width:100%;height:100%;overflow:hidden;
-  background:#0a0a0a;border-radius:0;border-bottom-left-radius:0.75rem;border-bottom-right-radius:0.75rem;
-  cursor:grab;user-select:none}
-.ug-wrap:active{cursor:grabbing}
-.ug-graph{position:relative;width:100%;height:100%;transform-origin:center center;user-select:none}
-
-.ug-node{
-  position:absolute;transform:translate(-50%,-50%);
-  background:#141414;border:1px solid #262626;border-radius:12px;
-  padding:8px 10px;min-width:130px;cursor:default;
-  transition:border-color .25s,box-shadow .25s,transform .25s,opacity .3s;
-  z-index:3;user-select:none;
-}
-.ug-node:hover{
-  border-color:var(--ug-nc,#3f3f3f);
-  box-shadow:0 0 0 1px var(--ug-nc,#3f3f3f),0 0 22px -4px var(--ug-nc,#3f3f3f);
-  transform:translate(-50%,-50%) scale(1.04)
-}
-.ug-node .ug-row{display:flex;align-items:center;gap:8px}
-.ug-node .ug-ico{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;
-  font-size:12px;
-  background:color-mix(in oklab,var(--ug-nc) 22%,#000);
-  border:1px solid color-mix(in oklab,var(--ug-nc) 45%,#000)}
-.ug-node .ug-lb{font-size:12px;font-weight:600;line-height:1.1;color:#e5e5e5}
-.ug-node .ug-sb{font-size:10px;color:#8a8a8a;margin-top:1px}
-
-.ug-hub{min-width:0!important;width:100px;height:100px;border-radius:50%!important;
-  background:radial-gradient(circle at 50% 40%,#1b1b1b,#0d0d0d);
-  display:grid!important;place-items:center;padding:0!important}
-
-.ug-muted{opacity:.35;pointer-events:none}
-.ug-muted .ug-ico{opacity:.5}
-
-@keyframes ug-node-ping{
-  0%{box-shadow:0 0 0 0 var(--ug-nc),0 0 26px -2px var(--ug-nc);border-color:var(--ug-nc)}
-  100%{box-shadow:0 0 0 10px transparent,0 0 0 transparent;border-color:#262626}
-}
-.ug-ping{animation:ug-node-ping .7s ease-out}
-.ug-streaming{
-  border-color:var(--ug-nc,#3f3f3f)!important;
-  box-shadow:0 0 0 1px var(--ug-nc,#3f3f3f),0 0 18px -4px var(--ug-nc,#3f3f3f)!important
-}
-
-.ug-edge-svg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
-.ug-edge-line{fill:none;stroke-width:1.3;stroke-dasharray:4 5;stroke-linecap:round;
-  vector-effect:non-scaling-stroke;opacity:.12}
-.ug-edge-line.ug-active{animation:ug-edge-flow 2.4s linear infinite,ug-edge-flicker 2.8s ease-in-out infinite}
-.ug-edge-line.ug-edge-muted{animation:none;opacity:.08}
-
-@keyframes ug-edge-flow{to{stroke-dashoffset:-18}}
-@keyframes ug-edge-flicker{
-  0%,100%{opacity:.14} 18%{opacity:.34} 32%{opacity:.16}
-  50%{opacity:.4} 64%{opacity:.15} 80%{opacity:.3} 90%{opacity:.18}
-}
-
-.ug-pcat{position:absolute;left:0;top:0;width:54px;height:54px;
-  transform-origin:50% 50%;pointer-events:none;z-index:2;will-change:transform,opacity}
-.ug-cat-rot{position:relative;width:100%;height:100%;transform-origin:50% 50%}
-.ug-cat-body{transform-origin:50% 50%}
-.ug-leg{transform-box:fill-box;animation-play-state:paused;animation:none}
-.ug-laser-lead{position:absolute;left:50%;top:-13px;width:2px;height:18px;transform:translateX(-50%);pointer-events:none}
-.ug-laser-tail{position:absolute;left:50%;top:0;width:2px;height:100%;transform:translateX(-50%);
-  border-radius:2px;background:linear-gradient(to top,rgba(255,43,77,0),rgba(255,43,77,.85))}
-.ug-laser-dot{position:absolute;left:50%;top:-3px;width:8px;height:8px;transform:translateX(-50%);
-  border-radius:50%;background:#ff2b4d;
-  box-shadow:0 0 6px 2px #ff2b4d,0 0 16px 5px rgba(255,43,77,.55)}
-
-@keyframes ug-stepA{0%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}100%{transform:rotate(-18deg)}}
-@keyframes ug-stepB{0%{transform:rotate(18deg)}50%{transform:rotate(-18deg)}100%{transform:rotate(18deg)}}
-@keyframes ug-bob{0%,100%{transform:translateY(0)}25%{transform:translateY(-1.5px)}75%{transform:translateY(1.5px)}}
-.ug-walking .ug-leg{animation-duration:.45s;animation-timing-function:ease-in-out;
-  animation-iteration-count:infinite;animation-play-state:running}
-.ug-walking .ug-leg-fl,.ug-walking .ug-leg-br{animation-name:ug-stepA}
-.ug-walking .ug-leg-fr,.ug-walking .ug-leg-bl{animation-name:ug-stepB}
-.ug-walking .ug-cat-body{animation:ug-bob .45s ease-in-out infinite}
-@keyframes ug-tail-wag{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(14deg)}}
-.ug-tail{transform-box:fill-box;transform-origin:0% 50%;animation:ug-tail-wag .9s ease-in-out infinite}
-@keyframes ug-blink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
-.ug-eyes{transform-box:fill-box;transform-origin:50% 50%;animation:ug-blink 3.4s ease-in-out infinite}
-
-.ug-impact{position:absolute;width:26px;height:26px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,43,77,.85),rgba(255,43,77,0) 70%);
-  pointer-events:none;z-index:1}
-@keyframes ug-impact-anim{
-  0%{transform:translate(-50%,-50%) scale(.3);opacity:1}
-  100%{transform:translate(-50%,-50%) scale(2.3);opacity:0}
-}
-.ug-impact.ug-impact-play{animation:ug-impact-anim .5s ease-out forwards}
-
-.ug-node .ug-ico-text{font-size:11px;font-weight:700;color:var(--ug-nc,#e5e5e5)}
-
-/* ── zoom controls ─────────────────────────────────────────────────────── */
-.ug-zoom-controls{
-  position:absolute;top:8px;right:8px;z-index:50;
-  display:flex;align-items:center;gap:2px;
-  background:rgba(20,20,20,.88);border:1px solid #262626;border-radius:8px;
-  padding:3px;backdrop-filter:blur(8px)
-}
-.ug-zoom-btn{
-  width:26px;height:26px;border:none;border-radius:6px;
-  background:transparent;color:#a3a3a3;cursor:pointer;
-  display:grid;place-items:center;transition:background .15s,color .15s;
-  padding:0;line-height:0
-}
-.ug-zoom-btn:hover{background:#262626;color:#e5e5e5}
-.ug-zoom-btn:active{background:#333}
-.ug-zoom-btn svg{width:14px;height:14px}
-.ug-zoom-pct{
-  font-size:10px;font-weight:600;color:#737373;
-  min-width:32px;text-align:center;user-select:none;font-variant-numeric:tabular-nums
-}
-`;
+import "./UsageGraph.css";
 
 function transportIcon(transport: string): string {
   switch (transport) {
@@ -272,7 +159,6 @@ interface NodeMapEntry {
 export function UsageGraph({ height }: { height?: number } = {}) {
   const { nodes, loading, error, reload, onRequest } = useUsageGraph();
   const containerRef = useRef<HTMLDivElement>(null);
-  const styleInjected = useRef(false);
   const activeCount = useRef<Map<string, number>>(new Map());
   const nodeMapRef = useRef<Map<string, NodeMapEntry>>(new Map());
   const graphWrapRef = useRef<HTMLDivElement | null>(null);
@@ -371,19 +257,9 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     };
   }, []);
 
-  // inject scoped CSS once
+  // build graph DOM (once, when container ready)
   useEffect(() => {
-    if (styleInjected.current) return;
-    const el = document.createElement("style");
-    el.id = "ug-scoped-css";
-    el.textContent = GRAPH_CSS;
-    document.head.appendChild(el);
-    styleInjected.current = true;
-  }, []);
-
-  // build graph DOM (once, when nodes first load)
-  useEffect(() => {
-    if (loading || error || nodes.length === 0 || builtRef.current) return;
+    if (loading || error || builtRef.current) return;
     const container = containerRef.current;
     if (!container) return;
     builtRef.current = true;
@@ -407,10 +283,10 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     hubEl.style.left = `${HUB.x}%`;
     hubEl.style.top = `${HUB.y}%`;
     hubEl.style.setProperty("--ug-nc", "#f5a623");
-    hubEl.innerHTML = `<div style="text-align:center">
-      <div style="font-size:18px">🐾</div>
-      <div style="font-size:10px;font-weight:600;margin-top:2px;color:#e5e5e5">Router Hub</div>
-      <div style="font-size:9px;color:#8a8a8a">KCG Router</div>
+    hubEl.innerHTML = `<div class="ug-hub-text">
+      <div class="ug-hub-emoji">🐾</div>
+      <div class="ug-hub-title">Router Hub</div>
+      <div class="ug-hub-sub">KCG Router</div>
     </div>`;
     wrap.appendChild(hubEl);
 

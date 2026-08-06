@@ -1,5 +1,3 @@
-"use client";
-
 import { AlertCircleIcon, BarChart3Icon } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

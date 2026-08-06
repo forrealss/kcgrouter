@@ -64,19 +64,20 @@ export const transportMeta: Record<
     label: "Kiro (AWS CodeWhisperer)",
     icon: "/images/providers/kiro.svg",
     fallbackIcon: CpuIcon,
-    accentClassName: "border-orange-400/40 bg-orange-400/10 text-orange-400",
+    accentClassName: "border-chart-5/40 bg-chart-5/10 text-chart-5",
   },
   "command-code": {
     label: "Command Code",
     icon: "/images/providers/command-code.svg",
     fallbackIcon: TerminalIcon,
-    accentClassName: "border-gray-400/40 bg-gray-400/10 text-gray-400",
+    accentClassName:
+      "border-muted-foreground/40 bg-muted-foreground/10 text-muted-foreground",
   },
   mimo: {
     label: "Xiaomi MiMo",
     icon: "/images/providers/xiaomimimo.svg",
     fallbackIcon: BotIcon,
-    accentClassName: "border-orange-500/40 bg-orange-500/10 text-orange-500",
+    accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
   },
 };
 
@@ -171,19 +172,18 @@ export function ProviderCard({
                 </AlertDialogTrigger>
                 <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {provider.name}?</AlertDialogTitle>
+                    <AlertDialogTitle>Hapus {provider.name}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      All connections and credentials will be permanently
-                      deleted.
+                      Semua koneksi dan kredensial akan dihapus permanen.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Batal</AlertDialogCancel>
                     <AlertDialogAction
                       variant="destructive"
                       onClick={handleDelete}
                     >
-                      Delete
+                      Hapus
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

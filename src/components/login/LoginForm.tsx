@@ -33,7 +33,7 @@ const trace: TraceLine[] = [
     path: "/v1/chat/completions",
     target: "openai:acct-02",
     outcome: "limited",
-    detail: "429 quota exceeded (5h window)",
+    detail: "429 kuota terlampaui (jendela 5h)",
   },
   {
     at: "14:02:11",
@@ -49,7 +49,7 @@ const trace: TraceLine[] = [
     path: "/v1/chat/completions",
     target: "anthropic:acct-01",
     outcome: "ok",
-    detail: "200 in 640ms · 1,204 tokens",
+    detail: "200 dalam 640ms · 1,204 token",
   },
 ];
 

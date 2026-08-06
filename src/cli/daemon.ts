@@ -32,10 +32,15 @@ export function spawnDaemon(cwd: string): number | null {
 
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
-  const child = spawn(["nohup", "bun", "src/index.ts"], {
+  const isWin = process.platform === "win32";
+  const cmd = isWin ? "bun" : "nohup";
+  const args = isWin ? ["src/index.ts"] : ["bun", "src/index.ts"];
+
+  const child = spawn([cmd, ...args], {
     cwd,
     stdio: ["ignore", "ignore", "ignore"],
     detached: true,
+    windowsHide: true,
     env: { ...process.env, NODE_ENV: "production" },
   });
 

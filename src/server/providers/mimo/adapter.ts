@@ -19,12 +19,15 @@ function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
     // If there are images, use array format for content
     if (imageParts.length > 0) {
       const contentArray: unknown[] = [];
-      
+
       // Add text parts
       for (const p of textParts) {
-        contentArray.push({ type: "text", text: (p as { type: "text"; text: string }).text });
+        contentArray.push({
+          type: "text",
+          text: (p as { type: "text"; text: string }).text,
+        });
       }
-      
+
       // Add image parts as image_url
       for (const p of imageParts) {
         const imageData = (p as { type: "image"; image: string }).image;
@@ -33,7 +36,7 @@ function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
           image_url: { url: imageData },
         });
       }
-      
+
       msg.content = contentArray;
     } else if (textParts.length > 0) {
       msg.content = textParts

@@ -2,7 +2,7 @@
  * UsageDashboard - premium SaaS analytics dashboard
  *
  * Layout:
- * - Header: tabs (Overview/History) + time filter
+ * - Header: time filter
  * - Stats cards row (requests, tokens, cost, etc.)
  * - Main: graph canvas (left) + recent activity (right)
  * - Analytics: Tokens/Cost bar charts
@@ -19,16 +19,10 @@ import {
   XCircleIcon,
   ZapIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -38,9 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsageGraph } from "@/components/usage/UsageGraph";
-import { UsageTable } from "@/components/usage/UsageTable";
 import { useUsage } from "@/hooks/useUsage";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import type { UsageRecord } from "@/types/usage";
@@ -182,18 +174,15 @@ export function UsageDashboard() {
     summary,
     summaryError,
     isSummaryLoading,
-    accounts,
-    accountsError,
-    isAccountsLoading,
     accountLabels,
     loadSummary,
-    loadAccounts,
   } = useUsage();
 
-  const [activeTab, setActiveTab] = useState("overview");
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState<string | null>(null);
+  const [graphHeight, setGraphHeight] = useState(480);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
 
   const loadRecords = useCallback(async () => {
     setRecordsLoading(true);
@@ -213,6 +202,19 @@ export function UsageDashboard() {
   useEffect(() => {
     void loadRecords();
   }, [loadRecords]);
+
+  useEffect(() => {
+    const el = graphContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w > 200) setGraphHeight(Math.floor(w * 0.55));
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const statCards = useStatCards(summary);
 
@@ -244,19 +246,11 @@ export function UsageDashboard() {
   }, [summary, accountLabels]);
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* ── Header with tabs + time filter ─────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList variant="line">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ClockIcon className="size-4" />
-          <span>Last 30 days</span>
-        </div>
+    <div className="flex flex-col gap-4 max-w-[1700px] mx-auto w-full">
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <ClockIcon className="size-4" />
+        <span>Last 30 days</span>
       </div>
 
       {/* ── Stats Cards Row ────────────────────────────────────────── */}
@@ -307,79 +301,58 @@ export function UsageDashboard() {
       ) : null}
 
       {/* ── Main Content Area ──────────────────────────────────────── */}
-      {activeTab === "overview" && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-          {/* Left: Workflow Canvas */}
-          <Card className="overflow-hidden py-0">
-            <CardHeader className="px-5 pt-5 pb-3">
-              <CardTitle className="text-base">Provider Network</CardTitle>
-              <CardDescription>
-                Real-time request flow between router and providers
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <UsageGraph />
-            </CardContent>
-          </Card>
+      <div className="grid gap-4 lg:grid-cols-[65%_35%] min-h-0">
+        {/* Left: Workflow Canvas */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardContent
+            ref={graphContainerRef}
+            className="flex-1 min-h-0 p-0 relative"
+          >
+            <UsageGraph height={graphHeight} />
+          </CardContent>
+        </Card>
 
-          {/* Right: Recent Activity */}
-          <Card className="flex flex-col">
-            <CardHeader className="px-5 pt-5 pb-3">
-              <CardTitle className="text-base">Recent Activity</CardTitle>
-              <CardDescription>Latest routed requests</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto px-5 pb-5 max-h-[500px]">
-              {recordsLoading ? (
-                <div className="flex flex-col gap-3">
-                  {Array.from({ length: 5 }).map((_val, i) => (
-                    <div
-                      // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                      key={`act-${i}`}
-                      className="flex items-start gap-3 py-2.5"
-                    >
-                      <Skeleton className="size-4 rounded-full mt-0.5" />
-                      <div className="flex-1 flex flex-col gap-1.5">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                      <Skeleton className="h-3 w-12" />
+        {/* Right: Recent Activity */}
+        <Card className="flex flex-col">
+          <CardContent className="flex-1 overflow-y-auto px-5 pb-5">
+            {recordsLoading ? (
+              <div className="flex flex-col gap-3">
+                {Array.from({ length: 5 }).map((_val, i) => (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                    key={`act-${i}`}
+                    className="flex items-start gap-3 py-2.5"
+                  >
+                    <Skeleton className="size-4 rounded-full mt-0.5" />
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
                     </div>
-                  ))}
-                </div>
-              ) : recordsError ? (
-                <p className="text-sm text-destructive">{recordsError}</p>
-              ) : records.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  No requests yet
-                </p>
-              ) : (
-                <div className="flex flex-col">
-                  {records.slice(0, 20).map((r) => (
-                    <ActivityItem key={r.id} record={r} />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                ))}
+              </div>
+            ) : recordsError ? (
+              <p className="text-sm text-destructive">{recordsError}</p>
+            ) : records.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No requests yet
+              </p>
+            ) : (
+              <div className="flex flex-col">
+                {records.slice(0, 20).map((r) => (
+                  <ActivityItem key={r.id} record={r} />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {activeTab === "history" && (
-        <UsageHistoryTable
-          accounts={accounts}
-          accountsLoading={isAccountsLoading}
-          accountsError={accountsError}
-          onRetryAccounts={() => void loadAccounts()}
-        />
-      )}
-
-      {/* ── Analytics Charts (only on overview) ────────────────────── */}
-      {activeTab === "overview" && !isSummaryLoading && summary && (
+      {/* ── Analytics Charts ────────────────────────────────────────── */}
+      {!isSummaryLoading && summary && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Tokens by Provider</CardTitle>
-            </CardHeader>
             <CardContent>
               {providerChartData.length > 0 ? (
                 <MiniBarChart
@@ -395,9 +368,6 @@ export function UsageDashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Cost by Provider</CardTitle>
-            </CardHeader>
             <CardContent>
               {costChartData.length > 0 ? (
                 <MiniBarChart
@@ -415,17 +385,9 @@ export function UsageDashboard() {
         </div>
       )}
 
-      {/* ── Provider Breakdown Table (only on overview) ────────────── */}
-      {activeTab === "overview" && !isSummaryLoading && summary && (
+      {/* ── Provider Breakdown Table ────────────────────────────────── */}
+      {!isSummaryLoading && summary && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Usage by Provider Account
-            </CardTitle>
-            <CardDescription>
-              Token usage, cost, and request count per provider account
-            </CardDescription>
-          </CardHeader>
           <CardContent>
             {summary.byProvider.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
@@ -470,27 +432,5 @@ export function UsageDashboard() {
         </Card>
       )}
     </div>
-  );
-}
-
-// ─── inline usage history table (for history tab) ────────────────────────────
-function UsageHistoryTable({
-  accounts,
-  accountsLoading,
-  accountsError,
-  onRetryAccounts,
-}: {
-  accounts: ReturnType<typeof useUsage>["accounts"];
-  accountsLoading: boolean;
-  accountsError: string | null;
-  onRetryAccounts: () => void;
-}) {
-  return (
-    <UsageTable
-      accounts={accounts}
-      accountsLoading={accountsLoading}
-      accountsError={accountsError}
-      onRetryAccounts={onRetryAccounts}
-    />
   );
 }

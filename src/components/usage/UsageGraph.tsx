@@ -21,12 +21,12 @@ import { type RealtimeRequest, useUsageGraph } from "@/hooks/useUsageGraph";
 const RADIUS_X = 34;
 const RADIUS_Y = 33;
 const HUB = { x: 50, y: 50 };
-const MAX_PER_NODE = 12;
 const ENTER_AT = 0.72;
+const EDGE_ACTIVE_MS = 3000;
 
 // ─── zoom ────────────────────────────────────────────────────────────────────
 // Change DEFAULT_ZOOM to adjust the initial zoom level
-const DEFAULT_ZOOM = 0.75;
+const DEFAULT_ZOOM = 1.0;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.1;
@@ -120,8 +120,10 @@ function catSVG(color: string): string {
 // ─── scoped CSS ───────────────────────────────────────────────────────────────
 const GRAPH_CSS = `
 .ug-wrap{position:relative;width:100%;height:100%;overflow:hidden;
-  background:#0a0a0a;border-radius:0;border-bottom-left-radius:0.75rem;border-bottom-right-radius:0.75rem}
-.ug-graph{position:relative;width:100%;height:480px;transform-origin:0 0}
+  background:#0a0a0a;border-radius:0;border-bottom-left-radius:0.75rem;border-bottom-right-radius:0.75rem;
+  cursor:grab;user-select:none}
+.ug-wrap:active{cursor:grabbing}
+.ug-graph{position:relative;width:100%;height:100%;transform-origin:center center;user-select:none}
 
 .ug-node{
   position:absolute;transform:translate(-50%,-50%);
@@ -162,8 +164,8 @@ const GRAPH_CSS = `
 
 .ug-edge-svg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .ug-edge-line{fill:none;stroke-width:1.3;stroke-dasharray:4 5;stroke-linecap:round;
-  vector-effect:non-scaling-stroke;
-  animation:ug-edge-flow 2.4s linear infinite,ug-edge-flicker 2.8s ease-in-out infinite}
+  vector-effect:non-scaling-stroke;opacity:.12}
+.ug-edge-line.ug-active{animation:ug-edge-flow 2.4s linear infinite,ug-edge-flicker 2.8s ease-in-out infinite}
 .ug-edge-line.ug-edge-muted{animation:none;opacity:.08}
 
 @keyframes ug-edge-flow{to{stroke-dashoffset:-18}}
@@ -267,7 +269,7 @@ interface NodeMapEntry {
   color: string;
 }
 
-export function UsageGraph() {
+export function UsageGraph({ height }: { height?: number } = {}) {
   const { nodes, loading, error, reload, onRequest } = useUsageGraph();
   const containerRef = useRef<HTMLDivElement>(null);
   const styleInjected = useRef(false);
@@ -275,12 +277,24 @@ export function UsageGraph() {
   const nodeMapRef = useRef<Map<string, NodeMapEntry>>(new Map());
   const graphWrapRef = useRef<HTMLDivElement | null>(null);
   const builtRef = useRef(false);
+  const dragState = useRef<{
+    dragging: boolean;
+    startX: number;
+    startY: number;
+    panStartX: number;
+    panStartY: number;
+  } | null>(null);
+  const edgeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
   const [zoom, setZoom] = useState(readZoom);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const applyZoom = (z: number) => {
+  const applyZoom = (z: number, resetPan = true) => {
     const clamped =
       Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)) * 100) / 100;
     setZoom(clamped);
+    if (resetPan) setPan({ x: 0, y: 0 });
     try {
       localStorage.setItem(ZOOM_KEY, String(clamped));
     } catch {}
@@ -308,6 +322,55 @@ export function UsageGraph() {
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  // drag/pan
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest(".ug-zoom-controls")) return;
+      dragState.current = {
+        dragging: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        panStartX: pan.x,
+        panStartY: pan.y,
+      };
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      const ds = dragState.current;
+      if (!ds?.dragging) return;
+      const dx = e.clientX - ds.startX;
+      const dy = e.clientY - ds.startY;
+      setPan({ x: ds.panStartX + dx, y: ds.panStartY + dy });
+    };
+
+    const onMouseUp = () => {
+      dragState.current = null;
+    };
+
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [pan.x, pan.y]);
+
+  // cleanup edge timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of edgeTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      edgeTimersRef.current.clear();
+    };
+  }, []);
+
   // inject scoped CSS once
   useEffect(() => {
     if (styleInjected.current) return;
@@ -327,8 +390,7 @@ export function UsageGraph() {
 
     const wrap = document.createElement("div");
     wrap.className = "ug-graph";
-    wrap.style.transform = `scale(${DEFAULT_ZOOM})`;
-    wrap.style.transformOrigin = "0 0";
+    wrap.style.transform = `translate(0px, 0px) scale(${readZoom()})`;
     graphWrapRef.current = wrap;
     container.appendChild(wrap);
 
@@ -402,10 +464,23 @@ export function UsageGraph() {
       if (!info) return;
       if (info.el.classList.contains("ug-muted")) return;
       const cur = activeCount.current.get(nodeId) ?? 0;
-      if (cur >= MAX_PER_NODE) return;
       activeCount.current.set(nodeId, cur + 1);
 
       info.el.classList.add("ug-streaming");
+
+      // activate edge animation for this node
+      if (info.pathEl && !info.pathEl.classList.contains("ug-edge-muted")) {
+        info.pathEl.classList.add("ug-active");
+        const existing = edgeTimersRef.current.get(nodeId);
+        if (existing) clearTimeout(existing);
+        edgeTimersRef.current.set(
+          nodeId,
+          setTimeout(() => {
+            info.pathEl.classList.remove("ug-active");
+            edgeTimersRef.current.delete(nodeId);
+          }, EDGE_ACTIVE_MS),
+        );
+      }
 
       const wrap = graphWrapRef.current;
       if (!wrap) return;
@@ -507,12 +582,12 @@ export function UsageGraph() {
     };
   }, []);
 
-  // ── sync zoom scale to graph wrapper ─────────────────────────────────────
+  // ── sync zoom + pan to graph wrapper ─────────────────────────────────────
   useEffect(() => {
     if (graphWrapRef.current) {
-      graphWrapRef.current.style.transform = `scale(${zoom})`;
+      graphWrapRef.current.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
     }
-  }, [zoom]);
+  }, [zoom, pan.x, pan.y]);
 
   // ── SSE real-time: trigger cat on each request ───────────────────────────
   useEffect(() => {
@@ -595,7 +670,7 @@ export function UsageGraph() {
         ref={containerRef}
         style={{
           width: "100%",
-          height: `${Math.max(200, 480 * zoom)}px`,
+          height: height ? `${height}px` : `${Math.max(200, 480 * zoom)}px`,
           position: "relative",
         }}
       />

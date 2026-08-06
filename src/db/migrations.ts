@@ -25,9 +25,15 @@ interface SeederModule {
   seed: () => void;
 }
 
-const migrations: MigrationModule[] = [m001, m002, m003, m004, m005, m006, m007].sort(
-  (a, b) => a.id - b.id,
-);
+const migrations: MigrationModule[] = [
+  m001,
+  m002,
+  m003,
+  m004,
+  m005,
+  m006,
+  m007,
+].sort((a, b) => a.id - b.id);
 
 const seeders: SeederModule[] = [s001, s002, s003, s004];
 

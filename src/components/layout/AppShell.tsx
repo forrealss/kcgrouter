@@ -68,10 +68,10 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
         onLogout={handleLogout}
       />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4 md:px-6">
-          <SidebarTrigger />
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
+          <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">
+            <h1 className="truncate text-base font-semibold">
               {currentModule.label}
             </h1>
           </div>

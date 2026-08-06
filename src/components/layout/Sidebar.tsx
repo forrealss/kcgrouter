@@ -6,23 +6,25 @@ import {
   Layers3Icon,
   LogOutIcon,
   type LucideIcon,
+  MoonIcon,
   SlidersHorizontalIcon,
+  SunIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Logo } from "@/components/icons/Logo";
 import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   Sidebar as SidebarPrimitive,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { apiClient } from "@/lib/api-client";
 
 export type AppModule =
   | "providers"
@@ -40,7 +42,7 @@ type ModuleDefinition = {
   icon: LucideIcon;
 };
 
-export const appModules: [ModuleDefinition, ...ModuleDefinition[]] = [
+const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
   {
     id: "providers",
     path: "/providers",
@@ -76,6 +78,9 @@ export const appModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     description: "Kelola kompresi output tool.",
     icon: SlidersHorizontalIcon,
   },
+];
+
+const secondaryModules: [ModuleDefinition, ...ModuleDefinition[]] = [
   {
     id: "settings",
     path: "/settings",
@@ -85,8 +90,12 @@ export const appModules: [ModuleDefinition, ...ModuleDefinition[]] = [
   },
 ];
 
+export const appModules: [ModuleDefinition, ...ModuleDefinition[]] = [
+  ...mainModules,
+  ...secondaryModules,
+];
+
 export function resolveModuleFromPath(pathname: string): AppModule {
-  // Handle /providers/:id as providers module
   if (/^\/providers\/[^/]+$/.test(pathname)) return "providers";
   const found = appModules.find((m) => m.path === pathname);
   return found?.id ?? "providers";
@@ -107,6 +116,38 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    apiClient
+      .get<{ theme: "light" | "dark" }>("/api/settings/theme", {
+        signal: controller.signal,
+      })
+      .then((data) => {
+        const dark = data.theme === "dark";
+        setIsDark(dark);
+        document.documentElement.classList.toggle("dark", dark);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  const toggleTheme = useCallback(async () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      await apiClient.patch<{ ok: true }>("/api/settings/theme", {
+        theme: next ? "dark" : "light",
+      });
+    } catch {
+      setIsDark(!next);
+      document.documentElement.classList.toggle("dark", !next);
+    }
+  }, [isDark]);
 
   function handleNav(path: string, e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
@@ -123,15 +164,42 @@ export function AppSidebar({
     }
   }
 
+  function renderModuleItems(modules: ModuleDefinition[]) {
+    return modules.map((module) => {
+      const Icon = module.icon;
+      return (
+        <SidebarMenuItem key={module.id}>
+          <SidebarMenuButton
+            isActive={activeModule === module.id}
+            tooltip={module.label}
+            asChild
+          >
+            <a href={module.path} onClick={(e) => handleNav(module.path, e)}>
+              <Icon />
+              <span>{module.label}</span>
+            </a>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      );
+    });
+  }
+
   return (
-    <SidebarPrimitive collapsible="icon">
+    <SidebarPrimitive variant="floating" collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href={defaultPath} onClick={(e) => handleNav(defaultPath, e)}>
-                <Logo className="size-6 shrink-0" />
-                <span>KCG Router</span>
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary">
+                  <Logo
+                    gradient={false}
+                    className="size-4 text-[#6D5CFB] dark:text-white"
+                  />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">KCG Router</span>
+                </div>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -139,35 +207,21 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {appModules.map((module) => {
-                const Icon = module.icon;
-                return (
-                  <SidebarMenuItem key={module.id}>
-                    <SidebarMenuButton
-                      isActive={activeModule === module.id}
-                      tooltip={module.label}
-                      asChild
-                    >
-                      <a
-                        href={module.path}
-                        onClick={(e) => handleNav(module.path, e)}
-                      >
-                        <Icon />
-                        <span>{module.label}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <SidebarMenu>{renderModuleItems(mainModules)}</SidebarMenu>
+        </SidebarGroup>
+        <SidebarSeparator />
+        <SidebarGroup>
+          <SidebarMenu>{renderModuleItems(secondaryModules)}</SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Ganti tema" onClick={toggleTheme}>
+              {isDark ? <SunIcon /> : <MoonIcon />}
+              <span>{isDark ? "Mode Terang" : "Mode Gelap"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Keluar"

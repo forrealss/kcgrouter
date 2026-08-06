@@ -26,15 +26,12 @@ export function getPid(): number | null {
   }
 }
 
-export function startDaemon(cwd: string) {
-  if (isRunning()) {
-    console.log(`\n  Server already running (PID: ${getPid()})\n`);
-    return;
-  }
+/** Spawn daemon without exiting — used by menu auto-start */
+export function spawnDaemon(cwd: string): number | null {
+  if (isRunning()) return getPid();
 
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
-  // Use nohup so the child survives when the parent exits
   const child = spawn(["nohup", "bun", "src/index.ts"], {
     cwd,
     stdio: ["ignore", "ignore", "ignore"],
@@ -43,11 +40,19 @@ export function startDaemon(cwd: string) {
   });
 
   writeFileSync(PID_FILE, String(child.pid));
-
-  console.log(`\n  Server started in background (PID: ${child.pid})`);
-  console.log(`  Log file: ${LOG_FILE}\n`);
-
   child.unref();
+  return child.pid;
+}
+
+/** Spawn daemon and exit — used by `kcgrouter --daemon` CLI flag */
+export function startDaemon(cwd: string) {
+  const pid = spawnDaemon(cwd);
+  if (pid && !isRunning()) {
+    console.log(`\n  Server failed to start. Check ${LOG_FILE}\n`);
+    return;
+  }
+  console.log(`\n  Server started in background (PID: ${pid})`);
+  console.log(`  Log file: ${LOG_FILE}\n`);
   process.exit(0);
 }
 

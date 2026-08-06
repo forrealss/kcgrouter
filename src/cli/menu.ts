@@ -1,56 +1,95 @@
 import { stdin, stdout } from "node:process";
 import { spawn } from "bun";
-import { startDaemon, stopDaemon, showStatus, isRunning } from "./daemon";
+import { spawnDaemon, stopDaemon, isRunning } from "./daemon";
 
 interface MenuItem {
   label: string;
   value: string;
 }
 
-const ITEMS: MenuItem[] = [
-  { label: "Web UI (Open in Browser)", value: "web" },
-  { label: "Run in Background", value: "daemon" },
-  { label: "Stop Background Process", value: "stop" },
-  { label: "Check Status", value: "status" },
-  { label: "Exit", value: "exit" },
-];
+function getItems(): MenuItem[] {
+  const running = isRunning();
+  return [
+    { label: "Web UI (Open in Browser)", value: "web" },
+    { label: "Run in Background", value: "background" },
+    { label: running ? "Stop Server" : "Start Server", value: running ? "stop" : "start" },
+    { label: "Check Status", value: "status" },
+    { label: "Exit", value: "exit" },
+  ];
+}
 
 const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 const INVERT = "\x1b[7m";
 const CLEAR = "\x1b[2J\x1b[H";
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
 
 export async function showMenu(packageRoot: string) {
+  // Auto-start daemon if not running
+  if (!isRunning()) {
+    stdout.write(`${DIM}  Starting server...${RESET}\n`);
+    const pid = spawnDaemon(packageRoot);
+    if (pid) await waitForServer(5000);
+  }
+
+  while (true) {
+    const choice = await getMenuChoice();
+
+    switch (choice) {
+      case "web":
+        openBrowser();
+        break;
+      case "background":
+        await showBackgroundMsg();
+        break;
+      case "start":
+        spawnDaemon(packageRoot);
+        await waitForServer(5000);
+        break;
+      case "stop":
+        stopDaemon();
+        break;
+      case "status":
+        showStatusMsg();
+        break;
+      case "exit":
+        return;
+    }
+  }
+}
+
+function getMenuChoice(): Promise<string> {
   let selected = 0;
+  const items = getItems();
 
   stdin.setRawMode(true);
   stdin.resume();
   stdin.setEncoding("utf-8");
 
-  render(selected);
+  render(items, selected);
 
-  return new Promise<void>((resolve) => {
-    const onData = async (key: string) => {
+  return new Promise((resolve) => {
+    const onData = (key: string) => {
       switch (key) {
-        case "\x1b[A": // Up
-          selected = (selected - 1 + ITEMS.length) % ITEMS.length;
-          render(selected);
+        case "\x1b[A":
+          selected = (selected - 1 + items.length) % items.length;
+          render(items, selected);
           break;
-        case "\x1b[B": // Down
-          selected = (selected + 1) % ITEMS.length;
-          render(selected);
+        case "\x1b[B":
+          selected = (selected + 1) % items.length;
+          render(items, selected);
           break;
-        case "\r": // Enter
+        case "\r":
           cleanup();
-          await handleChoice(ITEMS[selected].value, packageRoot);
-          resolve();
+          resolve(items[selected].value);
           break;
-        case "\x1b": // Escape
+        case "\x1b":
         case "q":
-        case "\x03": // Ctrl+C
+        case "\x03":
           cleanup();
-          resolve();
+          resolve("exit");
           break;
       }
     };
@@ -65,64 +104,98 @@ export async function showMenu(packageRoot: string) {
   });
 }
 
-function render(selected: number) {
+function render(items: MenuItem[], selected: number) {
+  const port = process.env.PORT || "3000";
+  const running = isRunning();
+  const dot = running ? `${GREEN}●${RESET}` : `${RED}●${RESET}`;
+  const info = running ? `Server: http://localhost:${port}` : "Server: not running";
+
   stdout.write(CLEAR);
   stdout.write(`\n`);
   stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
-  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}\n`);
+  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}  ${dot} ${DIM}${info}${RESET}\n`);
   stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
 
-  for (let i = 0; i < ITEMS.length; i++) {
+  for (let i = 0; i < items.length; i++) {
     const isSelected = i === selected;
     const marker = isSelected ? `  ${INVERT} ` : "    ";
-    const label = isSelected ? `${BOLD}${ITEMS[i].label}${RESET}` : `${DIM}${ITEMS[i].label}${RESET}`;
+    const label = isSelected ? `${BOLD}${items[i].label}${RESET}` : `${DIM}${items[i].label}${RESET}`;
     stdout.write(`${marker}${label}${isSelected ? ` ${RESET}` : ""}\n`);
   }
 
   stdout.write(`\n  ${DIM}↑↓ Navigate  ↵ Select  q/ESC Quit${RESET}\n\n`);
 }
 
-async function handleChoice(choice: string, packageRoot: string) {
-  switch (choice) {
-    case "web":
-      await openBrowser(packageRoot);
-      break;
-    case "daemon":
-      startDaemon(packageRoot);
-      break;
-    case "stop":
-      stopDaemon();
-      break;
-    case "status":
-      showStatus();
-      break;
-    case "exit":
-      break;
-  }
-}
-
-async function openBrowser(cwd: string) {
+function openBrowser() {
   const port = process.env.PORT || "3000";
   const url = `http://localhost:${port}`;
-
-  // Open browser (non-blocking)
-  const platform = process.platform;
-  if (platform === "darwin") spawn(["open", url]);
-  else if (platform === "win32") spawn(["cmd", "/c", "start", url]);
+  const p = process.platform;
+  if (p === "darwin") spawn(["open", url]);
+  else if (p === "win32") spawn(["cmd", "/c", "start", url]);
   else spawn(["xdg-open", url]);
+}
 
-  console.log(`\n  🌐 Opening ${url}...\n`);
+function showStatusMsg() {
+  const running = isRunning();
+  const port = process.env.PORT || "3000";
 
-  // Run server in foreground
-  const child = spawn(["bun", "src/index.ts"], {
-    cwd,
-    stdio: ["inherit", "inherit", "inherit"],
-    env: { ...process.env, NODE_ENV: "production" },
+  stdout.write(CLEAR);
+  stdout.write(`\n`);
+  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
+  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}\n`);
+  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
+
+  if (running) {
+    stdout.write(`  ${GREEN}● Running${RESET}\n`);
+    stdout.write(`  URL:      http://localhost:${port}\n`);
+    stdout.write(`  Stop:     ${DIM}kcgrouter --stop${RESET}\n`);
+  } else {
+    stdout.write(`  ${RED}● Not running${RESET}\n`);
+    stdout.write(`  Start:    ${DIM}kcgrouter --daemon${RESET}\n`);
+  }
+
+  stdout.write(`\n  Press any key to return...`);
+}
+
+function showBackgroundMsg(): Promise<void> {
+  stdout.write(CLEAR);
+  stdout.write(`\n`);
+  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
+  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}\n`);
+  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
+  stdout.write(`  ${GREEN}✓ Server is running in background${RESET}\n\n`);
+  stdout.write(`  You can safely close this terminal.\n`);
+  stdout.write(`  The server will keep running.\n\n`);
+  stdout.write(`  To stop later:\n`);
+  stdout.write(`    ${DIM}kcgrouter --stop${RESET}\n\n`);
+  stdout.write(`  Press any key to exit...`);
+
+  return new Promise((resolve) => {
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf-8");
+    const onData = () => {
+      stdin.removeListener("data", onData);
+      stdin.setRawMode(false);
+      stdin.pause();
+      process.exit(0);
+    };
+    stdin.on("data", onData);
   });
+}
 
-  const onSignal = () => { child.kill(); process.exit(0); };
-  process.on("SIGINT", onSignal);
-  process.on("SIGTERM", onSignal);
+async function waitForServer(timeoutMs: number): Promise<void> {
+  const port = process.env.PORT || "3000";
+  const url = `http://localhost:${port}`;
+  const start = Date.now();
 
-  await child.exited;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(500) });
+      if (res.ok) return;
+    } catch {
+      // not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }

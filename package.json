@@ -1,6 +1,6 @@
 {
   "name": "kcgrouter",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Lightweight AI proxy gateway — route chat completions to upstream providers",
   "type": "module",
   "bin": {
@@ -33,6 +33,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.3",

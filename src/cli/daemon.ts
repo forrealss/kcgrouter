@@ -63,12 +63,14 @@ export function stopDaemon() {
   }
 
   const pid = getPid();
+  if (!pid) return;
 
   try {
-    process.kill(pid!, "SIGTERM");
+    process.kill(pid, "SIGTERM");
     console.log(`\n  Stopped server (PID: ${pid})\n`);
-  } catch (e: any) {
-    console.log(`\n  Failed to stop: ${e.message}\n`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`\n  Failed to stop: ${msg}\n`);
   }
 
   try { unlinkSync(PID_FILE); } catch { /* already gone */ }

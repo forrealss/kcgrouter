@@ -1,133 +1,159 @@
-import { stdin, stdout } from "node:process";
+import * as p from "@clack/prompts";
 import { spawn } from "bun";
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { spawnDaemon, stopDaemon, isRunning } from "./daemon";
 
-interface MenuItem {
-  label: string;
-  value: string;
-}
-
-function getItems(): MenuItem[] {
-  const running = isRunning();
-  return [
-    { label: "Web UI (Open in Browser)", value: "web" },
-    { label: "Run in Background", value: "background" },
-    { label: running ? "Stop Server" : "Start Server", value: running ? "stop" : "start" },
-    { label: "Check Status", value: "status" },
-    { label: "Exit", value: "exit" },
-  ];
-}
-
-const BOLD = "\x1b[1m";
+const B = "\x1b[1m";
 const DIM = "\x1b[2m";
-const RESET = "\x1b[0m";
-const INVERT = "\x1b[7m";
-const CLEAR = "\x1b[2J\x1b[H";
+const R = "\x1b[0m";
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
+const CYAN = "\x1b[36m";
+const GRAY = "\x1b[90m";
+const LINE = `${GRAY}${"─".repeat(48)}${R}`;
+
+function getVersion(): string {
+  try {
+    const pkg = readFileSync(join(import.meta.dir, "../../../package.json"), "utf-8");
+    return JSON.parse(pkg).version;
+  } catch {
+    return "?";
+  }
+}
+
+function getPidInfo(): { pid: number; uptime: string } | null {
+  try {
+    const home = process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+    const pidFile = join(home, "server.pid");
+    const pid = Number.parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+    const stat = statSync(pidFile);
+    const uptimeMs = Date.now() - stat.birthtimeMs;
+    return { pid, uptime: formatUptime(uptimeMs) };
+  } catch {
+    return null;
+  }
+}
+
+function formatUptime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+
+  if (d > 0) return `${d}d ${h % 24}h`;
+  if (h > 0) return `${h}h ${m % 60}m`;
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+
+function renderDashboard(): string {
+  const running = isRunning();
+  const port = process.env.PORT || "3000";
+  const version = getVersion();
+  const pidInfo = getPidInfo();
+
+  const lines: string[] = [];
+
+  lines.push(``);
+  lines.push(`  ${B}🚀  KCG Router${R}  ${DIM}v${version}${R}`);
+  lines.push(`  ${LINE}`);
+  lines.push(``);
+
+  if (running && pidInfo) {
+    lines.push(`    Status    ${GREEN}● Running${R}`);
+    lines.push(`    URL       ${CYAN}http://localhost:${port}${R}`);
+    lines.push(`    PID       ${pidInfo.pid}`);
+    lines.push(`    Uptime    ${pidInfo.uptime}`);
+  } else {
+    lines.push(`    Status    ${RED}● Stopped${R}`);
+    lines.push(`    URL       ${GRAY}http://localhost:${port}${R}`);
+  }
+
+  lines.push(``);
+  lines.push(`  ${LINE}`);
+
+  return lines.join("\n");
+}
 
 export async function showMenu(packageRoot: string) {
   // Auto-start daemon if not running
   if (!isRunning()) {
-    stdout.write(`${DIM}  Starting server...${RESET}\n`);
+    const s = p.spinner();
+    s.start("Starting server...");
     const pid = spawnDaemon(packageRoot);
     if (pid) await waitForServer(5000);
+    s.stop("Server started");
   }
 
   while (true) {
-    const choice = await getMenuChoice();
+    const dashboard = renderDashboard();
+    const port = process.env.PORT || "3000";
+    const running = isRunning();
+    const pidInfo = getPidInfo();
+
+    const choice = await p.select({
+      message: dashboard,
+      options: [
+        { label: "Open Web UI", value: "web", hint: `Opens http://localhost:${port}` },
+        { label: "Run in Background", value: "background", hint: "Safe to close terminal" },
+        running
+          ? { label: "Stop Server", value: "stop", hint: `PID ${pidInfo?.pid ?? "?"}` }
+          : { label: "Start Server", value: "start", hint: "Launch in background" },
+        { label: "Check Status", value: "status" },
+        { label: "Exit", value: "exit" },
+      ],
+    });
+
+    if (p.isCancel(choice)) break;
 
     switch (choice) {
       case "web":
-        openBrowser();
+        openBrowser(port);
+        p.log.info(`Opened ${CYAN}http://localhost:${port}${R} in browser`);
         break;
       case "background":
         await showBackgroundMsg();
         break;
-      case "start":
-        spawnDaemon(packageRoot);
-        await waitForServer(5000);
+      case "start": {
+        const s = p.spinner();
+        s.start("Starting server...");
+        const pid = spawnDaemon(packageRoot);
+        if (pid) await waitForServer(5000);
+        s.stop("Server started");
         break;
-      case "stop":
+      }
+      case "stop": {
+        const confirmed = await p.confirm({ message: "Stop the running server?" });
+        if (p.isCancel(confirmed) || !confirmed) break;
+        const s = p.spinner();
+        s.start("Stopping server...");
         stopDaemon();
+        s.stop("Server stopped");
         break;
-      case "status":
-        showStatusMsg();
+      }
+      case "status": {
+        const info = getPidInfo();
+        if (running && info) {
+          p.note(
+            `Status:   ${GREEN}Running${R}\nPID:      ${info.pid}\nUptime:   ${info.uptime}\nURL:      http://localhost:${port}\nLog:      ~/.kcgrouter/server.log`,
+            "Server Status"
+          );
+        } else {
+          p.note(`Status: ${RED}Not running${R}`, "Server Status");
+        }
         break;
+      }
       case "exit":
         return;
     }
   }
+
+  p.outro("Bye!");
 }
 
-function getMenuChoice(): Promise<string> {
-  let selected = 0;
-  const items = getItems();
-
-  stdin.setRawMode(true);
-  stdin.resume();
-  stdin.setEncoding("utf-8");
-
-  render(items, selected);
-
-  return new Promise((resolve) => {
-    const onData = (key: string) => {
-      switch (key) {
-        case "\x1b[A":
-          selected = (selected - 1 + items.length) % items.length;
-          render(items, selected);
-          break;
-        case "\x1b[B":
-          selected = (selected + 1) % items.length;
-          render(items, selected);
-          break;
-        case "\r":
-          cleanup();
-          resolve(items[selected].value);
-          break;
-        case "\x1b":
-        case "q":
-        case "\x03":
-          cleanup();
-          resolve("exit");
-          break;
-      }
-    };
-
-    stdin.on("data", onData);
-
-    function cleanup() {
-      stdin.removeListener("data", onData);
-      stdin.setRawMode(false);
-      stdin.pause();
-    }
-  });
-}
-
-function render(items: MenuItem[], selected: number) {
-  const port = process.env.PORT || "3000";
-  const running = isRunning();
-  const dot = running ? `${GREEN}●${RESET}` : `${RED}●${RESET}`;
-  const info = running ? `Server: http://localhost:${port}` : "Server: not running";
-
-  stdout.write(CLEAR);
-  stdout.write(`\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
-  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}  ${dot} ${DIM}${info}${RESET}\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
-
-  for (let i = 0; i < items.length; i++) {
-    const isSelected = i === selected;
-    const marker = isSelected ? `  ${INVERT} ` : "    ";
-    const label = isSelected ? `${BOLD}${items[i].label}${RESET}` : `${DIM}${items[i].label}${RESET}`;
-    stdout.write(`${marker}${label}${isSelected ? ` ${RESET}` : ""}\n`);
-  }
-
-  stdout.write(`\n  ${DIM}↑↓ Navigate  ↵ Select  q/ESC Quit${RESET}\n\n`);
-}
-
-function openBrowser() {
-  const port = process.env.PORT || "3000";
+function openBrowser(port: string) {
   const url = `http://localhost:${port}`;
   const p = process.platform;
   if (p === "darwin") spawn(["open", url]);
@@ -135,53 +161,13 @@ function openBrowser() {
   else spawn(["xdg-open", url]);
 }
 
-function showStatusMsg() {
-  const running = isRunning();
-  const port = process.env.PORT || "3000";
-
-  stdout.write(CLEAR);
-  stdout.write(`\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
-  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
-
-  if (running) {
-    stdout.write(`  ${GREEN}● Running${RESET}\n`);
-    stdout.write(`  URL:      http://localhost:${port}\n`);
-    stdout.write(`  Stop:     ${DIM}kcgrouter --stop${RESET}\n`);
-  } else {
-    stdout.write(`  ${RED}● Not running${RESET}\n`);
-    stdout.write(`  Start:    ${DIM}kcgrouter --daemon${RESET}\n`);
-  }
-
-  stdout.write(`\n  Press any key to return...`);
-}
-
-function showBackgroundMsg(): Promise<void> {
-  stdout.write(CLEAR);
-  stdout.write(`\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n`);
-  stdout.write(`  ${BOLD}🚀  KCG Router${RESET}\n`);
-  stdout.write(`  ${BOLD}═══════════════════════════════════════${RESET}\n\n`);
-  stdout.write(`  ${GREEN}✓ Server is running in background${RESET}\n\n`);
-  stdout.write(`  You can safely close this terminal.\n`);
-  stdout.write(`  The server will keep running.\n\n`);
-  stdout.write(`  To stop later:\n`);
-  stdout.write(`    ${DIM}kcgrouter --stop${RESET}\n\n`);
-  stdout.write(`  Press any key to exit...`);
-
-  return new Promise((resolve) => {
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.setEncoding("utf-8");
-    const onData = () => {
-      stdin.removeListener("data", onData);
-      stdin.setRawMode(false);
-      stdin.pause();
-      process.exit(0);
-    };
-    stdin.on("data", onData);
-  });
+async function showBackgroundMsg() {
+  p.note(
+    `Server is running in background.\nYou can safely close this terminal.\n\nTo stop later: ${CYAN}kcgrouter --stop${R}`,
+    "Background Mode"
+  );
+  await p.confirm({ message: "Press Enter to exit CLI..." });
+  process.exit(0);
 }
 
 async function waitForServer(timeoutMs: number): Promise<void> {

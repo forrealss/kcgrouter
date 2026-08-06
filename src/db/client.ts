@@ -1,8 +1,11 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 
-const DB_DIR = path.join(import.meta.dir, "../../db");
+const DB_DIR = process.env.KCGRouter_HOME
+  ? path.join(process.env.KCGRouter_HOME, "db")
+  : path.join(homedir(), ".kcgrouter", "db");
 mkdirSync(DB_DIR, { recursive: true });
 
 let _db: Database | null = null;

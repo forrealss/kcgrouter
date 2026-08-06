@@ -127,11 +127,22 @@ const server = serve({
       }
       return new Response("Not found", { status: 404 });
     },
-    "/*": index,
+
+    // SPA routes — list explicitly to avoid /* catching /_bun/* dev assets
+    "/": index,
+    "/login": index,
+    "/providers": index,
+    "/providers/*": index,
+    "/combos": index,
+    "/combos/*": index,
+    "/usage": index,
+    "/quota": index,
+    "/token-saver": index,
+    "/settings": index,
   },
 
   development: process.env.NODE_ENV !== "production" && {
-    hmr: true,
+    hmr: false,
     console: true,
   },
 });

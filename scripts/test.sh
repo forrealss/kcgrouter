@@ -6,14 +6,15 @@ SESSION_SECRET=$(openssl rand -hex 32)
 export ENCRYPTION_KEY
 export SESSION_SECRET
 
-# Clean old test DBs. src/db/client.ts creates them under db/, not the repo
-# root, so both locations are cleared (including WAL/shm sidecars).
-clean_test_dbs() {
-  rm -f db/data.test.*.sqlite db/data.test.*.sqlite-wal db/data.test.*.sqlite-shm
-  rm -f data.test.*.sqlite data.test.*.sqlite-wal data.test.*.sqlite-shm
-}
+# Use a temp directory for test DBs
+TEST_DB_DIR=$(mktemp -d)
+export DB_PATH="$TEST_DB_DIR/data.test.sqlite"
 
-clean_test_dbs
+# Clean up on exit
+cleanup() {
+  rm -rf "$TEST_DB_DIR"
+}
+trap cleanup EXIT
 
 # Run each test file in a separate process.
 # Discover tests anywhere under src/ so suites outside services/ are included.
@@ -24,9 +25,6 @@ while IFS= read -r f; do
     FAIL=1
   fi
 done < <(find src -name '*.test.ts' -o -name '*.test.tsx' | sort)
-
-# Clean up test DBs
-clean_test_dbs
 
 if [ $FAIL -eq 1 ]; then
   echo "Some tests failed"

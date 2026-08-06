@@ -15,7 +15,7 @@ Supports 5 provider transports: `openai`, `anthropic`, `gemini`, `kiro`, `comman
 
 - **Runtime**: Bun (`bun --hot src/index.ts`)
 - **Language**: TypeScript (strict mode)
-- **Database**: `bun:sqlite` (WAL mode, path: `db/data.sqlite`)
+- **Database**: `bun:sqlite` (WAL mode, path: `~/.kcgrouter/db/data.sqlite`)
 - **Server**: `Bun.serve` with built-in route matching, HMR
 - **Frontend**: React 19, Tailwind CSS v4, shadcn/ui (New York style)
 - **Linting/Formatting**: Biome 2.x
@@ -120,6 +120,7 @@ Upstream AI Providers (OpenAI, Anthropic, Gemini, Kiro, etc.)
 | `SESSION_SECRET`  | Yes      | HMAC secret for session cookies  |
 | `PORT`            | No       | Server port (default: 3000)      |
 | `DB_PATH`         | No       | Override DB path (used in tests) |
+| `KCGRouter_HOME`  | No       | Override home dir (default: `~/.kcgrouter/`) |
 
 Generate secrets: `bun run gen-env`
 

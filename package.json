@@ -1,8 +1,17 @@
 {
-  "name": "bun-react-template",
+  "name": "kcgrouter",
   "version": "0.1.0",
-  "private": true,
+  "description": "Lightweight AI proxy gateway — route chat completions to upstream providers",
   "type": "module",
+  "bin": {
+    "kcgrouter": "./bin/kcgrouter.ts"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "public/",
+    "tsconfig.json"
+  ],
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
@@ -11,7 +20,8 @@
     "lint": "biome lint --write ./src",
     "format": "biome format --write ./src",
     "gen-env": "bash scripts/gen-env.sh",
-    "test": "bash scripts/test.sh"
+    "test": "bash scripts/test.sh",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",

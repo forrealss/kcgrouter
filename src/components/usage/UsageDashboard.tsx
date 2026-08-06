@@ -258,8 +258,8 @@ export function UsageDashboard() {
         {isSummaryLoading
           ? Array.from({ length: 5 }).map((_val, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-              <Card key={`stat-${i}`} className="py-4">
-                <CardContent className="flex flex-col gap-2">
+              <Card key={`stat-${i}`} className="!py-0">
+                <CardContent className="flex flex-col gap-2 p-4">
                   <Skeleton className="h-3 w-20" />
                   <Skeleton className="h-7 w-28" />
                   <Skeleton className="h-3 w-16" />
@@ -267,8 +267,8 @@ export function UsageDashboard() {
               </Card>
             ))
           : statCards.map((card) => (
-              <Card key={card.label} className="py-4">
-                <CardContent className="flex flex-col gap-1.5">
+              <Card key={card.label} className="!py-0">
+                <CardContent className="flex flex-col gap-1.5 p-4">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <card.icon className="size-3.5" />
                     <span className="text-xs font-medium">{card.label}</span>

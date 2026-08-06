@@ -4,6 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { spawnDaemon, stopDaemon, isRunning } from "./daemon";
+import { isTraySupported } from "./tray";
 
 const B = "\x1b[1m";
 const DIM = "\x1b[2m";
@@ -101,6 +102,9 @@ export async function showMenu(packageRoot: string) {
         running
           ? { label: "Stop Server", value: "stop", hint: `PID ${pidInfo?.pid ?? "?"}` }
           : { label: "Start Server", value: "start", hint: "Launch in background" },
+        isTraySupported()
+          ? { label: "Run in System Tray", value: "tray", hint: "Minimize to tray icon" }
+          : { label: "System Tray (unsupported)", value: "tray", hint: "Requires display server" },
         { label: "Check Status", value: "status" },
         { label: "Exit", value: "exit" },
       ],
@@ -116,6 +120,13 @@ export async function showMenu(packageRoot: string) {
       case "background":
         await showBackgroundMsg();
         break;
+      case "tray":
+        if (!isTraySupported()) {
+          p.log.error("System tray not supported. Requires display server (X11/Wayland on Linux).");
+          break;
+        }
+        await startTrayMode(packageRoot);
+        return;
       case "start": {
         const s = p.spinner();
         s.start("Starting server...");
@@ -153,7 +164,7 @@ export async function showMenu(packageRoot: string) {
   p.outro("Bye!");
 }
 
-function openBrowser(port: string) {
+export function openBrowser(port: string) {
   const url = `http://localhost:${port}`;
   const p = process.platform;
   if (p === "darwin") spawn(["open", url]);
@@ -184,4 +195,54 @@ async function waitForServer(timeoutMs: number): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 200));
   }
+}
+
+async function startTrayMode(packageRoot: string) {
+  const { initTray } = await import("./tray");
+  const port = Number(process.env.PORT) || 3000;
+
+  // Ensure server is running
+  if (!isRunning()) {
+    const s = p.spinner();
+    s.start("Starting server...");
+    spawnDaemon(packageRoot);
+    await waitForServer(5000);
+    s.stop("Server started");
+  }
+
+  p.log.info("Starting system tray...");
+  p.note(
+    `KCG Router will run in system tray.\nRight-click tray icon to access menu.\n\nTo quit: Use tray menu or Ctrl+C`,
+    "System Tray Mode"
+  );
+
+  const tray = await initTray({
+    port,
+    onQuit: () => {
+      stopDaemon();
+      tray?.destroy();
+      process.exit(0);
+    },
+  });
+
+  if (!tray) {
+    p.log.error("Failed to create tray icon");
+    return;
+  }
+
+  // Keep process alive
+  process.on("SIGINT", () => {
+    stopDaemon();
+    tray.destroy();
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", () => {
+    stopDaemon();
+    tray.destroy();
+    process.exit(0);
+  });
+
+  // Block until exit
+  await new Promise(() => {});
 }

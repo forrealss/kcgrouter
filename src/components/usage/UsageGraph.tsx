@@ -285,8 +285,6 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     hubEl.style.setProperty("--ug-nc", "#f5a623");
     hubEl.innerHTML = `<div class="ug-hub-text">
       <div class="ug-hub-emoji">🐾</div>
-      <div class="ug-hub-title">Router Hub</div>
-      <div class="ug-hub-sub">KCG Router</div>
     </div>`;
     wrap.appendChild(hubEl);
 
@@ -335,32 +333,16 @@ export function UsageGraph({ height }: { height?: number } = {}) {
   const sendCatRef = useRef<(nodeId: string) => void>(() => {});
 
   useEffect(() => {
-    sendCatRef.current = (nodeId: string) => {
+    const intervals = new Map<string, ReturnType<typeof setInterval>>();
+    const cooldowns = new Map<string, ReturnType<typeof setTimeout>>();
+    const CAT_INTERVAL_MS = 200;
+    const CAT_COOLDOWN_MS = 2000;
+
+    function spawnCat(nodeId: string) {
       const info = nodeMapRef.current.get(nodeId);
       if (!info) return;
-      if (info.el.classList.contains("ug-muted")) return;
-      const cur = activeCount.current.get(nodeId) ?? 0;
-      activeCount.current.set(nodeId, cur + 1);
-
-      info.el.classList.add("ug-streaming");
-
-      // activate edge animation for this node
-      if (info.pathEl && !info.pathEl.classList.contains("ug-edge-muted")) {
-        info.pathEl.classList.add("ug-active");
-        const existing = edgeTimersRef.current.get(nodeId);
-        if (existing) clearTimeout(existing);
-        edgeTimersRef.current.set(
-          nodeId,
-          setTimeout(() => {
-            info.pathEl.classList.remove("ug-active");
-            edgeTimersRef.current.delete(nodeId);
-          }, EDGE_ACTIVE_MS),
-        );
-      }
-
       const wrap = graphWrapRef.current;
       if (!wrap) return;
-      // Use offsetWidth/offsetHeight (unscaled layout size) for correct cat positioning
       const rW = wrap.offsetWidth;
       const rH = wrap.offsetHeight;
       const hx = (rW * HUB.x) / 100;
@@ -449,12 +431,85 @@ export function UsageGraph({ height }: { height?: number } = {}) {
             cat.remove();
             const prev = activeCount.current.get(nodeId) ?? 1;
             activeCount.current.set(nodeId, Math.max(0, prev - 1));
-            const remaining = activeCount.current.get(nodeId) ?? 0;
-            if (remaining === 0) info.el.classList.remove("ug-streaming");
           }
         };
         requestAnimationFrame(fade);
       }
+    }
+
+    function startSpawning(nodeId: string) {
+      if (intervals.has(nodeId)) return;
+      intervals.set(
+        nodeId,
+        setInterval(() => {
+          const node = nodeMapRef.current.get(nodeId);
+          if (!node || node.el.classList.contains("ug-muted")) {
+            stopSpawning(nodeId);
+            return;
+          }
+          spawnCat(nodeId);
+        }, CAT_INTERVAL_MS),
+      );
+    }
+
+    function stopSpawning(nodeId: string) {
+      const iv = intervals.get(nodeId);
+      if (iv) {
+        clearInterval(iv);
+        intervals.delete(nodeId);
+      }
+      const info = nodeMapRef.current.get(nodeId);
+      if (info) info.el.classList.remove("ug-streaming");
+    }
+
+    sendCatRef.current = (nodeId: string) => {
+      const info = nodeMapRef.current.get(nodeId);
+      if (!info) return;
+      if (info.el.classList.contains("ug-muted")) return;
+
+      activeCount.current.set(
+        nodeId,
+        (activeCount.current.get(nodeId) ?? 0) + 1,
+      );
+      info.el.classList.add("ug-streaming");
+
+      // activate edge animation
+      if (info.pathEl && !info.pathEl.classList.contains("ug-edge-muted")) {
+        info.pathEl.classList.add("ug-active");
+        const existing = edgeTimersRef.current.get(nodeId);
+        if (existing) clearTimeout(existing);
+        edgeTimersRef.current.set(
+          nodeId,
+          setTimeout(() => {
+            info.pathEl.classList.remove("ug-active");
+            edgeTimersRef.current.delete(nodeId);
+          }, EDGE_ACTIVE_MS),
+        );
+      }
+
+      // spawn cat immediately
+      spawnCat(nodeId);
+
+      // start interval if not running
+      startSpawning(nodeId);
+
+      // reset cooldown — keep spawning for 2s after last request
+      const prev = cooldowns.get(nodeId);
+      if (prev) clearTimeout(prev);
+      cooldowns.set(
+        nodeId,
+        setTimeout(() => {
+          stopSpawning(nodeId);
+          cooldowns.delete(nodeId);
+        }, CAT_COOLDOWN_MS),
+      );
+    };
+
+    return () => {
+      for (const iv of intervals.values()) clearInterval(iv);
+      intervals.clear();
+      for (const cd of cooldowns.values()) clearTimeout(cd);
+      cooldowns.clear();
     };
   }, []);
 

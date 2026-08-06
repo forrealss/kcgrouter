@@ -11,6 +11,7 @@
     "src/",
     "styles/",
     "public/",
+    "assets/",
     "bunfig.toml",
     "tsconfig.json",
     "!src/**/__tests__/**",
@@ -29,8 +30,9 @@
     "lint": "biome lint --write ./src",
     "format": "biome format --write ./src",
     "gen-env": "bash scripts/gen-env.sh",
+    "generate-icon": "bun scripts/generate-icon.ts",
     "test": "bash scripts/test.sh",
-    "postinstall": "cd node_modules/systray2/traybin 2>/dev/null && chmod +x tray_* && ln -sf tray_linux_release tray_linux 2>/dev/null; ln -sf tray_darwin_release tray_darwin 2>/dev/null; ln -sf tray_windows_release.exe tray_windows.exe 2>/dev/null; true",
+    "postinstall": "bun scripts/postinstall.mjs",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
@@ -52,6 +54,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/bun": "latest",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type SysTray from "systray2";
+import { isRunning, stopDaemon } from "./daemon";
 import { openBrowser } from "./menu";
-import { isRunning, stopDaemon, getPid } from "./daemon";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +28,11 @@ const FALLBACK_ICON_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAALEwAACxMBAJqcGAAAAHpJREFUOE9jYBgFgwEwMjIy/Gdg+P8fyP4PxP8ZGBgEcBnGyMjIsICBgSEAhyH/gfgBUNN8XJoZsdkCVL8Ah+b/QPwbqvkBMvk/AwMDAzYX/GdgYAhAN+A/SICRWAMYGfFEJSMjzriEiwDR/xmIa2RkZCSqnZERb3QCAAo3KxzxbKe1AAAAAElFTkSuQmCC";
 
 export function getIconPath(): string {
-  const candidates = ["icon.png", "icon.ico"];
+  // systray2 requires .ico on Windows and PNG on macOS/Linux.
+  const candidates =
+    process.platform === "win32"
+      ? ["icon.ico", "icon.png"]
+      : ["icon.png", "icon.ico"];
   for (const iconFile of candidates) {
     // Try assets folder first, then current dir
     const paths = [
@@ -57,11 +62,15 @@ export function getIconBase64(): string {
 export function isTraySupported(): boolean {
   const p = process.platform;
   if (!["darwin", "win32", "linux"].includes(p)) return false;
-  if (p === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return false;
+  if (p === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY)
+    return false;
   return true;
 }
 
-export function buildMenuItems(args: { port: number; running: boolean }): MenuItem[] {
+export function buildMenuItems(args: {
+  port: number;
+  running: boolean;
+}): MenuItem[] {
   return [
     { title: "Open Dashboard", enabled: true },
     { title: `Port: ${args.port}`, enabled: false },
@@ -77,7 +86,9 @@ const MENU_INDEX = {
   QUIT: 3,
 } as const;
 
-export async function initTray(options: TrayOptions): Promise<TrayInstance | null> {
+export async function initTray(
+  options: TrayOptions,
+): Promise<TrayInstance | null> {
   if (!isTraySupported()) {
     console.log("[tray] Not supported on this platform/display");
     return null;
@@ -147,7 +158,12 @@ export async function initTray(options: TrayOptions): Promise<TrayInstance | nul
         items.forEach((it, idx) => {
           systray.sendAction({
             type: "update-item",
-            item: { title: it.title, enabled: it.enabled, checked: false, tooltip: "" },
+            item: {
+              title: it.title,
+              enabled: it.enabled,
+              checked: false,
+              tooltip: "",
+            },
             seq_id: idx,
           });
         });
@@ -163,13 +179,15 @@ export async function initTray(options: TrayOptions): Promise<TrayInstance | nul
   }
 }
 
-async function loadSystray(): Promise<any | null> {
+async function loadSystray(): Promise<typeof SysTray | null> {
   try {
     // Try to load systray2 - it needs to be installed
     const mod = await import("systray2");
-    return mod.default ?? mod;
+    return mod.default;
   } catch {
-    console.log("[tray] systray2 not installed. Install with: bun add systray2");
+    console.log(
+      "[tray] systray2 not installed. Install with: bun add systray2",
+    );
     return null;
   }
 }

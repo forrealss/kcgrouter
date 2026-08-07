@@ -6,6 +6,8 @@ import type {
   TokenSaverStatsRow,
 } from "../../db/schema";
 import {
+  decrypt,
+  encrypt,
   generateApiKey,
   hashApiKey,
   hashPassword,
@@ -152,6 +154,7 @@ export function recordTokenSaverSavings(tokensSaved: number): void {
 export interface ApiKeyPublic {
   id: string;
   label: string;
+  has_key: boolean;
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
@@ -165,13 +168,15 @@ export async function createApiKey(
   const id = `key_${randomBytes(16).toString("hex")}`;
   const plaintextKey = generateApiKey();
   const keyHash = await hashApiKey(plaintextKey);
+  const keyEnc = encrypt(plaintextKey);
   const now = new Date().toISOString();
 
   run(
-    "INSERT INTO api_keys (id, label, key_hash, created_at) VALUES (?, ?, ?, ?)",
+    "INSERT INTO api_keys (id, label, key_hash, key_enc, created_at) VALUES (?, ?, ?, ?, ?)",
     id,
     label.trim(),
     keyHash,
+    keyEnc,
     now,
   );
 
@@ -192,11 +197,12 @@ export async function revokeApiKey(id: string): Promise<void> {
 
 export async function listApiKeys(): Promise<ApiKeyPublic[]> {
   const rows = query<ApiKeyRow>(
-    "SELECT id, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC",
+    "SELECT id, label, key_enc, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC",
   );
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
+    has_key: !!r.key_enc,
     created_at: r.created_at,
     last_used_at: r.last_used_at,
     revoked_at: r.revoked_at,
@@ -221,4 +227,14 @@ export async function verifyApiKey(
     }
   }
   return null;
+}
+
+export function getDecryptedApiKey(id: string): string {
+  const row = get<ApiKeyRow>("SELECT key_enc FROM api_keys WHERE id = ?", id);
+  if (!row) throw new Error("API key not found");
+  if (!row.key_enc)
+    throw new Error(
+      "API key was created before encryption was enabled. Recreate it.",
+    );
+  return decrypt(row.key_enc);
 }

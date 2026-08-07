@@ -10,6 +10,7 @@ import {
   MoonIcon,
   SlidersHorizontalIcon,
   SunIcon,
+  TerminalIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Logo } from "@/components/icons/Logo";
@@ -34,6 +35,7 @@ export type AppModule =
   | "usage"
   | "quota"
   | "token-saver"
+  | "cli-tools"
   | "settings";
 
 type ModuleDefinition = {
@@ -87,6 +89,13 @@ const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     description: "Kelola kompresi output tool.",
     icon: SlidersHorizontalIcon,
   },
+  {
+    id: "cli-tools",
+    path: "/cli-tools",
+    label: "CLI Tools",
+    description: "Konfigurasi CLI tools untuk terhubung ke KCG Router.",
+    icon: TerminalIcon,
+  },
 ];
 
 const secondaryModules: [ModuleDefinition, ...ModuleDefinition[]] = [
@@ -106,6 +115,7 @@ export const appModules: [ModuleDefinition, ...ModuleDefinition[]] = [
 
 export function resolveModuleFromPath(pathname: string): AppModule {
   if (/^\/providers\/[^/]+$/.test(pathname)) return "providers";
+  if (/^\/cli-tools\/[^/]+$/.test(pathname)) return "cli-tools";
   const found = appModules.find((m) => m.path === pathname);
   return found?.id ?? "providers";
 }

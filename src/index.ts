@@ -5,6 +5,7 @@ import index from "./index.html";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
+import { cliToolsRoutes } from "./server/routes/cli-tools.routes";
 import { combosRoutes } from "./server/routes/combos.routes";
 import { eventsRoutes } from "./server/routes/events.routes";
 import { matchRoute as resolveRoute } from "./server/routes/match-route";
@@ -41,6 +42,7 @@ runMigrations();
 // All API routes (session-auth protected)
 const apiRoutes: Record<string, RouteHandler> = {
   ...authRoutes,
+  ...cliToolsRoutes,
   ...providersRoutes,
   ...combosRoutes,
   ...usageRoutes,
@@ -138,6 +140,8 @@ const server = serve({
     "/usage": index,
     "/quota": index,
     "/token-saver": index,
+    "/cli-tools": index,
+    "/cli-tools/*": index,
     "/dashboard": index,
     "/settings": index,
   },

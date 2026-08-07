@@ -94,6 +94,18 @@ export const settingsRoutes: Record<string, RouteHandler> = {
     }
   },
 
+  "GET /api/settings/api-keys/:id/key": async (_req, params) => {
+    try {
+      const key = SettingsService.getDecryptedApiKey(params?.id ?? "");
+      return Response.json({ key });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
+    }
+  },
+
   "DELETE /api/settings/api-keys/:id": async (_req, params) => {
     try {
       await SettingsService.revokeApiKey(params?.id ?? "");

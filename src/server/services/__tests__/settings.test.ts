@@ -5,6 +5,7 @@ import { hashPassword } from "../crypto.service";
 import {
   changePassword,
   createApiKey,
+  getDecryptedApiKey,
   getTheme,
   getTokenSaverDefault,
   getTokenSaverStats,
@@ -195,6 +196,26 @@ describe("SettingsService", () => {
         expect(keys.has(plaintextKey)).toBe(false);
         keys.add(plaintextKey);
       }
+    });
+
+    test("getDecryptedApiKey returns same value as createApiKey", async () => {
+      const { id, plaintextKey } = await createApiKey("decrypt-test");
+      const decrypted = getDecryptedApiKey(id);
+      expect(decrypted).toBe(plaintextKey);
+    });
+
+    test("getDecryptedApiKey throws on non-existent id", () => {
+      expect(() => getDecryptedApiKey("key_nonexistent")).toThrow(
+        "API key not found",
+      );
+    });
+
+    test("listApiKeys includes has_key for new keys", async () => {
+      await createApiKey("has-key-test");
+      const keys = await listApiKeys();
+      const found = keys.find((k) => k.label === "has-key-test");
+      expect(found).toBeDefined();
+      expect(found?.has_key).toBe(true);
     });
   });
 });

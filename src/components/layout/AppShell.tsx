@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/sidebar";
 import { useRouter } from "@/hooks/useRouter";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { CLIToolDetailPage } from "@/pages/cli-tools/CLIToolDetailPage";
+import { CLIToolsListPage } from "@/pages/cli-tools/CLIToolsListPage";
 import { CombosPage } from "@/pages/combos/CombosPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { ProviderDetailPage } from "@/pages/providers/ProviderDetailPage";
@@ -47,6 +49,10 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
   // Check for provider detail route: /providers/:id
   const providerDetailMatch = pathname.match(/^\/providers\/([^/]+)$/);
   const providerDetailId = providerDetailMatch?.[1] ?? null;
+
+  // Check for CLI tool detail route: /cli-tools/:toolId
+  const cliToolDetailMatch = pathname.match(/^\/cli-tools\/([^/]+)$/);
+  const cliToolDetailId = cliToolDetailMatch?.[1] ?? null;
 
   if (pathname === "/") {
     navigate(defaultPath);
@@ -101,6 +107,13 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
             <QuotaPage />
           ) : activeModule === "token-saver" ? (
             <TokenSaverPage />
+          ) : activeModule === "cli-tools" && cliToolDetailId ? (
+            <CLIToolDetailPage
+              toolId={cliToolDetailId}
+              onBack={() => navigate("/cli-tools")}
+            />
+          ) : activeModule === "cli-tools" ? (
+            <CLIToolsListPage onSelect={(id) => navigate(`/cli-tools/${id}`)} />
           ) : activeModule === "settings" ? (
             <SettingsPage />
           ) : (

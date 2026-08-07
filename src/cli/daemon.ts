@@ -1,10 +1,12 @@
-import { spawn } from "bun";
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawn } from "bun";
 
-const KCGRouter_HOME = process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+const KCGRouter_HOME =
+  process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
 const PID_FILE = join(KCGRouter_HOME, "server.pid");
+const TRAY_PID_FILE = join(KCGRouter_HOME, "tray.pid");
 const LOG_FILE = join(KCGRouter_HOME, "server.log");
 
 export function isRunning(): boolean {
@@ -21,6 +23,25 @@ export function isRunning(): boolean {
 export function getPid(): number | null {
   try {
     return Number.parseInt(readFileSync(PID_FILE, "utf-8").trim(), 10);
+  } catch {
+    return null;
+  }
+}
+
+export function isTrayRunning(): boolean {
+  const pid = getTrayPid();
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getTrayPid(): number | null {
+  try {
+    return Number.parseInt(readFileSync(TRAY_PID_FILE, "utf-8").trim(), 10);
   } catch {
     return null;
   }
@@ -49,6 +70,31 @@ export function spawnDaemon(cwd: string): number | null {
   return child.pid;
 }
 
+/** Spawn tray daemon without exiting — used by menu "Minimize to System Tray" */
+export function spawnTrayDaemon(cwd: string): number | null {
+  if (isTrayRunning()) return getTrayPid();
+
+  mkdirSync(KCGRouter_HOME, { recursive: true });
+
+  const isWin = process.platform === "win32";
+  const cmd = isWin ? "bun" : "nohup";
+  const args = isWin
+    ? ["bin/kcgrouter.ts", "--tray"]
+    : ["bun", "bin/kcgrouter.ts", "--tray"];
+
+  const child = spawn([cmd, ...args], {
+    cwd,
+    stdio: ["ignore", "ignore", "ignore"],
+    detached: true,
+    windowsHide: true,
+    env: { ...process.env, NODE_ENV: "production" },
+  });
+
+  writeFileSync(TRAY_PID_FILE, String(child.pid));
+  child.unref();
+  return child.pid;
+}
+
 /** Spawn daemon and exit — used by `kcgrouter --daemon` CLI flag */
 export function startDaemon(cwd: string) {
   const pid = spawnDaemon(cwd);
@@ -59,6 +105,38 @@ export function startDaemon(cwd: string) {
   console.log(`\n  Server started in background (PID: ${pid})`);
   console.log(`  Log file: ${LOG_FILE}\n`);
   process.exit(0);
+}
+
+/** Resident set size (memory) of a process in bytes, or null if unavailable. */
+export function getProcessMemory(pid: number): number | null {
+  try {
+    const res =
+      process.platform === "win32"
+        ? Bun.spawnSync({
+            cmd: [
+              "powershell",
+              "-NoProfile",
+              "-Command",
+              `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).WorkingSet64`,
+            ],
+            stdin: "ignore",
+            stdout: "pipe",
+            stderr: "ignore",
+          })
+        : Bun.spawnSync({
+            cmd: ["ps", "-o", "rss=", "-p", String(pid)],
+            stdin: "ignore",
+            stdout: "pipe",
+            stderr: "ignore",
+          });
+    const out = res.stdout.toString().trim();
+    if (!out) return null;
+    const value = Number.parseInt(out, 10);
+    if (Number.isNaN(value)) return null;
+    return process.platform === "win32" ? value : value * 1024;
+  } catch {
+    return null;
+  }
 }
 
 export function stopDaemon() {
@@ -78,7 +156,11 @@ export function stopDaemon() {
     console.log(`\n  Failed to stop: ${msg}\n`);
   }
 
-  try { unlinkSync(PID_FILE); } catch { /* already gone */ }
+  try {
+    unlinkSync(PID_FILE);
+  } catch {
+    /* already gone */
+  }
 }
 
 export function showStatus() {

@@ -1,9 +1,15 @@
-import * as p from "@clack/prompts";
-import { spawn } from "bun";
 import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
-import { spawnDaemon, stopDaemon, isRunning } from "./daemon";
+import { join } from "node:path";
+import { createInterface } from "node:readline";
+import { spawn } from "bun";
+import {
+  getProcessMemory,
+  isRunning,
+  spawnDaemon,
+  spawnTrayDaemon,
+  stopDaemon,
+} from "./daemon";
 import { isTraySupported } from "./tray";
 
 const B = "\x1b[1m";
@@ -15,23 +21,31 @@ const CYAN = "\x1b[36m";
 const GRAY = "\x1b[90m";
 const LINE = `${GRAY}${"─".repeat(48)}${R}`;
 
+const CURSOR_HIDE = "\x1b[?25l";
+const CURSOR_SHOW = "\x1b[?25h";
+const CLEAR_SCREEN = "\x1b[2J";
+const CLEAR_LINE = "\x1b[2K";
+const MOVE_TO = (row: number) => `\x1b[${row};1H`;
+
 function getVersion(): string {
   try {
-    const pkg = readFileSync(join(import.meta.dir, "../../../package.json"), "utf-8");
+    const pkg = readFileSync(
+      join(import.meta.dir, "../../../package.json"),
+      "utf-8",
+    );
     return JSON.parse(pkg).version;
   } catch {
     return "?";
   }
 }
 
-function getPidInfo(): { pid: number; uptime: string } | null {
+function getPidInfo(): { pid: number; startedAt: number } | null {
   try {
     const home = process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
     const pidFile = join(home, "server.pid");
     const pid = Number.parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-    const stat = statSync(pidFile);
-    const uptimeMs = Date.now() - stat.birthtimeMs;
-    return { pid, uptime: formatUptime(uptimeMs) };
+    const startedAt = statSync(pidFile).birthtimeMs;
+    return { pid, startedAt };
   } catch {
     return null;
   }
@@ -49,119 +63,271 @@ function formatUptime(ms: number): string {
   return `${s}s`;
 }
 
-function renderDashboard(): string {
-  const running = isRunning();
-  const port = process.env.PORT || "3000";
-  const version = getVersion();
-  const pidInfo = getPidInfo();
-
-  const lines: string[] = [];
-
-  lines.push(``);
-  lines.push(`  ${B}🚀  KCG Router${R}  ${DIM}v${version}${R}`);
-  lines.push(`  ${LINE}`);
-  lines.push(``);
-
-  if (running && pidInfo) {
-    lines.push(`    Status    ${GREEN}● Running${R}`);
-    lines.push(`    URL       ${CYAN}http://localhost:${port}${R}`);
-    lines.push(`    PID       ${pidInfo.pid}`);
-    lines.push(`    Uptime    ${pidInfo.uptime}`);
-  } else {
-    lines.push(`    Status    ${RED}● Stopped${R}`);
-    lines.push(`    URL       ${GRAY}http://localhost:${port}${R}`);
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-  lines.push(``);
-  lines.push(`  ${LINE}`);
-
-  return lines.join("\n");
+interface MenuOption {
+  label: string;
+  value: string;
+  hint?: string;
 }
 
 export async function showMenu(packageRoot: string) {
-  // Auto-start daemon if not running
   if (!isRunning()) {
-    const s = p.spinner();
-    s.start("Starting server...");
+    process.stdout.write("Starting server...");
     const pid = spawnDaemon(packageRoot);
     if (pid) await waitForServer(5000);
-    s.stop("Server started");
+    process.stdout.write(" started\n");
   }
 
-  while (true) {
-    const dashboard = renderDashboard();
-    const port = process.env.PORT || "3000";
-    const running = isRunning();
+  await realtimeMenu(packageRoot);
+}
+
+type MenuMode = "menu" | "confirm-stop";
+
+let packageRoot: string;
+let mode: MenuMode = "menu";
+let selected = 0;
+let confirmSel = 0;
+const messages: string[] = [];
+let memoryValue = "";
+let exitRequested = false;
+let resolveExit: (() => void) | null = null;
+
+const SCREEN_ROWS = Math.max(16, Math.min(24, (process.stdout.rows ?? 24) - 1));
+const screenLines: string[] = new Array<string>(SCREEN_ROWS).fill("");
+let menuOptions: MenuOption[] = [];
+
+async function realtimeMenu(root: string) {
+  packageRoot = root;
+  const out = process.stdout;
+  out.write(`${CLEAR_SCREEN}${MOVE_TO(1)}${CURSOR_HIDE}`);
+
+  const rl = createInterface({
+    input: process.stdin,
+    tabSize: 2,
+    prompt: "",
+    escapeCodeTimeout: 50,
+    terminal: true,
+  });
+  const rawSupported =
+    typeof process.stdin.setRawMode === "function" && process.stdin.isTTY;
+  if (rawSupported) process.stdin.setRawMode(true);
+
+  const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
+    if (key?.ctrl && key.name === "c") {
+      requestExit("Cancelled.");
+      return;
+    }
+
+    if (mode === "menu") {
+      if (key.name === "up") {
+        selected = (selected + menuOptions.length - 1) % menuOptions.length;
+      } else if (key.name === "down") {
+        selected = (selected + 1) % menuOptions.length;
+      } else if (key.name === "return" || key.name === "enter") {
+        handleAction(menuOptions[selected]?.value ?? "exit");
+      } else if (key.name === "q") {
+        requestExit("Bye!");
+      }
+    } else {
+      const ch = (str ?? "").toLowerCase();
+      if (key.name === "up" || key.name === "down") {
+        confirmSel = 1 - confirmSel;
+      } else if (key.name === "return" || key.name === "enter" || ch === "y") {
+        doStop();
+      } else if (ch === "n" || key.name === "escape" || key.name === "q") {
+        mode = "menu";
+      }
+    }
+    paint(buildFrame());
+  };
+
+  process.stdin.on("keypress", onKeypress);
+
+  const refresh = () => {
+    const runningNow = isRunning();
     const pidInfo = getPidInfo();
+    if (runningNow && pidInfo) {
+      const bytes = getProcessMemory(pidInfo.pid);
+      memoryValue = bytes === null ? `${GRAY}?${R}` : formatBytes(bytes);
+    } else {
+      memoryValue = `${GRAY}—${R}`;
+    }
+    if (!exitRequested) paint(buildFrame());
+  };
 
-    const choice = await p.select({
-      message: dashboard,
-      options: [
-        { label: "Open Web UI", value: "web", hint: `Opens http://localhost:${port}` },
-        { label: "Run in Background", value: "background", hint: "Safe to close terminal" },
-        running
-          ? { label: "Stop Server", value: "stop", hint: `PID ${pidInfo?.pid ?? "?"}` }
-          : { label: "Start Server", value: "start", hint: "Launch in background" },
-        isTraySupported()
-          ? { label: "Run in System Tray", value: "tray", hint: "Minimize to tray icon" }
-          : { label: "System Tray (unsupported)", value: "tray", hint: "Requires display server" },
-        { label: "Check Status", value: "status" },
-        { label: "Exit", value: "exit" },
-      ],
+  refresh();
+  const timer = setInterval(refresh, 1000);
+
+  await new Promise<void>((resolve) => {
+    resolveExit = resolve;
+  });
+
+  clearInterval(timer);
+  process.stdin.off("keypress", onKeypress);
+  rl.close();
+  if (rawSupported) process.stdin.setRawMode(false);
+  out.write(`${CURSOR_SHOW}\n`);
+}
+
+function buildFrame(): string[] {
+  const lines: string[] = new Array<string>(SCREEN_ROWS).fill("");
+  const port = process.env.PORT || "3000";
+  const runningNow = isRunning();
+  const pidInfo = getPidInfo();
+  const version = getVersion();
+
+  lines[0] = "";
+  lines[1] = `  ${B}🐱  KCG Router${R}  ${DIM}v${version}${R}`;
+  lines[2] = `  ${LINE}`;
+  lines[3] = `    Status    ${
+    runningNow ? `${GREEN}● Running${R}` : `${RED}● Stopped${R}`
+  }`;
+  lines[4] = `    URL       ${runningNow ? CYAN : GRAY}http://localhost:${port}${R}`;
+  lines[5] = `    PID       ${
+    runningNow && pidInfo ? pidInfo.pid : `${GRAY}—${R}`
+  }`;
+  lines[6] = `    Memory    ${runningNow && pidInfo ? memoryValue : `${GRAY}—${R}`}`;
+  lines[7] = `    Uptime    ${
+    runningNow && pidInfo
+      ? formatUptime(Date.now() - pidInfo.startedAt)
+      : `${GRAY}—${R}`
+  }`;
+  lines[8] = `  ${LINE}`;
+  lines[10] = `  ${DIM}↑/↓ navigate · Enter select · q quit${R}`;
+
+  if (mode === "menu") {
+    menuOptions = buildOptions(runningNow);
+    selected = Math.min(selected, menuOptions.length - 1);
+    menuOptions.forEach((opt, i) => {
+      const mark = i === selected ? `${CYAN}▶${R}` : " ";
+      const hint = opt.hint ? `  ${DIM}${opt.hint}${R}` : "";
+      lines[11 + i] = `  ${mark} ${opt.label}${hint}`;
     });
+  } else {
+    lines[10] = `  ${B}Stop the running server?${R}`;
+    lines[11] = `  ${confirmSel === 0 ? `${CYAN}▶${R}` : " "} Yes`;
+    lines[12] = `  ${confirmSel === 1 ? `${CYAN}▶${R}` : " "} No`;
+  }
 
-    if (p.isCancel(choice)) break;
+  const msgStart = 16;
+  const maxMsgs = SCREEN_ROWS - msgStart;
+  messages.slice(-maxMsgs).forEach((m, i) => {
+    lines[msgStart + i] = `  ${m}`;
+  });
 
-    switch (choice) {
-      case "web":
-        openBrowser(port);
-        p.log.info(`Opened ${CYAN}http://localhost:${port}${R} in browser`);
-        break;
-      case "background":
-        await showBackgroundMsg();
-        break;
-      case "tray":
-        if (!isTraySupported()) {
-          p.log.error("System tray not supported. Requires display server (X11/Wayland on Linux).");
-          break;
+  return lines;
+}
+
+function buildOptions(runningNow: boolean): MenuOption[] {
+  return [
+    {
+      label: "Open Web UI",
+      value: "web",
+      hint: `Opens http://localhost:${process.env.PORT || "3000"}`,
+    },
+    runningNow
+      ? { label: "Stop Server", value: "stop" }
+      : { label: "Start Server", value: "start", hint: "Launch in background" },
+    isTraySupported()
+      ? {
+          label: "Minimize to System Tray",
+          value: "tray",
+          hint: "Keep running in tray",
         }
-        await startTrayMode(packageRoot);
-        return;
-      case "start": {
-        const s = p.spinner();
-        s.start("Starting server...");
-        const pid = spawnDaemon(packageRoot);
-        if (pid) await waitForServer(5000);
-        s.stop("Server started");
-        break;
-      }
-      case "stop": {
-        const confirmed = await p.confirm({ message: "Stop the running server?" });
-        if (p.isCancel(confirmed) || !confirmed) break;
-        const s = p.spinner();
-        s.start("Stopping server...");
-        stopDaemon();
-        s.stop("Server stopped");
-        break;
-      }
-      case "status": {
-        const info = getPidInfo();
-        if (running && info) {
-          p.note(
-            `Status:   ${GREEN}Running${R}\nPID:      ${info.pid}\nUptime:   ${info.uptime}\nURL:      http://localhost:${port}\nLog:      ~/.kcgrouter/server.log`,
-            "Server Status"
-          );
-        } else {
-          p.note(`Status: ${RED}Not running${R}`, "Server Status");
-        }
-        break;
-      }
-      case "exit":
-        return;
+      : { label: "System Tray (unsupported)", value: "tray" },
+    { label: "Exit", value: "exit" },
+  ];
+}
+
+function paint(next: string[]): void {
+  for (let i = 0; i < SCREEN_ROWS; i++) {
+    const a = screenLines[i] ?? "";
+    const b = next[i] ?? "";
+    if (a !== b) {
+      process.stdout.write(`${MOVE_TO(i + 1)}${CLEAR_LINE}${b}`);
+      screenLines[i] = b;
     }
   }
+}
 
-  p.outro("Bye!");
+function pushMessage(msg: string): void {
+  messages.push(msg);
+  paint(buildFrame());
+}
+
+function requestExit(msg: string): void {
+  exitRequested = true;
+  pushMessage(msg);
+  resolveExit?.();
+}
+
+function handleAction(value: string) {
+  const port = process.env.PORT || "3000";
+  switch (value) {
+    case "web":
+      openBrowser(port);
+      pushMessage(`Opened ${CYAN}http://localhost:${port}${R} in browser`);
+      break;
+    case "start": {
+      pushMessage("Starting server...");
+      const pid = spawnDaemon(packageRoot);
+      if (pid) {
+        void waitForServer(5000).then(() =>
+          pushMessage(`${GREEN}Server started${R} (PID: ${pid})`),
+        );
+      }
+      break;
+    }
+    case "stop":
+      mode = "confirm-stop";
+      confirmSel = 0;
+      paint(buildFrame());
+      break;
+    case "tray": {
+      if (!isTraySupported()) {
+        pushMessage("System tray not supported on this platform.");
+        break;
+      }
+      void minimizeToTray();
+      break;
+    }
+    case "exit":
+      requestExit("Bye!");
+      break;
+  }
+}
+
+function doStop() {
+  mode = "menu";
+  pushMessage("Stopping server...");
+  stopDaemon();
+  pushMessage(`${RED}Server stopped${R}`);
+}
+
+async function minimizeToTray() {
+  if (!isRunning()) {
+    pushMessage("Starting server...");
+    spawnDaemon(packageRoot);
+    await waitForServer(5000);
+  }
+  const pid = spawnTrayDaemon(packageRoot);
+  if (!pid) {
+    pushMessage("Failed to minimize to system tray.");
+    return;
+  }
+  pushMessage(
+    `Minimized to system tray (PID: ${pid}). Right-click the tray icon for the menu.`,
+  );
+  await new Promise((r) => setTimeout(r, 800));
+  exitRequested = true;
+  paint(buildFrame());
+  resolveExit?.();
 }
 
 export function openBrowser(port: string) {
@@ -170,15 +336,6 @@ export function openBrowser(port: string) {
   if (p === "darwin") spawn(["open", url]);
   else if (p === "win32") spawn(["cmd", "/c", "start", url]);
   else spawn(["xdg-open", url]);
-}
-
-async function showBackgroundMsg() {
-  p.note(
-    `Server is running in background.\nYou can safely close this terminal.\n\nTo stop later: ${CYAN}kcgrouter --stop${R}`,
-    "Background Mode"
-  );
-  await p.confirm({ message: "Press Enter to exit CLI..." });
-  process.exit(0);
 }
 
 async function waitForServer(timeoutMs: number): Promise<void> {
@@ -195,54 +352,4 @@ async function waitForServer(timeoutMs: number): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-}
-
-async function startTrayMode(packageRoot: string) {
-  const { initTray } = await import("./tray");
-  const port = Number(process.env.PORT) || 3000;
-
-  // Ensure server is running
-  if (!isRunning()) {
-    const s = p.spinner();
-    s.start("Starting server...");
-    spawnDaemon(packageRoot);
-    await waitForServer(5000);
-    s.stop("Server started");
-  }
-
-  p.log.info("Starting system tray...");
-  p.note(
-    `KCG Router will run in system tray.\nRight-click tray icon to access menu.\n\nTo quit: Use tray menu or Ctrl+C`,
-    "System Tray Mode"
-  );
-
-  const tray = await initTray({
-    port,
-    onQuit: () => {
-      stopDaemon();
-      tray?.destroy();
-      process.exit(0);
-    },
-  });
-
-  if (!tray) {
-    p.log.error("Failed to create tray icon");
-    return;
-  }
-
-  // Keep process alive
-  process.on("SIGINT", () => {
-    stopDaemon();
-    tray.destroy();
-    process.exit(0);
-  });
-
-  process.on("SIGTERM", () => {
-    stopDaemon();
-    tray.destroy();
-    process.exit(0);
-  });
-
-  // Block until exit
-  await new Promise(() => {});
 }

@@ -74,6 +74,54 @@ export async function setTokenSaverDefault(enabled: boolean): Promise<void> {
   );
 }
 
+export function getCavemanSettings(): { enabled: boolean; level: string } {
+  const settings = getSettings();
+  return {
+    enabled: settings.caveman_enabled === 1,
+    level: settings.caveman_level || "full",
+  };
+}
+
+export async function setCavemanEnabled(enabled: boolean): Promise<void> {
+  run(
+    "UPDATE app_settings SET caveman_enabled = ?, updated_at = ? WHERE id = 1",
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+  );
+}
+
+export async function setCavemanLevel(level: string): Promise<void> {
+  run(
+    "UPDATE app_settings SET caveman_level = ?, updated_at = ? WHERE id = 1",
+    level,
+    new Date().toISOString(),
+  );
+}
+
+export function getPonytailSettings(): { enabled: boolean; level: string } {
+  const settings = getSettings();
+  return {
+    enabled: settings.ponytail_enabled === 1,
+    level: settings.ponytail_level || "full",
+  };
+}
+
+export async function setPonytailEnabled(enabled: boolean): Promise<void> {
+  run(
+    "UPDATE app_settings SET ponytail_enabled = ?, updated_at = ? WHERE id = 1",
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+  );
+}
+
+export async function setPonytailLevel(level: string): Promise<void> {
+  run(
+    "UPDATE app_settings SET ponytail_level = ?, updated_at = ? WHERE id = 1",
+    level,
+    new Date().toISOString(),
+  );
+}
+
 export interface TokenSaverStats {
   totalTokensSaved: number;
   updatedAt: string;

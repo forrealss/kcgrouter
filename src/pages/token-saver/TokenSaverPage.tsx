@@ -19,9 +19,52 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { useTokenSaver } from "@/hooks/useTokenSaver";
+
+const CAVEMAN_LEVELS = [
+  {
+    id: "lite",
+    label: "Lite",
+    description: "No filler/hedging. Keep articles + full sentences.",
+  },
+  {
+    id: "full",
+    label: "Full",
+    description: "Drop articles, fragments OK. Classic caveman.",
+  },
+  {
+    id: "ultra",
+    label: "Ultra",
+    description: "Strip conjunctions. One word when one word enough.",
+  },
+];
+
+const PONYTAIL_LEVELS = [
+  {
+    id: "lite",
+    label: "Lite",
+    description: "Build what's asked, name the lazier alternative.",
+  },
+  {
+    id: "full",
+    label: "Full",
+    description: "Ladder enforced. Stdlib/native first. Shortest diff.",
+  },
+  {
+    id: "ultra",
+    label: "Ultra",
+    description: "YAGNI extremist. Deletion before addition.",
+  },
+];
 
 function formatUpdatedAt(updatedAt: string): string {
   const date = new Date(updatedAt);
@@ -45,6 +88,8 @@ export function TokenSaverPage() {
     isSaving,
     loadSettings,
     persistEnabled,
+    persistCaveman,
+    persistPonytail,
   } = useTokenSaver();
 
   if (isLoading) {
@@ -168,6 +213,152 @@ export function TokenSaverPage() {
                   </Field>
                 );
               })}
+            </FieldGroup>
+          </FieldSet>
+
+          <FieldSet>
+            <FieldLegend variant="label">Caveman</FieldLegend>
+            <FieldDescription>
+              Compress agent output style — terse responses, no fluff, keep
+              substance. Adapted from{" "}
+              <a
+                href="https://github.com/JuliusBrussee/caveman"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                JuliusBrussee/caveman
+              </a>
+              .
+            </FieldDescription>
+            <FieldGroup>
+              <Field
+                orientation="horizontal"
+                data-disabled={isSaving || undefined}
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="caveman-enabled">
+                    Enable caveman
+                  </FieldLabel>
+                  <FieldDescription>
+                    Inject terse response style into every request.
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="caveman-enabled"
+                  checked={settings.cavemanEnabled}
+                  disabled={isSaving}
+                  onCheckedChange={(checked) =>
+                    void persistCaveman({ enabled: checked })
+                  }
+                />
+              </Field>
+              {settings.cavemanEnabled && (
+                <Field
+                  orientation="horizontal"
+                  data-disabled={isSaving || undefined}
+                >
+                  <FieldContent>
+                    <FieldLabel>Caveman level</FieldLabel>
+                    <FieldDescription>
+                      {CAVEMAN_LEVELS.find(
+                        (l) => l.id === settings.cavemanLevel,
+                      )?.description ?? "Intensity level"}
+                    </FieldDescription>
+                  </FieldContent>
+                  <Select
+                    value={settings.cavemanLevel}
+                    disabled={isSaving}
+                    onValueChange={(value) =>
+                      void persistCaveman({ level: value })
+                    }
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAVEMAN_LEVELS.map((level) => (
+                        <SelectItem key={level.id} value={level.id}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </FieldGroup>
+          </FieldSet>
+
+          <FieldSet>
+            <FieldLegend variant="label">Ponytail</FieldLegend>
+            <FieldDescription>
+              Inject "lazy senior dev" prompt — minimal code, YAGNI-first,
+              deletion over addition. Adapted from{" "}
+              <a
+                href="https://github.com/DietrichGebert/ponytail"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                DietrichGebert/ponytail
+              </a>
+              .
+            </FieldDescription>
+            <FieldGroup>
+              <Field
+                orientation="horizontal"
+                data-disabled={isSaving || undefined}
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="ponytail-enabled">
+                    Enable ponytail
+                  </FieldLabel>
+                  <FieldDescription>
+                    Bias LLM toward minimal, YAGNI-first code.
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="ponytail-enabled"
+                  checked={settings.ponytailEnabled}
+                  disabled={isSaving}
+                  onCheckedChange={(checked) =>
+                    void persistPonytail({ enabled: checked })
+                  }
+                />
+              </Field>
+              {settings.ponytailEnabled && (
+                <Field
+                  orientation="horizontal"
+                  data-disabled={isSaving || undefined}
+                >
+                  <FieldContent>
+                    <FieldLabel>Ponytail level</FieldLabel>
+                    <FieldDescription>
+                      {PONYTAIL_LEVELS.find(
+                        (l) => l.id === settings.ponytailLevel,
+                      )?.description ?? "Intensity level"}
+                    </FieldDescription>
+                  </FieldContent>
+                  <Select
+                    value={settings.ponytailLevel}
+                    disabled={isSaving}
+                    onValueChange={(value) =>
+                      void persistPonytail({ level: value })
+                    }
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PONYTAIL_LEVELS.map((level) => (
+                        <SelectItem key={level.id} value={level.id}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
             </FieldGroup>
           </FieldSet>
         </CardContent>

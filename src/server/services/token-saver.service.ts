@@ -1,4 +1,7 @@
 import type { CanonicalMessage } from "../providers/types";
+import { CAVEMAN_PROMPTS, type CavemanLevel } from "./prompts/caveman";
+import { PONYTAIL_PROMPTS, type PonytailLevel } from "./prompts/ponytail";
+import { injectSystemPrompt } from "./system-inject";
 
 export type ToolOutputFilterKind =
   | "git-diff"
@@ -215,3 +218,21 @@ export function compress(
     filtersApplied: Array.from(filtersApplied),
   };
 }
+
+export function injectCaveman(
+  messages: CanonicalMessage[],
+  level: CavemanLevel,
+): void {
+  const prompt = CAVEMAN_PROMPTS[level];
+  if (prompt) injectSystemPrompt(messages, prompt);
+}
+
+export function injectPonytail(
+  messages: CanonicalMessage[],
+  level: PonytailLevel,
+): void {
+  const prompt = PONYTAIL_PROMPTS[level];
+  if (prompt) injectSystemPrompt(messages, prompt);
+}
+
+export type { CavemanLevel, PonytailLevel };

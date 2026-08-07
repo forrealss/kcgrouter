@@ -25,7 +25,7 @@ describe("SettingsService", () => {
     const existing = get("SELECT * FROM app_settings WHERE id = 1");
     if (!existing) {
       run(
-        "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
+        "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, caveman_enabled, caveman_level, ponytail_enabled, ponytail_level, created_at, updated_at) VALUES (1, ?, ?, ?, 0, 'full', 0, 'full', ?, ?)",
         await hashPassword(INITIAL_PW),
         "light",
         1,

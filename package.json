@@ -1,6 +1,6 @@
 {
   "name": "kcgrouter",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Lightweight AI proxy gateway — route chat completions to upstream providers",
   "type": "module",
   "bin": {

@@ -6,6 +6,10 @@ export const sql = `
     password_hash TEXT NOT NULL,
     theme TEXT NOT NULL DEFAULT 'light',
     token_saver_default_enabled INTEGER NOT NULL DEFAULT 1,
+    caveman_enabled INTEGER NOT NULL DEFAULT 0,
+    caveman_level TEXT NOT NULL DEFAULT 'full',
+    ponytail_enabled INTEGER NOT NULL DEFAULT 0,
+    ponytail_level TEXT NOT NULL DEFAULT 'full',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );

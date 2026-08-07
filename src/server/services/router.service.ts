@@ -13,11 +13,13 @@ import {
 import * as ProviderRegistry from "./provider-registry.service";
 import * as QuotaTracker from "./quota-tracker.service";
 import {
+  getCavemanSettings,
+  getPonytailSettings,
   getTokenSaverDefault,
   recordTokenSaverSavings,
 } from "./settings.service";
 import { encodeOpenAIStream, OPENAI_SSE_HEADERS } from "./sse-encoder.service";
-import { compress } from "./token-saver.service";
+import { compress, injectCaveman, injectPonytail } from "./token-saver.service";
 import * as UsageRecorder from "./usage-recorder.service";
 
 export interface RouterInput {
@@ -25,6 +27,8 @@ export interface RouterInput {
   sourceFormat: SourceFormat;
   targetSelector: string;
   tokenSaverOverride?: "on" | "off";
+  cavemanOverride?: "on" | "off";
+  ponytailOverride?: "on" | "off";
   stream: boolean;
 }
 
@@ -508,6 +512,29 @@ export async function handleChatRequest(
   );
   canonical.messages = messages;
   recordTokenSaverSavings(tokensSavedEstimate);
+
+  // 2b. Caveman + Ponytail system prompt injection
+  const cavemanSettings = getCavemanSettings();
+  const cavemanOn =
+    input.cavemanOverride === "on" ||
+    (input.cavemanOverride !== "off" && cavemanSettings.enabled);
+  if (cavemanOn) {
+    injectCaveman(
+      canonical.messages,
+      cavemanSettings.level as "lite" | "full" | "ultra",
+    );
+  }
+
+  const ponytailSettings = getPonytailSettings();
+  const ponytailOn =
+    input.ponytailOverride === "on" ||
+    (input.ponytailOverride !== "off" && ponytailSettings.enabled);
+  if (ponytailOn) {
+    injectPonytail(
+      canonical.messages,
+      ponytailSettings.level as "lite" | "full" | "ultra",
+    );
+  }
 
   // 3. Parse model string for prefix
   const { providerPrefix, modelName } = parseModel(input.targetSelector);

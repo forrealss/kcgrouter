@@ -22,9 +22,15 @@ export const settingsRoutes: Record<string, RouteHandler> = {
 
   "GET /api/settings/token-saver": () => {
     const stats = SettingsService.getTokenSaverStats();
+    const caveman = SettingsService.getCavemanSettings();
+    const ponytail = SettingsService.getPonytailSettings();
     return Response.json({
       enabled: SettingsService.getTokenSaverDefault(),
       filters: getSupportedFilters().map((name) => ({ name, active: true })),
+      cavemanEnabled: caveman.enabled,
+      cavemanLevel: caveman.level,
+      ponytailEnabled: ponytail.enabled,
+      ponytailLevel: ponytail.level,
       ...stats,
     });
   },
@@ -35,6 +41,34 @@ export const settingsRoutes: Record<string, RouteHandler> = {
       return Response.json({ error: "enabled is required" }, { status: 400 });
     }
     await SettingsService.setTokenSaverDefault(body.enabled);
+    return Response.json({ ok: true });
+  },
+
+  "PATCH /api/settings/caveman": async (req) => {
+    const body = (await req.json()) as {
+      enabled?: boolean;
+      level?: string;
+    };
+    if (body.enabled !== undefined) {
+      await SettingsService.setCavemanEnabled(body.enabled);
+    }
+    if (body.level !== undefined) {
+      await SettingsService.setCavemanLevel(body.level);
+    }
+    return Response.json({ ok: true });
+  },
+
+  "PATCH /api/settings/ponytail": async (req) => {
+    const body = (await req.json()) as {
+      enabled?: boolean;
+      level?: string;
+    };
+    if (body.enabled !== undefined) {
+      await SettingsService.setPonytailEnabled(body.enabled);
+    }
+    if (body.level !== undefined) {
+      await SettingsService.setPonytailLevel(body.level);
+    }
     return Response.json({ ok: true });
   },
 

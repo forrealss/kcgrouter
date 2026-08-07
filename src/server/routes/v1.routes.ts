@@ -31,6 +31,8 @@ export const v1Routes: Record<string, RouteHandler> = {
   "POST /v1/chat/completions": async (req) => {
     const body = await req.json();
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
+    const caveman = req.headers.get("x-caveman") as "on" | "off" | null;
+    const ponytail = req.headers.get("x-ponytail") as "on" | "off" | null;
     const stream = body.stream ?? false;
 
     if (stream) {
@@ -39,6 +41,8 @@ export const v1Routes: Record<string, RouteHandler> = {
         sourceFormat: "openai",
         targetSelector: body.model ?? "default",
         tokenSaverOverride: tokenSaver ?? undefined,
+        cavemanOverride: caveman ?? undefined,
+        ponytailOverride: ponytail ?? undefined,
         stream: true,
       }).then((result) => toResponse(result));
 
@@ -52,6 +56,8 @@ export const v1Routes: Record<string, RouteHandler> = {
       sourceFormat: "openai",
       targetSelector: body.model ?? "default",
       tokenSaverOverride: tokenSaver ?? undefined,
+      cavemanOverride: caveman ?? undefined,
+      ponytailOverride: ponytail ?? undefined,
       stream: false,
     });
 
@@ -61,12 +67,16 @@ export const v1Routes: Record<string, RouteHandler> = {
   "POST /v1/messages": async (req) => {
     const body = await req.json();
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
+    const caveman = req.headers.get("x-caveman") as "on" | "off" | null;
+    const ponytail = req.headers.get("x-ponytail") as "on" | "off" | null;
 
     const result = await handleChatRequest({
       rawBody: body,
       sourceFormat: "anthropic",
       targetSelector: body.model ?? "default",
       tokenSaverOverride: tokenSaver ?? undefined,
+      cavemanOverride: caveman ?? undefined,
+      ponytailOverride: ponytail ?? undefined,
       stream: body.stream ?? false,
     });
 

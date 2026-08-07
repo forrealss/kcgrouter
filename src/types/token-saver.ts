@@ -16,6 +16,10 @@ export interface TokenSaverFilter {
 export interface TokenSaverSettings {
   enabled: boolean;
   filters: TokenSaverFilter[];
+  cavemanEnabled: boolean;
+  cavemanLevel: string;
+  ponytailEnabled: boolean;
+  ponytailLevel: string;
   totalTokensSaved: number;
   updatedAt: string;
 }

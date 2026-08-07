@@ -17,6 +17,10 @@ function isTokenSaverSettings(value: unknown): value is TokenSaverSettings {
         typeof (filter as Record<string, unknown>).name === "string" &&
         typeof (filter as Record<string, unknown>).active === "boolean",
     ) &&
+    typeof settings.cavemanEnabled === "boolean" &&
+    typeof settings.cavemanLevel === "string" &&
+    typeof settings.ponytailEnabled === "boolean" &&
+    typeof settings.ponytailLevel === "string" &&
     typeof settings.totalTokensSaved === "number" &&
     typeof settings.updatedAt === "string"
   );
@@ -89,6 +93,70 @@ export function useTokenSaver() {
     [isSaving, settings],
   );
 
+  const persistCaveman = useCallback(
+    async (patch: { enabled?: boolean; level?: string }) => {
+      if (!settings || isSaving) return;
+
+      const previousSettings = settings;
+      setSettings({ ...previousSettings, ...patchEnabled("caveman", patch) });
+      setIsSaving(true);
+      setSaveError(null);
+
+      try {
+        const data = await apiClient.patch<unknown>(
+          "/api/settings/caveman",
+          patch,
+        );
+
+        if (
+          !data ||
+          typeof data !== "object" ||
+          (data as Record<string, unknown>).ok !== true
+        ) {
+          throw new Error("Caveman setting was not saved.");
+        }
+      } catch (error) {
+        setSettings(previousSettings);
+        setSaveError(getApiErrorMessage(error));
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [isSaving, settings],
+  );
+
+  const persistPonytail = useCallback(
+    async (patch: { enabled?: boolean; level?: string }) => {
+      if (!settings || isSaving) return;
+
+      const previousSettings = settings;
+      setSettings({ ...previousSettings, ...patchEnabled("ponytail", patch) });
+      setIsSaving(true);
+      setSaveError(null);
+
+      try {
+        const data = await apiClient.patch<unknown>(
+          "/api/settings/ponytail",
+          patch,
+        );
+
+        if (
+          !data ||
+          typeof data !== "object" ||
+          (data as Record<string, unknown>).ok !== true
+        ) {
+          throw new Error("Ponytail setting was not saved.");
+        }
+      } catch (error) {
+        setSettings(previousSettings);
+        setSaveError(getApiErrorMessage(error));
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [isSaving, settings],
+  );
+
   return {
     settings,
     isLoading,
@@ -97,5 +165,17 @@ export function useTokenSaver() {
     isSaving,
     loadSettings,
     persistEnabled,
+    persistCaveman,
+    persistPonytail,
   };
+}
+
+function patchEnabled(
+  prefix: "caveman" | "ponytail",
+  patch: { enabled?: boolean; level?: string },
+): Partial<TokenSaverSettings> {
+  const result: Record<string, unknown> = {};
+  if (patch.enabled !== undefined) result[`${prefix}Enabled`] = patch.enabled;
+  if (patch.level !== undefined) result[`${prefix}Level`] = patch.level;
+  return result as Partial<TokenSaverSettings>;
 }

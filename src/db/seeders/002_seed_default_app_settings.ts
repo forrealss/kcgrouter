@@ -11,7 +11,7 @@ export function seed(): void {
   const passwordHash = Bun.password.hashSync(DEFAULT_PASSWORD);
   const now = new Date().toISOString();
   getDb().run(
-    "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, created_at, updated_at) VALUES (1, ?, 'light', 1, ?, ?)",
+    "INSERT INTO app_settings (id, password_hash, theme, token_saver_default_enabled, caveman_enabled, caveman_level, ponytail_enabled, ponytail_level, created_at, updated_at) VALUES (1, ?, 'light', 1, 0, 'full', 0, 'full', ?, ?)",
     passwordHash,
     now,
     now,

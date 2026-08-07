@@ -6,6 +6,7 @@ import * as m004 from "./migrations/004_add_provider_prefix";
 import * as m005 from "./migrations/005_create_provider_models";
 import * as m006 from "./migrations/006_add_usage_payloads";
 import * as m007 from "./migrations/007_add_mimo_provider";
+import * as m008 from "./migrations/008_add_caveman_ponytail";
 import * as s001 from "./seeders/001_seed_builtin_providers";
 import * as s002 from "./seeders/002_seed_default_app_settings";
 import * as s003 from "./seeders/003_seed_provider_models";
@@ -33,6 +34,7 @@ const migrations: MigrationModule[] = [
   m005,
   m006,
   m007,
+  m008,
 ].sort((a, b) => a.id - b.id);
 
 const seeders: SeederModule[] = [s001, s002, s003, s004];
@@ -57,7 +59,21 @@ export function runMigrations(): void {
       migration.id,
     );
     if (!applied) {
-      getDb().exec(migration.sql);
+      // Split into individual statements so ALTER TABLE failures (e.g. duplicate
+      // column from a backfilled migration 001) don't block the rest.
+      const statements = migration.sql
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      for (const stmt of statements) {
+        try {
+          getDb().exec(stmt);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("duplicate column")) continue;
+          throw err;
+        }
+      }
       getDb().run(
         "INSERT INTO _migrations (id, applied_at) VALUES (?, ?)",
         migration.id,

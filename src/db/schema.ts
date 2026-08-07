@@ -3,6 +3,10 @@ export interface AppSettingsRow {
   password_hash: string;
   theme: "light" | "dark";
   token_saver_default_enabled: 0 | 1;
+  caveman_enabled: 0 | 1;
+  caveman_level: string;
+  ponytail_enabled: 0 | 1;
+  ponytail_level: string;
   created_at: string;
   updated_at: string;
 }

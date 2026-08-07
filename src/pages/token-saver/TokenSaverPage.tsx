@@ -49,30 +49,61 @@ export function TokenSaverPage() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Token saver</CardTitle>
-          <CardDescription>
-            Reduce the amount of tool output included in your context.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold">Token Saver</h2>
+          <p className="text-sm text-muted-foreground">
+            Kurangi jumlah output tool yang masuk ke konteks.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Spinner />
-            Loading token saver settings…
-          </div>
-        </CardContent>
-        <CardFooter>
-          <span className="text-sm text-muted-foreground">
-            Usage statistics will appear when settings load.
-          </span>
-        </CardFooter>
-      </Card>
+            Memuat pengaturan token saver...
+          </CardContent>
+        </Card>
+      </section>
     );
   }
 
   if (loadError || !settings) {
     return (
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold">Token Saver</h2>
+          <p className="text-sm text-muted-foreground">
+            Kurangi jumlah output tool yang masuk ke konteks.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-6">
+            <Alert variant="destructive">
+              <AlertTitle>Gagal memuat token saver</AlertTitle>
+              <AlertDescription className="gap-3">
+                <p>{loadError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadSettings()}
+                >
+                  Coba lagi
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-semibold">Token Saver</h2>
+        <p className="text-sm text-muted-foreground">
+          Kurangi jumlah output tool yang masuk ke konteks.
+        </p>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Token saver</CardTitle>
@@ -80,107 +111,90 @@ export function TokenSaverPage() {
             Reduce the amount of tool output included in your context.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertTitle>Could not load token saver</AlertTitle>
-            <AlertDescription>{loadError}</AlertDescription>
-          </Alert>
+        <CardContent className="flex flex-col gap-6">
+          <FieldGroup>
+            <Field
+              orientation="horizontal"
+              data-disabled={isSaving || undefined}
+            >
+              <FieldContent>
+                <FieldLabel htmlFor="token-saver-enabled">
+                  Enable token saver by default
+                </FieldLabel>
+                <FieldDescription>
+                  Apply available output filters to new sessions.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="token-saver-enabled"
+                checked={settings.enabled}
+                disabled={isSaving}
+                onCheckedChange={(checked) => void persistEnabled(checked)}
+              />
+            </Field>
+          </FieldGroup>
+
+          {saveError && (
+            <Alert variant="destructive">
+              <AlertTitle>Could not save your preference</AlertTitle>
+              <AlertDescription>
+                <p>{saveError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void persistEnabled(!settings.enabled)}
+                >
+                  Retry save
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <FieldSet>
+            <FieldLegend variant="label">Supported filters</FieldLegend>
+            <FieldGroup>
+              {settings.filters.map((filter) => {
+                const detail = filterDetails[filter.name];
+
+                return (
+                  <Field key={filter.name} orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel>{detail.label}</FieldLabel>
+                      <FieldDescription>{detail.description}</FieldDescription>
+                    </FieldContent>
+                    <Badge variant={filter.active ? "secondary" : "outline"}>
+                      {filter.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </Field>
+                );
+              })}
+            </FieldGroup>
+          </FieldSet>
         </CardContent>
-        <CardFooter>
-          <Button onClick={() => void loadSettings()}>Retry</Button>
+        <CardFooter className="justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-muted-foreground">
+              Total tokens saved
+            </span>
+            <span className="text-2xl font-semibold">
+              {new Intl.NumberFormat().format(settings.totalTokensSaved)}
+            </span>
+          </div>
+          {isSaving ? (
+            <Badge variant="secondary">
+              <Spinner data-icon="inline-start" />
+              Saving…
+            </Badge>
+          ) : (
+            <Badge variant={settings.enabled ? "default" : "outline"}>
+              {settings.enabled ? "Enabled" : "Disabled"}
+            </Badge>
+          )}
+          <span className="text-sm text-muted-foreground">
+            {formatUpdatedAt(settings.updatedAt)}
+          </span>
         </CardFooter>
       </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Token saver</CardTitle>
-        <CardDescription>
-          Reduce the amount of tool output included in your context.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <FieldGroup>
-          <Field orientation="horizontal" data-disabled={isSaving || undefined}>
-            <FieldContent>
-              <FieldLabel htmlFor="token-saver-enabled">
-                Enable token saver by default
-              </FieldLabel>
-              <FieldDescription>
-                Apply available output filters to new sessions.
-              </FieldDescription>
-            </FieldContent>
-            <Switch
-              id="token-saver-enabled"
-              checked={settings.enabled}
-              disabled={isSaving}
-              onCheckedChange={(checked) => void persistEnabled(checked)}
-            />
-          </Field>
-        </FieldGroup>
-
-        {saveError && (
-          <Alert variant="destructive">
-            <AlertTitle>Could not save your preference</AlertTitle>
-            <AlertDescription>
-              <p>{saveError}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void persistEnabled(!settings.enabled)}
-              >
-                Retry save
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <FieldSet>
-          <FieldLegend variant="label">Supported filters</FieldLegend>
-          <FieldGroup>
-            {settings.filters.map((filter) => {
-              const detail = filterDetails[filter.name];
-
-              return (
-                <Field key={filter.name} orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>{detail.label}</FieldLabel>
-                    <FieldDescription>{detail.description}</FieldDescription>
-                  </FieldContent>
-                  <Badge variant={filter.active ? "secondary" : "outline"}>
-                    {filter.active ? "Active" : "Inactive"}
-                  </Badge>
-                </Field>
-              );
-            })}
-          </FieldGroup>
-        </FieldSet>
-      </CardContent>
-      <CardFooter className="justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-sm text-muted-foreground">
-            Total tokens saved
-          </span>
-          <span className="text-2xl font-semibold">
-            {new Intl.NumberFormat().format(settings.totalTokensSaved)}
-          </span>
-        </div>
-        {isSaving ? (
-          <Badge variant="secondary">
-            <Spinner data-icon="inline-start" />
-            Saving…
-          </Badge>
-        ) : (
-          <Badge variant={settings.enabled ? "default" : "outline"}>
-            {settings.enabled ? "Enabled" : "Disabled"}
-          </Badge>
-        )}
-        <span className="text-sm text-muted-foreground">
-          {formatUpdatedAt(settings.updatedAt)}
-        </span>
-      </CardFooter>
-    </Card>
+    </section>
   );
 }

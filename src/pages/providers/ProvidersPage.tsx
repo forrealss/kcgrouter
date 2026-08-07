@@ -33,9 +33,10 @@ export function ProvidersPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <p className="text-muted-foreground">
+          <h2 className="text-xl font-semibold">Penyedia</h2>
+          <p className="text-sm text-muted-foreground">
             Kelola koneksi penyedia AI Anda.
           </p>
         </div>

@@ -138,6 +138,7 @@ const server = serve({
     "/usage": index,
     "/quota": index,
     "/token-saver": index,
+    "/dashboard": index,
     "/settings": index,
   },
 

@@ -4,6 +4,7 @@ import {
   GaugeIcon,
   KeyRoundIcon,
   Layers3Icon,
+  LayoutDashboardIcon,
   LogOutIcon,
   type LucideIcon,
   MoonIcon,
@@ -27,6 +28,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 
 export type AppModule =
+  | "dashboard"
   | "providers"
   | "combos"
   | "usage"
@@ -43,6 +45,13 @@ type ModuleDefinition = {
 };
 
 const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
+  {
+    id: "dashboard",
+    path: "/dashboard",
+    label: "Dashboard",
+    description: "Ringkasan sistem dan analitik.",
+    icon: LayoutDashboardIcon,
+  },
   {
     id: "providers",
     path: "/providers",
@@ -101,7 +110,7 @@ export function resolveModuleFromPath(pathname: string): AppModule {
   return found?.id ?? "providers";
 }
 
-export const defaultPath = appModules[0].path;
+export const defaultPath = "/dashboard";
 
 interface AppSidebarProps {
   activeModule: AppModule;
@@ -191,10 +200,10 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href={defaultPath} onClick={(e) => handleNav(defaultPath, e)}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg ">
                   <Logo
                     gradient={false}
-                    className="size-4 text-[#6D5CFB] dark:text-white"
+                    className="size-6 text-slate-700 dark:text-white"
                   />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -217,10 +226,32 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Ganti tema" onClick={toggleTheme}>
-              {isDark ? <SunIcon /> : <MoonIcon />}
-              <span>{isDark ? "Mode Terang" : "Mode Gelap"}</span>
-            </SidebarMenuButton>
+            <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent transition-colors">
+              <MoonIcon className="size-4 shrink-0 text-sidebar-foreground/60" />
+              <span className="flex-1 text-sm">Mode Gelap</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isDark}
+                onClick={toggleTheme}
+                className={`
+                  peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
+                  border border-transparent transition-colors duration-200
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                  disabled:cursor-not-allowed disabled:opacity-50
+                  ${isDark ? "bg-sidebar-primary" : "bg-sidebar-accent"}
+                `}
+              >
+                <span
+                  className={`
+                    pointer-events-none block h-4 w-4 rounded-full bg-background shadow-sm ring-0
+                    transition-transform duration-200
+                    ${isDark ? "translate-x-4" : "translate-x-0"}
+                  `}
+                />
+              </button>
+              <SunIcon className="size-4 shrink-0 text-sidebar-foreground/60" />
+            </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton

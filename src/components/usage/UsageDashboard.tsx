@@ -14,7 +14,6 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   CheckCircleIcon,
-  ClockIcon,
   CoinsIcon,
   XCircleIcon,
   ZapIcon,
@@ -203,13 +202,56 @@ export function UsageDashboard() {
     void loadRecords();
   }, [loadRecords]);
 
+  // realtime: subscribe to SSE request:complete events
+  useEffect(() => {
+    const es = new EventSource("/api/events");
+    es.addEventListener("request:complete", (e: MessageEvent) => {
+      try {
+        const data: {
+          providerAccountId: string;
+          comboId: string | null;
+          model: string;
+          transport: string;
+          latencyMs: number;
+          timestamp: number;
+        } = JSON.parse(e.data);
+
+        const newRecord: UsageRecord = {
+          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: new Date(data.timestamp).toISOString(),
+          providerAccountId: data.providerAccountId,
+          comboId: data.comboId,
+          model: data.model,
+          inputTokens: 0,
+          outputTokens: 0,
+          status: "success",
+          latencyMs: data.latencyMs,
+          estimatedCost: 0,
+        };
+
+        setRecords((prev) => [newRecord, ...prev].slice(0, 50));
+      } catch {
+        // ignore parse errors
+      }
+    });
+    return () => es.close();
+  }, []);
+
   useEffect(() => {
     const el = graphContainerRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const w = entry.contentRect.width;
-        if (w > 200) setGraphHeight(Math.floor(w * 0.55));
+        if (w > 200) {
+          const mobile = w < 768;
+          setIsMobile(mobile);
+          setGraphHeight(
+            mobile
+              ? Math.floor(window.innerHeight * 0.65)
+              : Math.floor(w * 0.55),
+          );
+        }
       }
     });
     observer.observe(el);
@@ -247,10 +289,13 @@ export function UsageDashboard() {
 
   return (
     <div className="flex flex-col gap-4 max-w-[1700px] mx-auto w-full">
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <ClockIcon className="size-4" />
-        <span>Last 30 days</span>
+      {/* ── Page Header ────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-semibold">Usage</h2>
+        <p className="text-sm text-muted-foreground">
+          Pantau penggunaan token, biaya, dan aktivitas request secara
+          real-time.
+        </p>
       </div>
 
       {/* ── Stats Cards Row ────────────────────────────────────────── */}
@@ -301,19 +346,29 @@ export function UsageDashboard() {
       ) : null}
 
       {/* ── Main Content Area ──────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-12 min-h-0">
-        {/* Left: Workflow Canvas */}
-        <Card className="flex flex-col overflow-hidden col-span-8 min-h-[300px]">
-          <CardContent className="p-0 relative">
-            <div ref={graphContainerRef} className="w-full">
-              <UsageGraph height={graphHeight} />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-12">
+        {/* Left: Graph */}
+        <div
+          ref={graphContainerRef}
+          className="overflow-hidden rounded-xl border bg-card col-span-8"
+          style={{ height: `${graphHeight}px` }}
+        >
+          <UsageGraph height={graphHeight} />
+        </div>
 
-        {/* Right: Recent Activity */}
-        <Card className="flex flex-col col-span-4">
-          <CardContent className="flex-1 overflow-y-auto px-5 pb-5">
+        {/* Right: Activity — match graph height, scrollable */}
+        <div
+          className="flex flex-col overflow-hidden rounded-xl border bg-card col-span-4"
+          style={{ height: `${graphHeight}px` }}
+        >
+          <div
+            className="flex-1 overflow-y-auto px-4 pb-4
+              [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+            style={{
+              scrollbarWidth: "thin",
+              scrollbarColor: "var(--border) transparent",
+            }}
+          >
             {recordsLoading ? (
               <div className="flex flex-col gap-3">
                 {Array.from({ length: 5 }).map((_val, i) => (
@@ -335,7 +390,7 @@ export function UsageDashboard() {
               <p className="text-sm text-destructive">{recordsError}</p>
             ) : records.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
-                No requests yet
+                Tidak ada request
               </p>
             ) : (
               <div className="flex flex-col">
@@ -344,8 +399,8 @@ export function UsageDashboard() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* ── Analytics Charts ────────────────────────────────────────── */}

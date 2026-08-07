@@ -1,5 +1,5 @@
+import { showStatus, startDaemon, stopDaemon } from "./daemon";
 import { showMenu } from "./menu";
-import { startDaemon, stopDaemon, showStatus } from "./daemon";
 import { initTray, isTraySupported } from "./tray";
 
 export async function runCli(packageRoot: string) {
@@ -37,7 +37,9 @@ export async function runCli(packageRoot: string) {
 async function startTray(packageRoot: string) {
   if (!isTraySupported()) {
     console.log("\n  System tray not supported on this platform/display\n");
-    console.log("  Supported: Windows, macOS, Linux with DISPLAY/WAYLAND_DISPLAY\n");
+    console.log(
+      "  Supported: Windows, macOS, Linux with DISPLAY/WAYLAND_DISPLAY\n",
+    );
     process.exit(1);
   }
 

@@ -86,8 +86,8 @@
 /* ─── hub ─────────────────────────────────────────────────────────────────── */
 .ug-hub.ug-node {
   min-width: 0;
-  width: 100px;
-  height: 100px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 40%, #e8e8e8, #d0d0d0);
   display: grid;
@@ -104,7 +104,7 @@
 }
 
 .ug-hub-emoji {
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .ug-hub-title {

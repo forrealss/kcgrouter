@@ -24,6 +24,7 @@ import {
 import { useRouter } from "@/hooks/useRouter";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { CombosPage } from "@/pages/combos/CombosPage";
+import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { ProviderDetailPage } from "@/pages/providers/ProviderDetailPage";
 import { ProvidersPage } from "@/pages/providers/ProvidersPage";
 import { QuotaPage } from "@/pages/quota/QuotaPage";
@@ -76,7 +77,7 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
             </h1>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <main className="flex flex-1 flex-col gap-6 p-4 md:p-6 overflow-x-hidden max-w-[1700px] mx-auto w-full">
           {logoutError ? (
             <Alert variant="destructive">
               <AlertCircleIcon />
@@ -86,6 +87,8 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
           ) : null}
           {renderModule ? (
             renderModule(activeModule)
+          ) : activeModule === "dashboard" ? (
+            <DashboardPage />
           ) : activeModule === "providers" && providerDetailId ? (
             <ProviderDetailPage providerId={providerDetailId} />
           ) : activeModule === "providers" ? (

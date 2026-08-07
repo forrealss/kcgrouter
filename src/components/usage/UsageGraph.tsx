@@ -285,6 +285,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     hubEl.style.setProperty("--ug-nc", "#f5a623");
     hubEl.innerHTML = `<div class="ug-hub-text">
       <div class="ug-hub-emoji">🐾</div>
+      <div class="ug-hub-sub">KCG Router</div>
     </div>`;
     wrap.appendChild(hubEl);
 

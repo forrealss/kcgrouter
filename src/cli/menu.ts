@@ -4,6 +4,7 @@ import { join } from "node:path";
 import * as p from "@clack/prompts";
 import { spawn } from "bun";
 import { isRunning, spawnDaemon, stopDaemon } from "./daemon";
+
 import { isTraySupported } from "./tray";
 
 const B = "\x1b[1m";

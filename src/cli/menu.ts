@@ -1,9 +1,9 @@
+import { readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import * as p from "@clack/prompts";
 import { spawn } from "bun";
-import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import { spawnDaemon, stopDaemon, isRunning } from "./daemon";
+import { isRunning, spawnDaemon, stopDaemon } from "./daemon";
 import { isTraySupported } from "./tray";
 
 const B = "\x1b[1m";
@@ -17,7 +17,10 @@ const LINE = `${GRAY}${"─".repeat(48)}${R}`;
 
 function getVersion(): string {
   try {
-    const pkg = readFileSync(join(import.meta.dir, "../../../package.json"), "utf-8");
+    const pkg = readFileSync(
+      join(import.meta.dir, "../../../package.json"),
+      "utf-8",
+    );
     return JSON.parse(pkg).version;
   } catch {
     return "?";
@@ -97,14 +100,38 @@ export async function showMenu(packageRoot: string) {
     const choice = await p.select({
       message: dashboard,
       options: [
-        { label: "Open Web UI", value: "web", hint: `Opens http://localhost:${port}` },
-        { label: "Run in Background", value: "background", hint: "Safe to close terminal" },
+        {
+          label: "Open Web UI",
+          value: "web",
+          hint: `Opens http://localhost:${port}`,
+        },
+        {
+          label: "Run in Background",
+          value: "background",
+          hint: "Safe to close terminal",
+        },
         running
-          ? { label: "Stop Server", value: "stop", hint: `PID ${pidInfo?.pid ?? "?"}` }
-          : { label: "Start Server", value: "start", hint: "Launch in background" },
+          ? {
+              label: "Stop Server",
+              value: "stop",
+              hint: `PID ${pidInfo?.pid ?? "?"}`,
+            }
+          : {
+              label: "Start Server",
+              value: "start",
+              hint: "Launch in background",
+            },
         isTraySupported()
-          ? { label: "Run in System Tray", value: "tray", hint: "Minimize to tray icon" }
-          : { label: "System Tray (unsupported)", value: "tray", hint: "Requires display server" },
+          ? {
+              label: "Run in System Tray",
+              value: "tray",
+              hint: "Minimize to tray icon",
+            }
+          : {
+              label: "System Tray (unsupported)",
+              value: "tray",
+              hint: "Requires display server",
+            },
         { label: "Check Status", value: "status" },
         { label: "Exit", value: "exit" },
       ],
@@ -122,7 +149,9 @@ export async function showMenu(packageRoot: string) {
         break;
       case "tray":
         if (!isTraySupported()) {
-          p.log.error("System tray not supported. Requires display server (X11/Wayland on Linux).");
+          p.log.error(
+            "System tray not supported. Requires display server (X11/Wayland on Linux).",
+          );
           break;
         }
         await startTrayMode(packageRoot);
@@ -136,7 +165,9 @@ export async function showMenu(packageRoot: string) {
         break;
       }
       case "stop": {
-        const confirmed = await p.confirm({ message: "Stop the running server?" });
+        const confirmed = await p.confirm({
+          message: "Stop the running server?",
+        });
         if (p.isCancel(confirmed) || !confirmed) break;
         const s = p.spinner();
         s.start("Stopping server...");
@@ -149,7 +180,7 @@ export async function showMenu(packageRoot: string) {
         if (running && info) {
           p.note(
             `Status:   ${GREEN}Running${R}\nPID:      ${info.pid}\nUptime:   ${info.uptime}\nURL:      http://localhost:${port}\nLog:      ~/.kcgrouter/server.log`,
-            "Server Status"
+            "Server Status",
           );
         } else {
           p.note(`Status: ${RED}Not running${R}`, "Server Status");
@@ -175,7 +206,7 @@ export function openBrowser(port: string) {
 async function showBackgroundMsg() {
   p.note(
     `Server is running in background.\nYou can safely close this terminal.\n\nTo stop later: ${CYAN}kcgrouter --stop${R}`,
-    "Background Mode"
+    "Background Mode",
   );
   await p.confirm({ message: "Press Enter to exit CLI..." });
   process.exit(0);
@@ -213,7 +244,7 @@ async function startTrayMode(packageRoot: string) {
   p.log.info("Starting system tray...");
   p.note(
     `KCG Router will run in system tray.\nRight-click tray icon to access menu.\n\nTo quit: Use tray menu or Ctrl+C`,
-    "System Tray Mode"
+    "System Tray Mode",
   );
 
   const tray = await initTray({

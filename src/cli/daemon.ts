@@ -1,9 +1,10 @@
-import { spawn } from "bun";
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawn } from "bun";
 
-const KCGRouter_HOME = process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+const KCGRouter_HOME =
+  process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
 const PID_FILE = join(KCGRouter_HOME, "server.pid");
 const LOG_FILE = join(KCGRouter_HOME, "server.log");
 
@@ -78,7 +79,11 @@ export function stopDaemon() {
     console.log(`\n  Failed to stop: ${msg}\n`);
   }
 
-  try { unlinkSync(PID_FILE); } catch { /* already gone */ }
+  try {
+    unlinkSync(PID_FILE);
+  } catch {
+    /* already gone */
+  }
 }
 
 export function showStatus() {

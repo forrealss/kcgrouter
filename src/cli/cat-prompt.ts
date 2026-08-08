@@ -160,7 +160,9 @@ interface KeyEvent {
  * Only meant for TTY sessions — callers should fall back to a plain prompt
  * when stdin/stdout are not TTYs.
  */
-export function promptPortCentered(): Promise<number | null> {
+export function promptPortCentered(
+  options: { skipIntro?: boolean } = {},
+): Promise<number | null> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     return Promise.resolve(null);
   }
@@ -232,12 +234,14 @@ export function promptPortCentered(): Promise<number | null> {
     process.once("SIGTERM", onSignal);
 
     void (async () => {
-      // Phase 1: intro animation
-      for (let tick = 0; tick <= INTRO_TICKS && !settled; tick++) {
-        renderCentered(buildIntro(tick));
-        await sleep(INTRO_TICK_MS);
+      // Phase 1: intro animation (skipped for quick port changes from the menu)
+      if (!options.skipIntro) {
+        for (let tick = 0; tick <= INTRO_TICKS && !settled; tick++) {
+          renderCentered(buildIntro(tick));
+          await sleep(INTRO_TICK_MS);
+        }
+        if (settled) return;
       }
-      if (settled) return;
 
       // Phase 2: centered input
       rl = createInterface({

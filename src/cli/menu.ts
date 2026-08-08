@@ -113,7 +113,17 @@ export async function showMenu(packageRoot: string) {
     process.stdout.write(" started\n");
   }
 
-  await realtimeMenu(packageRoot);
+  // Loop so a "Change Port" action can exit the realtime menu, apply the new
+  // port, and re-enter the menu.
+  while (true) {
+    await realtimeMenu(packageRoot);
+    if (pendingAction === "port") {
+      pendingAction = null;
+      await changePortInteractive();
+      continue;
+    }
+    break;
+  }
 }
 
 /**
@@ -121,7 +131,7 @@ export async function showMenu(packageRoot: string) {
  * Returns null when there is no usable answer (EOF/invalid), so scripts
  * never hang and nothing is persisted for them.
  */
-async function promptWithReadline(): Promise<number | null> {
+async function promptWithReadline(message?: string): Promise<number | null> {
   if (process.stdin.readableEnded || process.stdin.destroyed) {
     return null; // stdin already closed — cannot prompt
   }
@@ -135,7 +145,8 @@ async function promptWithReadline(): Promise<number | null> {
     const answer = (
       await Promise.race([
         rl.question(
-          `\n  Port not set yet. Which port should the server use? (default: ${DEFAULT_PORT}) `,
+          message ??
+            `\n  Port not set yet. Which port should the server use? (default: ${DEFAULT_PORT}) `,
         ),
         new Promise<string>((resolve) => {
           const onClose = () => resolve("");
@@ -156,8 +167,50 @@ async function promptWithReadline(): Promise<number | null> {
 }
 
 /** Ask the user which port to use (cat animation on TTY, readline otherwise). */
-async function promptForPort(): Promise<number | null> {
-  return process.stdin.isTTY ? promptPortCentered() : promptWithReadline();
+async function promptForPort(opts?: {
+  skipIntro?: boolean;
+  message?: string;
+}): Promise<number | null> {
+  return process.stdin.isTTY
+    ? promptPortCentered({ skipIntro: opts?.skipIntro })
+    : promptWithReadline(opts?.message);
+}
+
+/**
+ * Run the "Change Port" flow after the realtime menu has exited: prompt for a
+ * new port, persist it, and restart the daemon so the new port takes effect.
+ */
+async function changePortInteractive(): Promise<void> {
+  const current = getPort();
+  const port = await promptForPort({
+    skipIntro: true,
+    message: `\n  New port for the server (default: ${DEFAULT_PORT}) `,
+  });
+
+  if (port === null) {
+    messages.push("Port change cancelled.");
+    return;
+  }
+  if (port === current) {
+    messages.push(`Port unchanged (${port}).`);
+    return;
+  }
+
+  saveConfig({ port });
+  messages.push(`✅ Port set to ${port} (saved to ${getConfigPath()})`);
+
+  if (isRunning()) {
+    messages.push("Restarting server to apply the new port...");
+    const pid = await restartDaemon(packageRoot);
+    messages.push(
+      pid
+        ? `Server restarted (PID: ${pid}) on port ${port}`
+        : "Failed to restart server",
+    );
+    if (pid) await waitForServer(5000);
+  } else {
+    messages.push("Start the server to apply the new port.");
+  }
 }
 
 /**
@@ -185,6 +238,8 @@ export async function ensurePortConfigured(): Promise<void> {
 
 type MenuMode = "menu" | "confirm-stop";
 
+type PendingAction = "port" | null;
+
 let packageRoot: string;
 let mode: MenuMode = "menu";
 let selected = 0;
@@ -192,6 +247,7 @@ let confirmSel = 0;
 const messages: string[] = [];
 let memoryValue = "";
 let exitRequested = false;
+let pendingAction: PendingAction = null;
 let resolveExit: (() => void) | null = null;
 
 const SCREEN_ROWS = Math.max(16, Math.min(24, (process.stdout.rows ?? 24) - 1));
@@ -200,6 +256,9 @@ let menuOptions: MenuOption[] = [];
 
 async function realtimeMenu(root: string) {
   packageRoot = root;
+  exitRequested = false;
+  mode = "menu";
+  screenLines.fill("");
   const out = process.stdout;
   out.write(`${CLEAR_SCREEN}${MOVE_TO(1)}${CURSOR_HIDE}`);
 
@@ -393,6 +452,11 @@ function buildOptions(runningNow: boolean): MenuOption[] {
     runningNow
       ? { label: "Stop Server", value: "stop" }
       : { label: "Start Server", value: "start", hint: "Launch in background" },
+    {
+      label: "Change Port",
+      value: "port",
+      hint: `Current: ${getPort()}`,
+    },
     isTraySupported()
       ? {
           label: "Minimize",
@@ -426,6 +490,12 @@ function requestExit(msg: string): void {
   resolveExit?.();
 }
 
+/** Leave the realtime menu, asking showMenu to run the port-change flow. */
+function exitForPortChange(): void {
+  pendingAction = "port";
+  requestExit("Changing port...");
+}
+
 function handleAction(value: string) {
   const port = getPort();
   switch (value) {
@@ -447,6 +517,9 @@ function handleAction(value: string) {
       mode = "confirm-stop";
       confirmSel = 0;
       paint(buildFrame());
+      break;
+    case "port":
+      exitForPortChange();
       break;
     case "tray": {
       if (!isTraySupported()) {

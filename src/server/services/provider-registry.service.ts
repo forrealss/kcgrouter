@@ -15,6 +15,7 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "kiro",
   "command-code",
   "mimo",
+  "qoder",
 ];
 
 export interface NewProviderInput {

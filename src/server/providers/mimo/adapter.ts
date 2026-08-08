@@ -1,4 +1,4 @@
-import { fetchJson, parseToolArguments } from "../helpers";
+import { buildOpenAIMessages, fetchJson, parseToolArguments } from "../helpers";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -6,78 +6,6 @@ import type {
   CanonicalStreamChunk,
   ProviderAdapter,
 } from "../types";
-
-function buildOpenAIMessages(req: CanonicalRequest): unknown[] {
-  return req.messages.map((m) => {
-    const msg: Record<string, unknown> = { role: m.role };
-
-    const textParts = m.content.filter((p) => p.type === "text");
-    const imageParts = m.content.filter((p) => p.type === "image");
-    const toolCalls = m.content.filter((p) => p.type === "tool_call");
-    const toolResults = m.content.filter((p) => p.type === "tool_result");
-
-    // If there are images, use array format for content
-    if (imageParts.length > 0) {
-      const contentArray: unknown[] = [];
-
-      // Add text parts
-      for (const p of textParts) {
-        contentArray.push({
-          type: "text",
-          text: (p as { type: "text"; text: string }).text,
-        });
-      }
-
-      // Add image parts as image_url
-      for (const p of imageParts) {
-        const imageData = (p as { type: "image"; image: string }).image;
-        contentArray.push({
-          type: "image_url",
-          image_url: { url: imageData },
-        });
-      }
-
-      msg.content = contentArray;
-    } else if (textParts.length > 0) {
-      msg.content = textParts
-        .map((p) => (p as { type: "text"; text: string }).text)
-        .join("\n");
-    }
-
-    if (toolCalls.length > 0) {
-      msg.tool_calls = toolCalls.map((p) => {
-        const tc = p as {
-          type: "tool_call";
-          id: string;
-          name: string;
-          arguments: unknown;
-        };
-        return {
-          id: tc.id,
-          type: "function",
-          function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-        };
-      });
-    }
-
-    if (toolResults.length > 0) {
-      const tr = toolResults[0] as {
-        type: "tool_result";
-        toolCallId: string;
-        content: string;
-      };
-      msg.role = "tool";
-      msg.tool_call_id = tr.toolCallId;
-      msg.content = tr.content;
-    }
-
-    if (m.toolCallId && m.role !== "tool") {
-      msg.tool_call_id = m.toolCallId;
-    }
-
-    return msg;
-  });
-}
 
 function parseOpenAIResponse(data: unknown): CanonicalResponse {
   const res = data as {

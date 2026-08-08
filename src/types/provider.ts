@@ -4,7 +4,8 @@ export type ProviderTransport =
   | "gemini"
   | "kiro"
   | "command-code"
-  | "mimo";
+  | "mimo"
+  | "qoder";
 
 export interface Provider {
   id: string;
@@ -53,4 +54,14 @@ export interface ProviderModel {
   maxOutputTokens: number | null;
   enabled: boolean;
   createdAt: string;
+}
+
+/** A model fetched from an upstream catalog, shown in the import dialog. */
+export interface ModelCandidate {
+  modelId: string;
+  modelName: string;
+  /** Whether this model is already registered for the provider. */
+  exists: boolean;
+  contextLength?: number;
+  maxOutputTokens?: number;
 }

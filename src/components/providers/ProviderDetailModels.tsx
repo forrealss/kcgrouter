@@ -1,6 +1,7 @@
 import {
   CheckCircleIcon,
   CopyIcon,
+  DownloadIcon,
   FlaskConicalIcon,
   PlusIcon,
   PowerIcon,
@@ -9,6 +10,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { FetchModelsDialog } from "@/components/providers/FetchModelsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { TestStatusValue } from "@/hooks/useProviderDetail";
 import type {
+  ModelCandidate,
   Provider,
   ProviderAccount,
   ProviderModel,
@@ -37,6 +40,13 @@ interface ProviderDetailModelsProps {
   onAddModel: (modelId: string, modelName: string) => void;
   onDeleteModel: (modelId: string) => void;
   onTestModel: (model: ProviderModel, accountId: string) => void;
+  onFetchModels?: () => void;
+  fetchingModels?: boolean;
+  modelCandidates?: ModelCandidate[] | null;
+  fetchDialogOpen?: boolean;
+  importingModels?: boolean;
+  onImportModels?: (selected: ModelCandidate[]) => void;
+  onCloseFetchDialog?: () => void;
 }
 
 export function ProviderDetailModels({
@@ -49,6 +59,13 @@ export function ProviderDetailModels({
   onAddModel,
   onDeleteModel,
   onTestModel,
+  onFetchModels,
+  fetchingModels = false,
+  modelCandidates = null,
+  fetchDialogOpen = false,
+  importingModels = false,
+  onImportModels,
+  onCloseFetchDialog,
 }: ProviderDetailModelsProps) {
   const [isAddModelOpen, setIsAddModelOpen] = useState(false);
   const [newModelId, setNewModelId] = useState("");
@@ -80,6 +97,11 @@ export function ProviderDetailModels({
     setCopiedId(modelId);
     setTimeout(() => setCopiedId(null), 1500);
   }
+
+  const canFetchModels =
+    provider.transport === "openai" ||
+    provider.transport === "mimo" ||
+    provider.transport === "qoder";
 
   const enabledModels = models.filter((m) => m.enabled);
   const disabledModels = models.filter((m) => !m.enabled);
@@ -152,15 +174,34 @@ export function ProviderDetailModels({
             <code className="text-xs">{provider.prefix}/model-id</code>.
           </CardDescription>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setIsAddModelOpen(!isAddModelOpen)}
-        >
-          <PlusIcon data-icon="inline-start" />
-          Add Model
-        </Button>
+        <div className="flex items-center gap-2">
+          {canFetchModels && onFetchModels ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void onFetchModels()}
+              disabled={fetchingModels}
+              title="Pull the live model list from this provider"
+            >
+              {fetchingModels ? (
+                <Spinner className="size-4" />
+              ) : (
+                <DownloadIcon data-icon="inline-start" />
+              )}
+              Fetch Models
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setIsAddModelOpen(!isAddModelOpen)}
+          >
+            <PlusIcon data-icon="inline-start" />
+            Add Model
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {isAddModelOpen ? (
@@ -314,6 +355,22 @@ export function ProviderDetailModels({
           </p>
         ) : null}
       </CardContent>
+
+      {canFetchModels &&
+      onFetchModels &&
+      onImportModels &&
+      onCloseFetchDialog ? (
+        <FetchModelsDialog
+          open={fetchDialogOpen}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) onCloseFetchDialog();
+          }}
+          provider={provider}
+          candidates={modelCandidates ?? []}
+          importing={importingModels}
+          onImport={(selected) => void onImportModels(selected)}
+        />
+      ) : null}
     </Card>
   );
 }

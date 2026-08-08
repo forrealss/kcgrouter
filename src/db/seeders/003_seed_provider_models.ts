@@ -157,7 +157,29 @@ const mimoModels: ModelSeed[] = [
   },
 ];
 
-const allModels = [...kiroModels, ...commandCodeModels, ...mimoModels];
+const qoderModels: ModelSeed[] = [
+  {
+    provider: "builtin-qoder",
+    modelId: "ultimate",
+    modelName: "Ultimate",
+    contextLength: 131072,
+    maxOutputTokens: 32768,
+  },
+  {
+    provider: "builtin-qoder",
+    modelId: "efficient",
+    modelName: "Efficient",
+    contextLength: 131072,
+    maxOutputTokens: 32768,
+  },
+];
+
+const allModels = [
+  ...kiroModels,
+  ...commandCodeModels,
+  ...mimoModels,
+  ...qoderModels,
+];
 
 export function seed(): void {
   for (const m of allModels) {

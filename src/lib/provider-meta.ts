@@ -2,6 +2,7 @@ import {
   BotIcon,
   BrainCircuitIcon,
   CpuIcon,
+  DropletsIcon,
   type LucideIcon,
   SparklesIcon,
   TerminalIcon,
@@ -51,5 +52,11 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
     icon: "/images/providers/xiaomimimo.svg",
     fallbackIcon: BotIcon,
     accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
+  },
+  qoder: {
+    label: "Qoder",
+    icon: "/images/providers/qoder.svg",
+    fallbackIcon: DropletsIcon,
+    accentClassName: "border-pink-500/40 bg-pink-500/10 text-pink-500",
   },
 };

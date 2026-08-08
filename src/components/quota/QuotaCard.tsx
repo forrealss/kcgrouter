@@ -18,6 +18,8 @@ const providerIcons: Record<ProviderTransport, string> = {
   gemini: "",
   kiro: "/images/providers/kiro.svg",
   "command-code": "/images/providers/command-code.svg",
+  mimo: "/images/providers/xiaomimimo.svg",
+  qoder: "/images/providers/qoder.svg",
 };
 
 interface QuotaCardProps {

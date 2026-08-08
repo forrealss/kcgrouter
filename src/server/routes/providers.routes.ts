@@ -13,12 +13,21 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "kiro",
   "command-code",
   "mimo",
+  "qoder",
 ];
 
 export const providersRoutes: Record<string, RouteHandler> = {
   "GET /api/providers": () => {
     const providers = ProviderRegistry.listProviders();
     return Response.json(providers);
+  },
+
+  "GET /api/providers/:id": (_req, params) => {
+    const provider = ProviderRegistry.getProvider(params?.id ?? "");
+    if (!provider) {
+      return Response.json({ error: "Provider not found" }, { status: 404 });
+    }
+    return Response.json(provider);
   },
 
   "GET /api/providers/models/:transport": (_req, params) => {
@@ -261,6 +270,127 @@ export const providersRoutes: Record<string, RouteHandler> = {
     } catch (err) {
       return Response.json(
         { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
+    }
+  },
+
+  "POST /api/providers/:id/models/fetch": async (_req, params) => {
+    const providerId = params?.id ?? "";
+    const provider = ProviderRegistry.getProvider(providerId);
+    if (!provider) {
+      return Response.json({ error: "Provider not found" }, { status: 404 });
+    }
+    if (
+      provider.transport !== "qoder" &&
+      provider.transport !== "openai" &&
+      provider.transport !== "mimo"
+    ) {
+      return Response.json(
+        {
+          error:
+            "Model fetching is only supported for OpenAI-compatible, Mimo, and Qoder providers",
+        },
+        { status: 400 },
+      );
+    }
+
+    const accounts = ProviderRegistry.listAccounts(providerId);
+    const account = accounts.find((a) => a.status === "active");
+    if (!account) {
+      return Response.json(
+        {
+          error: "Add an active connection before fetching models",
+        },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const credential = ProviderRegistry.getDecryptedCredential(account.id);
+      const candidates =
+        provider.transport === "qoder"
+          ? await ModelRegistry.previewQoderModels(
+              providerId,
+              credential.apiKey,
+            )
+          : await ModelRegistry.previewOpenAIModels(
+              providerId,
+              provider.baseUrl,
+              credential.apiKey,
+            );
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: account.id,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Fetched ${candidates.length} candidate models for provider "${provider.name}"`,
+        latencyMs: null,
+      });
+      return Response.json({ models: candidates });
+    } catch (err) {
+      return Response.json(
+        {
+          error: err instanceof Error ? err.message : "Failed to fetch models",
+        },
+        { status: 502 },
+      );
+    }
+  },
+
+  "POST /api/providers/:id/models/import": async (req, params) => {
+    const providerId = params?.id ?? "";
+    const provider = ProviderRegistry.getProvider(providerId);
+    if (!provider) {
+      return Response.json({ error: "Provider not found" }, { status: 404 });
+    }
+
+    const body = (await req.json()) as {
+      models?: Array<{
+        modelId?: string;
+        modelName?: string;
+        contextLength?: number;
+        maxOutputTokens?: number;
+      }>;
+    };
+    const selections = Array.isArray(body.models) ? body.models : [];
+    if (selections.length === 0) {
+      return Response.json(
+        { error: "Select at least one model to import" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const result = ModelRegistry.importModels(
+        providerId,
+        selections.map((m) => ({
+          modelId: m.modelId ?? "",
+          modelName: m.modelName ?? "",
+          contextLength: m.contextLength,
+          maxOutputTokens: m.maxOutputTokens,
+        })),
+      );
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Imported ${result.added} model(s) for provider "${provider.name}" (${result.skipped} already existed)`,
+        latencyMs: null,
+      });
+      return Response.json(result);
+    } catch (err) {
+      return Response.json(
+        {
+          error: err instanceof Error ? err.message : "Failed to import models",
+        },
         { status: 400 },
       );
     }

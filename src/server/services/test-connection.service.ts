@@ -41,6 +41,7 @@ function resolveTestModelId(
     kiro: "claude-haiku-4.5",
     "command-code": "deepseek/deepseek-v4-flash",
     mimo: "mimo-v2-flash",
+    qoder: "ultimate",
   };
   return defaults[transport];
 }

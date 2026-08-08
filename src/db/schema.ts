@@ -112,7 +112,8 @@ export type ProviderTransport =
   | "gemini"
   | "kiro"
   | "command-code"
-  | "mimo";
+  | "mimo"
+  | "qoder";
 export type AccountStatus = "active" | "error" | "expired";
 export type ComboStrategy = "fallback" | "round_robin";
 

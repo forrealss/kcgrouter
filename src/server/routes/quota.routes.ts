@@ -10,7 +10,7 @@ export const quotaRoutes: Record<string, RouteHandler> = {
 
     for (const provider of providers) {
       // Only show connections from providers that have a usage tracker
-      // (currently Kiro and Command Code).
+      // (currently Kiro, Command Code and Qoder).
       if (!ProviderUsage.isTrackedTransport(provider.transport)) continue;
 
       const accounts = ProviderRegistry.listAccounts(provider.id);

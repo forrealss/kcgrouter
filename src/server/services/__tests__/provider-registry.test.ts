@@ -7,6 +7,7 @@ import {
   deleteProvider,
   getAccount,
   getDecryptedCredential,
+  getProvider,
   listAccounts,
   listProviders,
   type NewProviderInput,
@@ -107,6 +108,27 @@ describe("ProviderRegistry — Provider CRUD", () => {
 
     deleteProvider(provider.id);
     expect(getAccount(acct.id)).toBeNull();
+  });
+
+  test("getProvider returns a single provider with account count", () => {
+    const provider = createProvider({
+      name: "GetOneTest",
+      transport: "openai",
+      baseUrl: "https://getone.com",
+      prefix: "getone",
+    });
+    addAccount(provider.id, { label: "Acct", apiKey: "sk_getone" });
+
+    const found = getProvider(provider.id);
+    expect(found).not.toBeNull();
+    if (!found) return;
+    expect(found.id).toBe(provider.id);
+    expect(found.name).toBe("GetOneTest");
+    expect(found.accountCount).toBe(1);
+
+    expect(getProvider("prov_nonexistent")).toBeNull();
+
+    deleteProvider(provider.id);
   });
 
   test("listProviders returns empty array when no providers exist", () => {

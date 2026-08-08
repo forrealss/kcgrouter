@@ -1,5 +1,10 @@
 import { get, query } from "../../db/client";
 import type { ProviderTransport } from "../../db/schema";
+import {
+  QODER_QUOTA_USAGE_URL,
+  QODER_USER_STATUS_URL,
+} from "../providers/qoder/constants";
+import { resolveQoderCredentials } from "../providers/qoder/model-catalog";
 import { decrypt } from "./crypto.service";
 
 export interface ProviderQuota {
@@ -209,6 +214,167 @@ async function fetchCommandCodeUsage(
   };
 }
 
+// --- Qoder usage ---
+
+/**
+ * Map a Qoder /api/v2/quota/usage payload into kcgrouter ProviderQuota rows.
+ * Pure (no I/O) so it can be unit-tested against captured payloads.
+ *
+ * Payload shape (see 9router getQoderUsage):
+ *   { userQuota: { used, total, remaining, unit }, orgResourcePackage: {...},
+ *     totalUsagePercentage, isQuotaExceeded, expiresAt }
+ * `expiresAt` is a single absolute reset timestamp (ms) applied to every row.
+ */
+export function parseQoderUsageResponse(body: unknown): ProviderQuota[] {
+  if (!body || typeof body !== "object") return [];
+  const rec = body as Record<string, unknown>;
+
+  const userQuota =
+    rec.userQuota && typeof rec.userQuota === "object"
+      ? (rec.userQuota as Record<string, unknown>)
+      : {};
+  const orgQuota =
+    rec.orgResourcePackage && typeof rec.orgResourcePackage === "object"
+      ? (rec.orgResourcePackage as Record<string, unknown>)
+      : {};
+
+  const expiresAtMs =
+    Number.isFinite(Number(rec.expiresAt)) && Number(rec.expiresAt) > 0
+      ? Number(rec.expiresAt)
+      : null;
+  const resetAt = expiresAtMs ? new Date(expiresAtMs).toISOString() : null;
+
+  const userUsed = Number(userQuota.used) || 0;
+  const userTotal = Number(userQuota.total) || 0;
+  const orgUsed = Number(orgQuota.used) || 0;
+  const orgTotal = Number(orgQuota.total) || 0;
+
+  // The quota card derives remaining as `total - used`, so clamp `used` to
+  // `total` to keep percentages from going negative on reporting skew.
+  const clampUsed = (used: number, total: number): number =>
+    total > 0 ? Math.min(used, total) : used;
+
+  const quotas: ProviderQuota[] = [];
+
+  // Only surface rows when the payload actually carries data — a zeroed 0/0
+  // credit row would render as "habis" (exhausted) on the quota card.
+  if (userTotal > 0 || userUsed > 0) {
+    quotas.push({
+      // Named "credit" so the quota card renders remaining/total (like
+      // Command Code's monthly credits) instead of a percentage bar.
+      name: "credit",
+      used: clampUsed(userUsed, userTotal),
+      total: userTotal,
+      resetAt,
+    });
+  }
+
+  // A plain PAT account has no org package, so skip the row when absent.
+  if (orgTotal > 0 || orgUsed > 0) {
+    quotas.push({
+      name: "Organization",
+      used: clampUsed(orgUsed, orgTotal),
+      total: orgTotal,
+      resetAt,
+    });
+  }
+
+  return quotas;
+}
+
+/**
+ * Map a Qoder /api/v3/user/status payload into a human-readable plan label.
+ * Pure (no I/O) so it can be unit-tested. Prefers the userTag, then the plan
+ * id with its `PLAN_TIER_` prefix stripped and title-cased.
+ */
+export function parseQoderPlan(status: unknown): string | undefined {
+  if (!status || typeof status !== "object") return undefined;
+  const rec = status as Record<string, unknown>;
+
+  const tag = String(rec.userTag ?? "").trim();
+  if (tag) return tag;
+
+  const raw = String(rec.plan ?? "").trim();
+  if (!raw) return undefined;
+  const stripped = raw.replace(/^PLAN_TIER_/i, "");
+  if (!stripped) return undefined;
+  return stripped
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/** GET a Qoder endpoint with the job token, returning null on any failure. */
+async function qoderFetch(
+  url: string,
+  jobToken: string,
+): Promise<Response | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    return await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${jobToken}`,
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Exported for unit tests; wired into usageFetchers below.
+export async function fetchQoderUsage(
+  apiKey: string,
+): Promise<ProviderUsageResult | null> {
+  // The quota endpoints only accept short-lived job tokens (jt-...), so PAT
+  // (pt-...) connections must be exchanged first — same path as chat.
+  let jobToken: string;
+  try {
+    const resolved = await resolveQoderCredentials(apiKey);
+    jobToken = resolved.accessToken;
+  } catch {
+    return null;
+  }
+  if (!jobToken) return null;
+
+  // Fire both fetches in parallel. The quota payload is required; the plan
+  // label is cosmetic, so a failed status fetch must not hide the rows.
+  const [quotaSettled, statusSettled] = await Promise.allSettled([
+    (async () => {
+      const res = await qoderFetch(QODER_QUOTA_USAGE_URL, jobToken);
+      if (!res?.ok) return null;
+      return res.json().catch(() => null);
+    })(),
+    (async () => {
+      const res = await qoderFetch(QODER_USER_STATUS_URL, jobToken);
+      if (!res?.ok) return undefined;
+      const statusBody = await res.json().catch(() => null);
+      return parseQoderPlan(statusBody);
+    })(),
+  ]);
+
+  const body = quotaSettled.status === "fulfilled" ? quotaSettled.value : null;
+  const quotas = parseQoderUsageResponse(body);
+  if (quotas.length === 0) return null;
+
+  const plan =
+    statusSettled.status === "fulfilled" ? statusSettled.value : undefined;
+
+  return {
+    provider: "qoder",
+    accountId: "",
+    label: "",
+    plan,
+    quotas,
+  };
+}
+
 const usageFetchers: Partial<
   Record<
     ProviderTransport,
@@ -217,6 +383,7 @@ const usageFetchers: Partial<
 > = {
   kiro: fetchKiroUsage,
   "command-code": fetchCommandCodeUsage,
+  qoder: fetchQoderUsage,
 };
 
 /**

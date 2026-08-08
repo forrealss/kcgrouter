@@ -6,6 +6,7 @@ export function seed(): void {
      VALUES
        ('builtin-kiro', 'Kiro AI', 'kiro', 'https://codewhisperer.us-east-1.amazonaws.com', 1, 'kiro', datetime('now')),
        ('builtin-command-code', 'Command Code', 'command-code', 'https://api.commandcode.ai', 1, 'command-code', datetime('now')),
-       ('builtin-mimo', 'Xiaomi MiMo', 'mimo', 'https://api.xiaomimimo.com/v1', 1, 'mimo', datetime('now'))`,
+       ('builtin-mimo', 'Xiaomi MiMo', 'mimo', 'https://api.xiaomimimo.com/v1', 1, 'mimo', datetime('now')),
+       ('builtin-qoder', 'Qoder', 'qoder', 'https://api3.qoder.sh', 1, 'qoder', datetime('now'))`,
   );
 }

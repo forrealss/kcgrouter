@@ -22,6 +22,10 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     accountTestStatus,
     testingModelId,
     modelTestStatus,
+    fetchingModels,
+    modelCandidates,
+    fetchDialogOpen,
+    importingModels,
     handleDeleteAccount,
     handleAccountSaved,
     handleTestConnection,
@@ -29,6 +33,9 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     handleAddModel,
     handleDeleteModel,
     handleTestModel,
+    handleFetchModels,
+    handleImportModels,
+    handleCloseFetchDialog,
   } = useProviderDetail(providerId);
 
   const latestAccountError = getLatestAccountError(accounts);
@@ -77,6 +84,13 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
         onAddModel={handleAddModel}
         onDeleteModel={handleDeleteModel}
         onTestModel={handleTestModel}
+        onFetchModels={handleFetchModels}
+        fetchingModels={fetchingModels}
+        modelCandidates={modelCandidates}
+        fetchDialogOpen={fetchDialogOpen}
+        importingModels={importingModels}
+        onImportModels={handleImportModels}
+        onCloseFetchDialog={handleCloseFetchDialog}
       />
     </section>
   );

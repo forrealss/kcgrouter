@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import type {
+  ModelCandidate,
   Provider,
   ProviderAccount,
   ProviderModel,
@@ -30,13 +32,21 @@ export function useProviderDetail(providerId: string) {
   const [modelTestStatus, setModelTestStatus] = useState<
     Record<string, TestStatusValue>
   >({});
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelCandidates, setModelCandidates] = useState<
+    ModelCandidate[] | null
+  >(null);
+  const [fetchDialogOpen, setFetchDialogOpen] = useState(false);
+  const [importingModels, setImportingModels] = useState(false);
 
   const loadData = useCallback(async () => {
     setError(null);
     setIsLoading(true);
     try {
       const [providerData, accountsData, modelsData] = await Promise.all([
-        apiClient.get<Provider[]>("/api/providers"),
+        apiClient.get<Provider>(
+          `/api/providers/${encodeURIComponent(providerId)}`,
+        ),
         apiClient.get<ProviderAccount[]>(
           `/api/providers/${encodeURIComponent(providerId)}/accounts`,
         ),
@@ -45,13 +55,7 @@ export function useProviderDetail(providerId: string) {
         ),
       ]);
 
-      const foundProvider = providerData.find((p) => p.id === providerId);
-      if (!foundProvider) {
-        setError("Provider not found");
-        return;
-      }
-
-      setProvider(foundProvider);
+      setProvider(providerData);
       setAccounts(accountsData);
       setModels(modelsData);
     } catch (err) {
@@ -180,6 +184,59 @@ export function useProviderDetail(providerId: string) {
     }
   }
 
+  async function handleFetchModels() {
+    if (fetchingModels) return;
+    setFetchingModels(true);
+    try {
+      const result = await apiClient.post<{ models: ModelCandidate[] }>(
+        `/api/providers/${encodeURIComponent(providerId)}/models/fetch`,
+      );
+      setModelCandidates(result.models);
+      setFetchDialogOpen(true);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setFetchingModels(false);
+    }
+  }
+
+  async function handleImportModels(selected: ModelCandidate[]) {
+    if (importingModels || selected.length === 0) return;
+    setImportingModels(true);
+    try {
+      const result = await apiClient.post<{
+        added: number;
+        skipped: number;
+        models: ProviderModel[];
+      }>(`/api/providers/${encodeURIComponent(providerId)}/models/import`, {
+        models: selected.map((m) => ({
+          modelId: m.modelId,
+          modelName: m.modelName,
+          contextLength: m.contextLength,
+          maxOutputTokens: m.maxOutputTokens,
+        })),
+      });
+      setModels(result.models);
+      setFetchDialogOpen(false);
+      setModelCandidates(null);
+      if (result.added === 0) {
+        toast.info("Tidak ada model baru yang diimpor");
+      } else {
+        toast.success(`${result.added} model berhasil diimpor`);
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setImportingModels(false);
+    }
+  }
+
+  function handleCloseFetchDialog() {
+    if (importingModels) return;
+    setFetchDialogOpen(false);
+    setModelCandidates(null);
+  }
+
   async function handleTestModel(model: ProviderModel, accountId: string) {
     if (testingModelId) return;
     setTestingModelId(model.id);
@@ -252,6 +309,10 @@ export function useProviderDetail(providerId: string) {
     accountTestStatus,
     testingModelId,
     modelTestStatus,
+    fetchingModels,
+    modelCandidates,
+    fetchDialogOpen,
+    importingModels,
     handleDeleteAccount,
     handleAccountSaved,
     handleTestConnection,
@@ -259,5 +320,8 @@ export function useProviderDetail(providerId: string) {
     handleAddModel,
     handleDeleteModel,
     handleTestModel,
+    handleFetchModels,
+    handleImportModels,
+    handleCloseFetchDialog,
   };
 }

@@ -373,5 +373,3 @@ export function getDecryptedCredential(accountId: string): { apiKey: string } {
   const apiKey = decrypt(row.credential_enc);
   return { apiKey };
 }
-
-

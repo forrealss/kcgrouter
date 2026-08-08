@@ -50,8 +50,5 @@ export function recordUsage(accountId: string, tokens: number): void {
 export type ErrorKind = "auth" | "rate_limit" | "server_error";
 
 export function markError(accountId: string, _errorKind: ErrorKind): void {
-  run(
-    "UPDATE provider_accounts SET status = 'error' WHERE id = ?",
-    accountId,
-  );
+  run("UPDATE provider_accounts SET status = 'error' WHERE id = ?", accountId);
 }

@@ -41,8 +41,8 @@ export function QuotaPage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">Quota Tracker</h2>
           <p className="text-sm text-muted-foreground">
-            Pantau penggunaan token untuk akun provider yang mendukung
-            pelacakan kuota (Kiro, Command Code).
+            Pantau penggunaan token untuk akun provider yang mendukung pelacakan
+            kuota (Kiro, Command Code).
           </p>
         </div>
         <Button

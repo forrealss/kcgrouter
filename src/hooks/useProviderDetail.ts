@@ -112,7 +112,7 @@ export function useProviderDetail(providerId: string) {
                 lastError:
                   result.status === "ok"
                     ? null
-                    : result.error ?? "Test connection failed",
+                    : (result.error ?? "Test connection failed"),
                 lastErrorAt:
                   result.status === "ok" ? null : new Date().toISOString(),
               }
@@ -211,7 +211,7 @@ export function useProviderDetail(providerId: string) {
                 lastError:
                   result.status === "ok"
                     ? null
-                    : result.error ?? "Test model failed",
+                    : (result.error ?? "Test model failed"),
                 lastErrorAt:
                   result.status === "ok" ? null : new Date().toISOString(),
               }

@@ -4,14 +4,19 @@ import {
   CoinsIcon,
   GaugeIcon,
   Layers3Icon,
-  RouterIcon,
   ServerIcon,
   SignalIcon,
   ZapIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -279,36 +284,17 @@ export function DashboardPage() {
       {/* ── Page Header ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <RouterIcon className="size-5 text-primary" />
-            <h2 className="text-xl font-semibold">
-              KCG Router — System Status
-            </h2>
-          </div>
+          <h2 className="text-xl font-semibold">KCG Router — System Status</h2>
           <p className="text-sm text-muted-foreground">
             Control panel: provider connections, combo routes, and real-time
             request traffic.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
             <span className="block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
             LIVE
           </Badge>
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => navigate("/providers")}
-          >
-            Providers <span className="ml-0.5">→</span>
-          </button>
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => navigate("/combos")}
-          >
-            Combos <span className="ml-0.5">→</span>
-          </button>
         </div>
       </div>
 
@@ -411,12 +397,19 @@ export function DashboardPage() {
       {/* ── Port Table: provider account status/load/quota ────────────── */}
       <Card className="!py-0 overflow-hidden">
         <CardHeader className="px-5 pt-4 pb-2">
-          <div className="flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
             <BoxesIcon className="size-4 text-muted-foreground" />
-            <CardTitle className="text-base">
-              Provider Connection Status
-            </CardTitle>
-          </div>
+            Provider Connection Status
+          </CardTitle>
+          <CardAction>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => navigate("/providers")}
+            >
+              Providers <span className="ml-0.5">→</span>
+            </button>
+          </CardAction>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {allAccounts.length === 0 ? (
@@ -498,10 +491,19 @@ export function DashboardPage() {
       {/* ── Combo Routing Table ─────────────────────────────────────── */}
       <Card className="!py-0 overflow-hidden">
         <CardHeader className="px-5 pt-4 pb-2">
-          <div className="flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
             <Layers3Icon className="size-4 text-muted-foreground" />
-            <CardTitle className="text-base">Combo Routes</CardTitle>
-          </div>
+            Combo Routes
+          </CardTitle>
+          <CardAction>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => navigate("/combos")}
+            >
+              Combos <span className="ml-0.5">→</span>
+            </button>
+          </CardAction>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {!combos || combos.length === 0 ? (

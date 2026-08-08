@@ -159,7 +159,7 @@ export function ProviderDetailConnections({
                           testStatus?.status === "ok"
                             ? "OK"
                             : testStatus?.status === "error"
-                              ? testStatus.message ?? "Error"
+                              ? (testStatus.message ?? "Error")
                               : "Test connection"
                         }
                       >

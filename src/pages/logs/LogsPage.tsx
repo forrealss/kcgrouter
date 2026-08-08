@@ -5,6 +5,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,11 +53,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import type {
-  RequestLog,
-  RequestLogSource,
-  RequestLogType,
-} from "@/types/log";
+import type { RequestLog, RequestLogSource, RequestLogType } from "@/types/log";
 
 const timestampFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -103,9 +99,9 @@ export function LogsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | RequestLogType>("all");
-  const [sourceFilter, setSourceFilter] = useState<
-    "all" | RequestLogSource
-  >("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | RequestLogSource>(
+    "all",
+  );
   const [accountFilter, setAccountFilter] = useState("all");
 
   const loadLogs = useCallback(async () => {
@@ -184,8 +180,8 @@ export function LogsPage() {
         <div>
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>
-            Incoming requests, provider success/error results, test results,
-            and admin actions.
+            Incoming requests, provider success/error results, test results, and
+            admin actions.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
@@ -217,8 +213,7 @@ export function LogsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Clear all logs?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  All log entries will be permanently deleted from the
-                  database.
+                  All log entries will be permanently deleted from the database.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -404,10 +399,7 @@ export function LogsPage() {
                   </TableCell>
                   <TableCell className="max-w-md">
                     {log.message ? (
-                      <span
-                        className="block truncate"
-                        title={log.message}
-                      >
+                      <span className="block truncate" title={log.message}>
                         {log.message}
                       </span>
                     ) : (

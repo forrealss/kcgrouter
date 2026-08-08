@@ -101,7 +101,7 @@ export function ProviderDetailModels({
             testStatus?.status === "ok"
               ? "OK"
               : testStatus?.status === "error"
-                ? testStatus.message ?? "Error"
+                ? (testStatus.message ?? "Error")
                 : "Test model"
           }
         >

@@ -63,17 +63,13 @@ function rowToRecord(row: LogRowWithJoins): RequestLogRecord {
  * executed on every insert.
  */
 function maybePrune(): void {
-  const countRow = get<{ c: number }>(
-    "SELECT COUNT(*) AS c FROM request_logs",
-  );
+  const countRow = get<{ c: number }>("SELECT COUNT(*) AS c FROM request_logs");
   if (!countRow || countRow.c <= PRUNE_KEEP + PRUNE_GRACE) return;
 
   prune(PRUNE_KEEP);
 }
 
-export function record(
-  entry: Omit<RequestLogEntry, "id" | "timestamp">,
-): void {
+export function record(entry: Omit<RequestLogEntry, "id" | "timestamp">): void {
   const id = `log_${randomBytes(12).toString("hex")}`;
   const now = new Date().toISOString();
 

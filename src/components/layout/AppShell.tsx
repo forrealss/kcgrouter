@@ -21,6 +21,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { useRouter } from "@/hooks/useRouter";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { CLIToolDetailPage } from "@/pages/cli-tools/CLIToolDetailPage";
@@ -126,6 +127,7 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
           )}
         </main>
       </SidebarInset>
+      <Toaster position="bottom-right" />
     </SidebarProvider>
   );
 }

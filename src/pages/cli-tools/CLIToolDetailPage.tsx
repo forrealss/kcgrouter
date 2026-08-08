@@ -1,8 +1,10 @@
-import { CLIToolConfigForm } from "@/components/cli-tools/CLIToolConfigForm";
+import { TerminalIcon } from "lucide-react";
+import {
+  CLIToolConfigForm,
+  CLIToolConfigFormSkeleton,
+} from "@/components/cli-tools/CLIToolConfigForm";
 import { CLIToolDetailHeader } from "@/components/cli-tools/CLIToolDetailHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
 import { useCLIToolDetail } from "@/hooks/useCLIToolDetail";
 
 interface CLIToolDetailPageProps {
@@ -14,11 +16,11 @@ export function CLIToolDetailPage({ toolId }: CLIToolDetailPageProps) {
     status,
     toolMeta,
     modelOptions,
+    modelGroupMeta,
     apiKeys,
     isLoading,
     error,
     isSaving,
-    message,
     defaultEndpoint,
     applyConfig,
     resetConfig,
@@ -33,14 +35,12 @@ export function CLIToolDetailPage({ toolId }: CLIToolDetailPageProps) {
       />
 
       {isLoading ? (
-        <Card>
-          <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Spinner />
-            Loading...
-          </CardContent>
-        </Card>
+        <div role="status" aria-label="Memuat konfigurasi CLI tool">
+          <CLIToolConfigFormSkeleton />
+        </div>
       ) : error ? (
         <Alert variant="destructive">
+          <TerminalIcon />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -48,10 +48,10 @@ export function CLIToolDetailPage({ toolId }: CLIToolDetailPageProps) {
         <CLIToolConfigForm
           status={status}
           modelOptions={modelOptions}
+          modelGroupMeta={modelGroupMeta}
           apiKeys={apiKeys}
           defaultEndpoint={defaultEndpoint}
           isSaving={isSaving}
-          message={message}
           onApply={applyConfig}
           onReset={resetConfig}
         />

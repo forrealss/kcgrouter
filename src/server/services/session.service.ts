@@ -3,12 +3,19 @@ import { get } from "../../db/client";
 import type { AppSettingsRow } from "../../db/schema";
 import { verifyPassword } from "./crypto.service";
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || "dev-session-secret-change-me";
 const SESSION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/**
+ * Read SESSION_SECRET lazily: secrets are bootstrapped by ensureSecrets()
+ * after module imports, so a top-level const would capture the dev fallback
+ * on fresh installs.
+ */
+function getSessionSecret(): string {
+  return process.env.SESSION_SECRET || "dev-session-secret-change-me";
+}
+
 function sign(data: string): string {
-  return createHmac("sha256", SESSION_SECRET).update(data).digest("hex");
+  return createHmac("sha256", getSessionSecret()).update(data).digest("hex");
 }
 
 function generateSessionId(): string {

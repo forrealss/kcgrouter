@@ -124,6 +124,11 @@ Upstream AI Providers (OpenAI, Anthropic, Gemini, Kiro, etc.)
 
 Generate secrets: `bun run gen-env`
 
+Secrets are **auto-generated on first run** if missing: `ensureSecrets()`
+(`src/env.ts`) creates `~/.kcgrouter/.env` (mode `0600`) with random
+`ENCRYPTION_KEY`/`SESSION_SECRET` and loads it at startup. Real environment
+variables always take precedence over the file, so shell-set values win.
+
 ### Custom port (`~/.kcgrouter/config.json`)
 
 The server port can be persisted in `~/.kcgrouter/config.json` (or under

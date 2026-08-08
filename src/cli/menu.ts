@@ -2,7 +2,6 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { createInterface as createLineInterface } from "node:readline/promises";
-import { isCancel, text } from "@clack/prompts";
 import { spawn } from "bun";
 import {
   DEFAULT_PORT,
@@ -13,6 +12,7 @@ import {
   isValidPort,
   saveConfig,
 } from "../config";
+import { promptPortCentered } from "./cat-prompt";
 import {
   getProcessMemory,
   isRunning,
@@ -22,21 +22,27 @@ import {
   stopDaemon,
 } from "./daemon";
 import { isTraySupported } from "./tray";
-
-const B = "\x1b[1m";
-const DIM = "\x1b[2m";
-const R = "\x1b[0m";
-const GREEN = "\x1b[32m";
-const RED = "\x1b[31m";
-const CYAN = "\x1b[36m";
-const GRAY = "\x1b[90m";
-const LINE = `${GRAY}${"─".repeat(48)}${R}`;
-
-const CURSOR_HIDE = "\x1b[?25l";
-const CURSOR_SHOW = "\x1b[?25h";
-const CLEAR_SCREEN = "\x1b[2J";
-const CLEAR_LINE = "\x1b[2K";
-const MOVE_TO = (row: number) => `\x1b[${row};1H`;
+import {
+  BORDER_1,
+  BORDER_2,
+  boxLines,
+  CLEAR_LINE,
+  CLEAR_SCREEN,
+  CURSOR_HIDE,
+  CURSOR_SHOW,
+  CYAN,
+  DIM,
+  GRAY,
+  GREEN,
+  gradientText,
+  HIGHLIGHT_BG,
+  MOVE_TO,
+  RED,
+  RESET,
+  TITLE_GRADIENT,
+  visibleWidth,
+  WHITE,
+} from "./tui";
 
 function getVersion(): string {
   try {
@@ -111,28 +117,6 @@ export async function showMenu(packageRoot: string) {
 }
 
 /**
- * Interactive clack text prompt — used when stdin is a TTY.
- * Returns null when the user cancels (nothing is persisted).
- */
-async function promptWithClack(): Promise<number | null> {
-  const result = await text({
-    message: "Port not set yet. Which port should the server use?",
-    placeholder: String(DEFAULT_PORT),
-    validate: (value) => {
-      const trimmed = value?.trim() ?? "";
-      if (trimmed === "") return; // empty → use default
-      if (!isValidPort(Number(trimmed)))
-        return "Enter a number between 1 and 65535";
-    },
-  });
-
-  // Cancel means "don't configure now" — nothing gets persisted.
-  if (isCancel(result)) return null;
-  const trimmed = String(result).trim();
-  return trimmed === "" ? DEFAULT_PORT : Number(trimmed);
-}
-
-/**
  * Plain readline fallback — used when stdin is not a TTY (scripts, pipes).
  * Returns null when there is no usable answer (EOF/invalid), so scripts
  * never hang and nothing is persisted for them.
@@ -171,9 +155,9 @@ async function promptWithReadline(): Promise<number | null> {
   }
 }
 
-/** Ask the user which port to use (clack on TTY, readline otherwise). */
+/** Ask the user which port to use (cat animation on TTY, readline otherwise). */
 async function promptForPort(): Promise<number | null> {
-  return process.stdin.isTTY ? promptWithClack() : promptWithReadline();
+  return process.stdin.isTTY ? promptPortCentered() : promptWithReadline();
 }
 
 /**
@@ -266,9 +250,9 @@ async function realtimeMenu(root: string) {
     const pidInfo = getPidInfo();
     if (runningNow && pidInfo) {
       const bytes = getProcessMemory(pidInfo.pid);
-      memoryValue = bytes === null ? `${GRAY}?${R}` : formatBytes(bytes);
+      memoryValue = bytes === null ? `${GRAY}?${RESET}` : formatBytes(bytes);
     } else {
-      memoryValue = `${GRAY}—${R}`;
+      memoryValue = `${GRAY}—${RESET}`;
     }
     if (!exitRequested) paint(buildFrame());
   };
@@ -287,6 +271,26 @@ async function realtimeMenu(root: string) {
   out.write(`${CURSOR_SHOW}\n`);
 }
 
+const MENU_INNER = 46;
+
+/** Pad a row to the box inner width (visible-width aware). */
+function renderRow(raw: string, active: boolean): string {
+  const pad = Math.max(0, MENU_INNER - visibleWidth(raw));
+  return active
+    ? `${HIGHLIGHT_BG}${WHITE}${raw}${" ".repeat(pad)}${RESET}`
+    : `${raw}${" ".repeat(pad)}${RESET}`;
+}
+
+/** Center a single line horizontally on the current terminal width. */
+function centerLine(line: string): string {
+  if (line === "") return "";
+  const cols = process.stdout.columns || 80;
+  const w = visibleWidth(line);
+  if (w >= cols) return line;
+  const pad = Math.floor((cols - w) / 2);
+  return `${" ".repeat(pad)}${line}`;
+}
+
 function buildFrame(): string[] {
   const lines: string[] = new Array<string>(SCREEN_ROWS).fill("");
   const port = getPort();
@@ -294,44 +298,87 @@ function buildFrame(): string[] {
   const pidInfo = getPidInfo();
   const version = getVersion();
 
-  lines[0] = "";
-  lines[1] = `  ${B}🐱  KCG Router${R}  ${DIM}v${version}${R}`;
-  lines[2] = `  ${LINE}`;
-  lines[3] = `    Status    ${
-    runningNow ? `${GREEN}● Running${R}` : `${RED}● Stopped${R}`
-  }`;
-  lines[4] = `    URL       ${runningNow ? CYAN : GRAY}http://localhost:${port}${R}`;
-  lines[5] = `    PID       ${
-    runningNow && pidInfo ? pidInfo.pid : `${GRAY}—${R}`
-  }`;
-  lines[6] = `    Memory    ${runningNow && pidInfo ? memoryValue : `${GRAY}—${R}`}`;
-  lines[7] = `    Uptime    ${
-    runningNow && pidInfo
-      ? formatUptime(Date.now() - pidInfo.startedAt)
-      : `${GRAY}—${R}`
-  }`;
-  lines[8] = `  ${LINE}`;
-  lines[10] = `  ${DIM}↑/↓ navigate · Enter select · q quit${R}`;
+  let row = 0;
+  const put = (line: string) => {
+    if (row >= SCREEN_ROWS) return; // tiny terminals: drop overflow rows
+    lines[row] = centerLine(line);
+    row++;
+  };
 
+  // Header
+  put("");
+  for (const l of boxLines(
+    [
+      `  ${gradientText("KCG Router", ...TITLE_GRADIENT)}  ${DIM}v${version}${RESET}`,
+    ],
+    BORDER_1,
+    MENU_INNER,
+  )) {
+    put(l);
+  }
+  put("");
+
+  // Status panel
+  const statusRows = [
+    ` ${runningNow ? `${GREEN}● Running${RESET}` : `${RED}● Stopped${RESET}`}`,
+    ` ${DIM}URL${RESET}     ${runningNow ? CYAN : GRAY}http://localhost:${port}${RESET}`,
+    ` ${DIM}PID${RESET}     ${
+      runningNow && pidInfo ? String(pidInfo.pid) : `${GRAY}—${RESET}`
+    }`,
+    ` ${DIM}Memory${RESET}  ${
+      runningNow && pidInfo ? memoryValue : `${GRAY}—${RESET}`
+    }`,
+    ` ${DIM}Uptime${RESET}  ${
+      runningNow && pidInfo
+        ? formatUptime(Date.now() - pidInfo.startedAt)
+        : `${GRAY}—${RESET}`
+    }`,
+  ];
+  for (const l of boxLines(statusRows, BORDER_1, MENU_INNER)) {
+    put(l);
+  }
+  put("");
+
+  // Options panel / confirm dialog
   if (mode === "menu") {
     menuOptions = buildOptions(runningNow);
     selected = Math.min(selected, menuOptions.length - 1);
-    menuOptions.forEach((opt, i) => {
-      const mark = i === selected ? `${CYAN}▶${R}` : " ";
-      const hint = opt.hint ? `  ${DIM}${opt.hint}${R}` : "";
-      lines[11 + i] = `  ${mark} ${opt.label}${hint}`;
+    const optRows = menuOptions.map((opt, i) => {
+      const hint = opt.hint ? `  ${DIM}${opt.hint}` : "";
+      return renderRow(
+        `${i === selected ? "▶ " : "  "}${opt.label}${hint}`,
+        i === selected,
+      );
     });
+    for (const l of boxLines(optRows, BORDER_2, MENU_INNER)) {
+      put(l);
+    }
   } else {
-    lines[10] = `  ${B}Stop the running server?${R}`;
-    lines[11] = `  ${confirmSel === 0 ? `${CYAN}▶${R}` : " "} Yes`;
-    lines[12] = `  ${confirmSel === 1 ? `${CYAN}▶${R}` : " "} No`;
+    const confirmRows = [
+      renderRow(` ${WHITE}Stop the running server?${RESET}`, false),
+      renderRow(`${confirmSel === 0 ? "▶ " : "  "}Yes`, confirmSel === 0),
+      renderRow(`${confirmSel === 1 ? "▶ " : "  "}No`, confirmSel === 1),
+    ];
+    for (const l of boxLines(confirmRows, BORDER_2, MENU_INNER)) {
+      put(l);
+    }
   }
+  put("");
 
-  const msgStart = 16;
+  // Hint
+  put(`${DIM}↑/↓ navigate · Enter select · q quit${RESET}`);
+
+  // Messages
+  const msgStart = row + 1;
   const maxMsgs = SCREEN_ROWS - msgStart;
-  messages.slice(-maxMsgs).forEach((m, i) => {
-    lines[msgStart + i] = `  ${m}`;
-  });
+  if (maxMsgs > 0) {
+    messages.slice(-maxMsgs).forEach((m) => {
+      put(`  ${m}`);
+    });
+  }
+  while (row < SCREEN_ROWS) {
+    put("");
+  }
 
   return lines;
 }
@@ -348,7 +395,7 @@ function buildOptions(runningNow: boolean): MenuOption[] {
       : { label: "Start Server", value: "start", hint: "Launch in background" },
     isTraySupported()
       ? {
-          label: "Minimize to System Tray",
+          label: "Minimize",
           value: "tray",
           hint: "Keep running in tray",
         }
@@ -384,14 +431,14 @@ function handleAction(value: string) {
   switch (value) {
     case "web":
       openBrowser(port);
-      pushMessage(`Opened ${CYAN}http://localhost:${port}${R} in browser`);
+      pushMessage(`Opened ${CYAN}http://localhost:${port}${RESET} in browser`);
       break;
     case "start": {
       pushMessage("Starting server...");
       const pid = spawnDaemon(packageRoot);
       if (pid) {
         void waitForServer(5000).then(() =>
-          pushMessage(`${GREEN}Server started${R} (PID: ${pid})`),
+          pushMessage(`${GREEN}Server started${RESET} (PID: ${pid})`),
         );
       }
       break;
@@ -419,7 +466,7 @@ function doStop() {
   mode = "menu";
   pushMessage("Stopping server...");
   stopDaemon();
-  pushMessage(`${RED}Server stopped${R}`);
+  pushMessage(`${RED}Server stopped${RESET}`);
 }
 
 async function minimizeToTray() {

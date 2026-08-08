@@ -1,7 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { transportMeta } from "@/components/providers/ProviderCard";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/hooks/useRouter";
+import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/types/provider";
 

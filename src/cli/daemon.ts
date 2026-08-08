@@ -69,7 +69,7 @@ export function spawnDaemon(cwd: string): number | null {
   return child.pid;
 }
 
-/** Spawn tray daemon without exiting — used by menu "Minimize to System Tray" */
+/** Spawn tray daemon without exiting — used by menu "Minimize" */
 export function spawnTrayDaemon(cwd: string): number | null {
   if (isTrayRunning()) return getTrayPid();
 

@@ -1,11 +1,4 @@
-import {
-  BotIcon,
-  BrainCircuitIcon,
-  CpuIcon,
-  SparklesIcon,
-  TerminalIcon,
-  TrashIcon,
-} from "lucide-react";
+import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -31,55 +24,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient } from "@/lib/api-client";
+import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
-import type { Provider, ProviderTransport } from "@/types/provider";
-
-export const transportMeta: Record<
-  ProviderTransport,
-  {
-    label: string;
-    icon?: string;
-    fallbackIcon: typeof BotIcon;
-    accentClassName: string;
-  }
-> = {
-  openai: {
-    label: "OpenAI-compatible",
-    icon: "/images/providers/openai.svg",
-    fallbackIcon: BotIcon,
-    accentClassName: "border-chart-3/40 bg-chart-3/10 text-chart-3",
-  },
-  anthropic: {
-    label: "Anthropic",
-    icon: "/images/providers/anthropic.svg",
-    fallbackIcon: BrainCircuitIcon,
-    accentClassName: "border-chart-4/40 bg-chart-4/10 text-chart-4",
-  },
-  gemini: {
-    label: "Google Gemini",
-    fallbackIcon: SparklesIcon,
-    accentClassName: "border-chart-2/40 bg-chart-2/10 text-chart-2",
-  },
-  kiro: {
-    label: "Kiro (AWS CodeWhisperer)",
-    icon: "/images/providers/kiro.svg",
-    fallbackIcon: CpuIcon,
-    accentClassName: "border-chart-5/40 bg-chart-5/10 text-chart-5",
-  },
-  "command-code": {
-    label: "Command Code",
-    icon: "/images/providers/command-code.svg",
-    fallbackIcon: TerminalIcon,
-    accentClassName:
-      "border-muted-foreground/40 bg-muted-foreground/10 text-muted-foreground",
-  },
-  mimo: {
-    label: "Xiaomi MiMo",
-    icon: "/images/providers/xiaomimimo.svg",
-    fallbackIcon: BotIcon,
-    accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
-  },
-};
+import type { Provider } from "@/types/provider";
 
 export function formatDate(value: string): string {
   const date = new Date(value);

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { serve } from "bun";
 import { getServerPort } from "./config";
 import { runMigrations } from "./db/migrations";
+import { ensureSecrets } from "./env";
 import index from "./index.html";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
@@ -36,6 +37,9 @@ function getMimeType(pathname: string): string | null {
   const ext = pathname.slice(pathname.lastIndexOf("."));
   return MIME_TYPES[ext] ?? null;
 }
+
+// Bootstrap secrets before anything touches the database/crypto
+ensureSecrets();
 
 // Run migrations on startup
 runMigrations();

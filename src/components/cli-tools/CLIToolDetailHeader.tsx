@@ -1,4 +1,10 @@
-import { ArrowLeftIcon, TerminalIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  Settings2Icon,
+  TerminalIcon,
+  XIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,20 +70,28 @@ export function CLIToolDetailHeader({
                     variant="secondary"
                     className="bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400"
                   >
+                    <CheckIcon />
                     Installed
                   </Badge>
                 ) : (
-                  <Badge variant="outline">Not detected</Badge>
+                  <Badge variant="outline" className="text-muted-foreground">
+                    <XIcon />
+                    Not detected
+                  </Badge>
                 )}
                 {status.configured ? (
                   <Badge
                     variant="secondary"
                     className="bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400"
                   >
+                    <Settings2Icon />
                     Configured
                   </Badge>
                 ) : (
-                  <Badge variant="outline">Not configured</Badge>
+                  <Badge variant="outline" className="text-muted-foreground">
+                    <Settings2Icon />
+                    Not configured
+                  </Badge>
                 )}
               </>
             ) : null}

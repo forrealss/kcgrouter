@@ -1,17 +1,22 @@
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
-import {
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export interface ComboboxOption {
   value: string;
   label: string;
+  description?: string;
+  /** Optional grouping key (e.g. provider name) used to section options. */
+  group?: string;
 }
 
 interface ComboboxProps {
@@ -21,6 +26,12 @@ interface ComboboxProps {
   placeholder?: string;
   searchPlaceholder?: string;
   allowCustom?: boolean;
+  customLabel?: string;
+  dialogTitle?: string;
+  closeLabel?: string;
+  noResultsLabel?: string;
+  /** Optional render metadata per group (keyed by the option `group` value). */
+  groupMeta?: Record<string, { icon?: string }>;
   disabled?: boolean;
   className?: string;
 }
@@ -32,20 +43,41 @@ export function Combobox({
   placeholder = "Pilih...",
   searchPlaceholder = "Cari...",
   allowCustom = true,
+  customLabel = "Gunakan",
+  dialogTitle,
+  closeLabel = "Tutup",
+  noResultsLabel = "Tidak ada opsi ditemukan",
+  groupMeta,
   disabled = false,
   className,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(search.toLowerCase()),
-  );
+  const selectedLabel =
+    options.find((opt) => opt.value === value)?.label ?? value;
 
-  // Add "Custom" option if search doesn't match any existing option
+  const groups = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = options.filter(
+      (opt) =>
+        term === "" ||
+        opt.label.toLowerCase().includes(term) ||
+        opt.value.toLowerCase().includes(term) ||
+        (opt.description ?? "").toLowerCase().includes(term) ||
+        (opt.group ?? "").toLowerCase().includes(term),
+    );
+
+    const map = new Map<string, ComboboxOption[]>();
+    for (const opt of filtered) {
+      const key = opt.group ?? "";
+      const list = map.get(key);
+      if (list) list.push(opt);
+      else map.set(key, [opt]);
+    }
+    return Array.from(map.entries());
+  }, [options, search]);
+
   const showCustomOption =
     allowCustom &&
     search.trim() !== "" &&
@@ -53,56 +85,16 @@ export function Combobox({
       (opt) => opt.value.toLowerCase() === search.toLowerCase().trim(),
     );
 
-  const allOptions = showCustomOption
-    ? [
-        ...filteredOptions,
-        { value: search.trim(), label: `Gunakan "${search.trim()}"` },
-      ]
-    : filteredOptions;
+  const handleSelect = (selectedValue: string) => {
+    onValueChange(selectedValue);
+    setOpen(false);
+    setSearch("");
+  };
 
-  const selectedLabel =
-    options.find((opt) => opt.value === value)?.label ?? value;
-
-  const handleSelect = useCallback(
-    (selectedValue: string) => {
-      onValueChange(selectedValue);
-      setOpen(false);
-      setSearch("");
-      setHighlightedIndex(0);
-    },
-    [onValueChange],
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev < allOptions.length - 1 ? prev + 1 : 0,
-        );
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : allOptions.length - 1,
-        );
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-        if (allOptions[highlightedIndex]) {
-          handleSelect(allOptions[highlightedIndex].value);
-        }
-      } else if (event.key === "Escape") {
-        setOpen(false);
-        setSearch("");
-      }
-    },
-    [allOptions, highlightedIndex, handleSelect],
-  );
-
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
-  }, [open]);
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearch("");
+  };
 
   return (
     <div className={cn("relative", className)}>
@@ -113,84 +105,114 @@ export function Combobox({
         aria-expanded={open}
         className="w-full justify-between"
         disabled={disabled}
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen(true)}
       >
         <span className="truncate">{value ? selectedLabel : placeholder}</span>
         <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
       </Button>
-      {open ? (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
-          <div className="border-b p-2">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={searchPlaceholder}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setHighlightedIndex(0);
-              }}
-              onKeyDown={handleKeyDown}
-              className="w-full rounded-sm bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          <div
-            ref={listRef}
-            className="max-h-60 overflow-auto p-1"
-            role="listbox"
-          >
-            {allOptions.length === 0 ? (
-              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                Tidak ada opsi ditemukan
-              </div>
-            ) : (
-              allOptions.map((option, index) => {
-                const isCustom =
-                  allowCustom &&
-                  option.value === search.trim() &&
-                  !options.some(
-                    (opt) =>
-                      opt.value.toLowerCase() === search.toLowerCase().trim(),
-                  );
 
-                return (
-                  <div
-                    key={option.value}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={value === option.value}
-                    className={cn(
-                      "flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                      value === option.value && "bg-accent",
-                      index === highlightedIndex && "bg-accent",
-                    )}
-                    onClick={() => handleSelect(option.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleSelect(option.value);
-                      }
-                    }}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                  >
-                    {isCustom ? (
-                      <PlusIcon className="mr-2 size-4" />
-                    ) : (
-                      <CheckIcon
-                        className={cn(
-                          "mr-2 size-4",
-                          value === option.value ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                    )}
-                    <span className="truncate">{option.label}</span>
-                  </div>
-                );
-              })
-            )}
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialogTitle ?? placeholder}</DialogTitle>
+          </DialogHeader>
+
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-9"
+            autoFocus
+          />
+
+          <div className="-mx-2 max-h-80 overflow-y-auto px-2">
+            {showCustomOption ? (
+              <button
+                type="button"
+                onClick={() => handleSelect(search.trim())}
+                className="mb-1 flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <PlusIcon className="size-4 shrink-0" />
+                <span className="truncate">
+                  {customLabel} "{search.trim()}"
+                </span>
+              </button>
+            ) : null}
+
+            {groups.length === 0 && !showCustomOption ? (
+              <div className="px-2 py-6 text-center text-xs text-muted-foreground">
+                {noResultsLabel}
+              </div>
+            ) : null}
+
+            {groups.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {groups.map(([groupName, groupOptions]) => {
+                  const meta = groupName ? groupMeta?.[groupName] : undefined;
+                  return (
+                    <div key={groupName || "__ungrouped"}>
+                      {groupName ? (
+                        <div className="flex items-center gap-2 px-2 pb-1.5 text-sm font-semibold text-foreground">
+                          {meta?.icon ? (
+                            <img
+                              src={meta.icon}
+                              alt=""
+                              aria-hidden
+                              className="size-4 shrink-0 object-contain"
+                            />
+                          ) : null}
+                          <span className="truncate">{groupName}</span>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col">
+                        {groupOptions.map((option) => {
+                          const selected = value === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => handleSelect(option.value)}
+                              aria-pressed={selected}
+                              className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm">
+                                  {option.label}
+                                </span>
+                                {option.description ? (
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {option.description}
+                                  </span>
+                                ) : null}
+                              </span>
+                              {selected ? (
+                                <CheckIcon
+                                  className="size-4 shrink-0 text-primary"
+                                  aria-hidden
+                                />
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
-        </div>
-      ) : null}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              {closeLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

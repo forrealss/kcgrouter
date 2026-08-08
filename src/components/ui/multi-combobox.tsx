@@ -1,18 +1,22 @@
-import { PlusIcon, Star, XIcon } from "lucide-react";
-import {
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { CheckIcon, PlusIcon, Star, XIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export interface MultiComboboxOption {
   value: string;
   label: string;
   description?: string;
+  /** Optional grouping key (e.g. provider name) used to section options. */
+  group?: string;
 }
 
 interface MultiComboboxProps {
@@ -26,8 +30,18 @@ interface MultiComboboxProps {
   emptyLabel?: string;
   searchPlaceholder?: string;
   addLabel?: string;
+  dialogTitle?: string;
+  doneLabel?: string;
+  noResultsLabel?: string;
+  /** Optional render metadata per group (keyed by the option `group` value). */
+  groupMeta?: Record<string, { icon?: string }>;
   disabled?: boolean;
   className?: string;
+}
+
+function shortLabel(option: MultiComboboxOption): string {
+  const idx = option.value.indexOf("/");
+  return idx >= 0 ? option.value.slice(idx + 1) : option.value;
 }
 
 export function MultiCombobox({
@@ -39,114 +53,68 @@ export function MultiCombobox({
   emptyLabel = "Belum ada yang dipilih",
   searchPlaceholder = "Cari...",
   addLabel = "Tambah",
+  dialogTitle,
+  doneLabel = "Selesai",
+  noResultsLabel = "Tidak ada opsi ditemukan",
+  groupMeta,
   disabled = false,
   className,
 }: MultiComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const filteredOptions = options.filter(
-    (opt) =>
-      !value.includes(opt.value) &&
-      (opt.label.toLowerCase().includes(search.toLowerCase()) ||
-        opt.value.toLowerCase().includes(search.toLowerCase())),
-  );
+  const optionByValue = useMemo(() => {
+    const map = new Map(options.map((opt) => [opt.value, opt]));
+    return (val: string) => map.get(val);
+  }, [options]);
 
-  const optionByValue = useCallback(
-    (val: string) => options.find((opt) => opt.value === val),
-    [options],
-  );
+  const groups = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = options.filter(
+      (opt) =>
+        term === "" ||
+        opt.label.toLowerCase().includes(term) ||
+        opt.value.toLowerCase().includes(term) ||
+        (opt.description ?? "").toLowerCase().includes(term) ||
+        (opt.group ?? "").toLowerCase().includes(term),
+    );
 
-  const handleAdd = useCallback(
-    (selectedValue: string) => {
-      if (!value.includes(selectedValue)) {
-        onValueChange([...value, selectedValue]);
-        if (!activeValue) onActiveChange?.(selectedValue);
-      }
-      setSearch("");
-      setHighlightedIndex(0);
-      inputRef.current?.focus();
-    },
-    [value, onValueChange, activeValue, onActiveChange],
-  );
+    const map = new Map<string, MultiComboboxOption[]>();
+    for (const opt of filtered) {
+      const key = opt.group ?? "";
+      const list = map.get(key);
+      if (list) list.push(opt);
+      else map.set(key, [opt]);
+    }
+    return Array.from(map.entries());
+  }, [options, search]);
 
-  const handleRemove = useCallback(
-    (removedValue: string) => {
-      const next = value.filter((v) => v !== removedValue);
+  const handleToggle = (toggledValue: string) => {
+    if (value.includes(toggledValue)) {
+      const next = value.filter((v) => v !== toggledValue);
       onValueChange(next);
-      if (activeValue === removedValue) {
-        onActiveChange?.(next[0] ?? "");
-      }
-    },
-    [value, onValueChange, activeValue, onActiveChange],
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setHighlightedIndex((prev) =>
-          filteredOptions.length === 0
-            ? 0
-            : prev < filteredOptions.length - 1
-              ? prev + 1
-              : 0,
-        );
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setHighlightedIndex((prev) =>
-          filteredOptions.length === 0
-            ? 0
-            : prev > 0
-              ? prev - 1
-              : filteredOptions.length - 1,
-        );
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-        const option = filteredOptions[highlightedIndex];
-        if (option) handleAdd(option.value);
-      } else if (event.key === "Backspace" && search === "" && value.length) {
-        const last = value[value.length - 1];
-        if (last) handleRemove(last);
-      } else if (event.key === "Escape") {
-        setOpen(false);
-        setSearch("");
-      }
-    },
-    [filteredOptions, highlightedIndex, handleAdd, search, value, handleRemove],
-  );
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-        setSearch("");
-      }
+      if (activeValue === toggledValue) onActiveChange?.(next[0] ?? "");
+    } else {
+      onValueChange([...value, toggledValue]);
+      if (!activeValue) onActiveChange?.(toggledValue);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  };
 
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, []);
+  const handleRemove = (removedValue: string) => {
+    const next = value.filter((v) => v !== removedValue);
+    onValueChange(next);
+    if (activeValue === removedValue) onActiveChange?.(next[0] ?? "");
+  };
 
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
-  }, [open]);
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearch("");
+  };
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="flex flex-wrap items-center gap-1.5">
-        {value.length === 0 && !open ? (
+        {value.length === 0 ? (
           <span className="text-xs text-muted-foreground">{emptyLabel}</span>
         ) : (
           value.map((val) => {
@@ -198,63 +166,108 @@ export function MultiCombobox({
           })
         )}
 
-        <div ref={containerRef} className="relative">
-          {open ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={searchPlaceholder}
-              disabled={disabled}
-              className="h-7 w-40 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            />
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={() => setOpen(true)}
-            >
-              <PlusIcon data-icon="inline-start" />
-              {addLabel}
-            </Button>
-          )}
-
-          {open ? (
-            <div className="absolute z-50 mt-1 w-56 max-h-52 overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-              {filteredOptions.length === 0 ? (
-                <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-                  Tidak ada opsi ditemukan
-                </div>
-              ) : (
-                filteredOptions.map((option, index) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleAdd(option.value)}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-xs outline-none hover:bg-accent hover:text-accent-foreground",
-                      index === highlightedIndex &&
-                        "bg-accent text-accent-foreground",
-                    )}
-                  >
-                    <span className="truncate font-mono">{option.label}</span>
-                    {option.description ? (
-                      <span className="ml-auto shrink-0 truncate text-muted-foreground">
-                        {option.description}
-                      </span>
-                    ) : null}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
+          <PlusIcon data-icon="inline-start" />
+          {addLabel}
+        </Button>
       </div>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialogTitle ?? addLabel}</DialogTitle>
+          </DialogHeader>
+
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-9"
+            autoFocus
+          />
+
+          <div className="-mx-2 max-h-80 overflow-y-auto px-2">
+            {groups.length === 0 ? (
+              <div className="px-2 py-6 text-center text-xs text-muted-foreground">
+                {noResultsLabel}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {groups.map(([groupName, groupOptions]) => {
+                  const meta = groupName ? groupMeta?.[groupName] : undefined;
+                  return (
+                    <div key={groupName || "__ungrouped"}>
+                      {groupName ? (
+                        <div className="flex items-center gap-2 px-2 pb-1.5 text-sm font-semibold text-foreground">
+                          {meta?.icon ? (
+                            <img
+                              src={meta.icon}
+                              alt=""
+                              aria-hidden
+                              className="size-4 shrink-0 object-contain"
+                            />
+                          ) : null}
+                          <span className="truncate">{groupName}</span>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col">
+                        {groupOptions.map((option) => {
+                          const selected = value.includes(option.value);
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => handleToggle(option.value)}
+                              aria-pressed={selected}
+                              className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <span
+                                className={cn(
+                                  "flex size-4 shrink-0 items-center justify-center rounded-sm border",
+                                  selected
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-muted-foreground/40",
+                                )}
+                                aria-hidden
+                              >
+                                {selected ? (
+                                  <CheckIcon className="size-3" />
+                                ) : null}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-mono text-xs">
+                                  {shortLabel(option)}
+                                </span>
+                                {option.description ? (
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {option.description}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" onClick={() => handleOpenChange(false)}>
+              {doneLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

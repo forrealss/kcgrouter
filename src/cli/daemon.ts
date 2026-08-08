@@ -121,6 +121,7 @@ export function getProcessMemory(pid: number): number | null {
             stdin: "ignore",
             stdout: "pipe",
             stderr: "ignore",
+            windowsHide: true,
           })
         : Bun.spawnSync({
             cmd: ["ps", "-o", "rss=", "-p", String(pid)],

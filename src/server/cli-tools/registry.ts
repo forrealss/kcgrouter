@@ -38,9 +38,15 @@ export interface CLIToolDefinition {
 // Helpers
 // ---------------------------------------------------------------------------
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import * as jsonc from "jsonc-parser";
 
 export function readJsonc(filePath: string): Record<string, unknown> {
@@ -73,9 +79,40 @@ export function writeJson(
   writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
+const WINDOWS_EXECUTABLE_EXTS = [".exe", ".cmd", ".bat", ".com", ""];
+
+/**
+ * Check whether a command is available on PATH.
+ *
+ * On Windows we scan PATH directly instead of spawning `which`/`where`:
+ * spawning a subprocess (even hidden) is slower and, without
+ * `windowsHide`, briefly flashes a console window every time a page
+ * checks tool status. Path segments are checked with statSync so
+ * directories are never mistaken for executables.
+ */
 export function commandExists(cmd: string): boolean {
+  if (process.platform === "win32") {
+    const pathDirs = (process.env.PATH ?? "").split(delimiter);
+    for (const dir of pathDirs) {
+      if (!dir) continue;
+      for (const ext of WINDOWS_EXECUTABLE_EXTS) {
+        const fullPath = join(dir, cmd + ext);
+        try {
+          if (statSync(fullPath).isFile()) return true;
+        } catch {
+          // missing or unreadable segment — keep scanning
+        }
+      }
+    }
+    return false;
+  }
+
   try {
-    const proc = Bun.spawnSync(["which", cmd]);
+    const proc = Bun.spawnSync(["which", cmd], {
+      windowsHide: true,
+      stdout: "ignore",
+      stderr: "ignore",
+    });
     return proc.exitCode === 0;
   } catch {
     return false;

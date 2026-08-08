@@ -8,6 +8,7 @@
  * DELETE /api/cli-tools/:id             — remove provider config
  */
 
+import { getPort } from "../../config";
 import { getAllToolStatuses, getTool } from "../cli-tools";
 import type { RouteHandler } from "./types";
 
@@ -108,7 +109,7 @@ const handlePatch: RouteHandler = async (req, params) => {
     }
 
     tool.apply({
-      baseUrl: details.baseUrl ?? "http://localhost:3000/v1",
+      baseUrl: details.baseUrl ?? `http://localhost:${getPort()}/v1`,
       models,
       activeModel,
     });

@@ -124,6 +124,24 @@ Upstream AI Providers (OpenAI, Anthropic, Gemini, Kiro, etc.)
 
 Generate secrets: `bun run gen-env`
 
+### Custom port (`~/.kcgrouter/config.json`)
+
+The server port can be persisted in `~/.kcgrouter/config.json` (or under
+`KCGRouter_HOME` when set). Set it from the CLI with `kcgrouter --port <port>`.
+
+```json
+{
+  "port": 8080
+}
+```
+
+Resolution precedence (see `src/config.ts`): `PORT` env var > `config.json`
+`port` field > default `3000`. Restart the server after changing the port.
+
+Note: `bun dev` only respects the `PORT` env var (falling back to the
+default `3000`) and ignores the persisted `config.json` port — the config
+port applies to production/daemon runs (`bun start`, `kcgrouter`).
+
 ## Provider Adapters
 
 Each transport has a dedicated adapter in `src/server/providers/<transport>/`:

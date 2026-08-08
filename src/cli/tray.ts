@@ -122,7 +122,7 @@ export async function initTray(
     systray.onClick(async (action: { seq_id: number }) => {
       switch (action.seq_id) {
         case MENU_INDEX.OPEN_DASHBOARD:
-          openBrowser(String(options.port));
+          openBrowser(options.port);
           break;
         case MENU_INDEX.TOGGLE_SERVER: {
           if (running) {

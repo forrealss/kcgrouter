@@ -1,11 +1,22 @@
 import { readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { createInterface as createLineInterface } from "node:readline/promises";
+import { isCancel, text } from "@clack/prompts";
 import { spawn } from "bun";
+import {
+  DEFAULT_PORT,
+  getConfigPath,
+  getConfiguredPort,
+  getHome,
+  getPort,
+  isValidPort,
+  saveConfig,
+} from "../config";
 import {
   getProcessMemory,
   isRunning,
+  restartDaemon,
   spawnDaemon,
   spawnTrayDaemon,
   stopDaemon,
@@ -41,7 +52,7 @@ function getVersion(): string {
 
 function getPidInfo(): { pid: number; startedAt: number } | null {
   try {
-    const home = process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+    const home = getHome();
     const pidFile = join(home, "server.pid");
     const pid = Number.parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
     const startedAt = statSync(pidFile).birthtimeMs;
@@ -77,6 +88,18 @@ interface MenuOption {
 }
 
 export async function showMenu(packageRoot: string) {
+  await ensurePortConfigured();
+
+  if (isRunning() && !(await isServerReachable(getPort()))) {
+    // The configured port changed but the running daemon still serves the old
+    // one — restart it so the new port takes effect.
+    console.log(
+      "\n  Server not responding on the configured port — restarting...",
+    );
+    const pid = await restartDaemon(packageRoot);
+    if (pid) await waitForServer(5000);
+  }
+
   if (!isRunning()) {
     process.stdout.write("Starting server...");
     const pid = spawnDaemon(packageRoot);
@@ -85,6 +108,95 @@ export async function showMenu(packageRoot: string) {
   }
 
   await realtimeMenu(packageRoot);
+}
+
+/**
+ * Interactive clack text prompt — used when stdin is a TTY.
+ * Returns null when the user cancels (nothing is persisted).
+ */
+async function promptWithClack(): Promise<number | null> {
+  const result = await text({
+    message: "Port not set yet. Which port should the server use?",
+    placeholder: String(DEFAULT_PORT),
+    validate: (value) => {
+      const trimmed = value?.trim() ?? "";
+      if (trimmed === "") return; // empty → use default
+      if (!isValidPort(Number(trimmed)))
+        return "Enter a number between 1 and 65535";
+    },
+  });
+
+  // Cancel means "don't configure now" — nothing gets persisted.
+  if (isCancel(result)) return null;
+  const trimmed = String(result).trim();
+  return trimmed === "" ? DEFAULT_PORT : Number(trimmed);
+}
+
+/**
+ * Plain readline fallback — used when stdin is not a TTY (scripts, pipes).
+ * Returns null when there is no usable answer (EOF/invalid), so scripts
+ * never hang and nothing is persisted for them.
+ */
+async function promptWithReadline(): Promise<number | null> {
+  if (process.stdin.readableEnded || process.stdin.destroyed) {
+    return null; // stdin already closed — cannot prompt
+  }
+
+  const rl = createLineInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    // Resolve with "" when stdin closes (EOF) so scripts never hang.
+    const answer = (
+      await Promise.race([
+        rl.question(
+          `\n  Port not set yet. Which port should the server use? (default: ${DEFAULT_PORT}) `,
+        ),
+        new Promise<string>((resolve) => {
+          const onClose = () => resolve("");
+          rl.once("close", onClose);
+          process.stdin.once("end", onClose);
+        }),
+      ])
+    ).trim();
+
+    if (answer === "") return null;
+    const port = Number(answer);
+    if (isValidPort(port)) return port;
+    console.log(`  Invalid port: "${answer}" — using default ${DEFAULT_PORT}.`);
+    return null;
+  } finally {
+    rl.close();
+  }
+}
+
+/** Ask the user which port to use (clack on TTY, readline otherwise). */
+async function promptForPort(): Promise<number | null> {
+  return process.stdin.isTTY ? promptWithClack() : promptWithReadline();
+}
+
+/**
+ * Ensure a port is persisted in config.json. When none is configured
+ * (and no PORT env override), prompt the user and save the result.
+ * If the user cancels (or stdin is not usable), the default port is used
+ * but nothing is persisted.
+ */
+export async function ensurePortConfigured(): Promise<void> {
+  if (getConfiguredPort() !== undefined) return;
+
+  const envPort = Number(process.env.PORT);
+  if (isValidPort(envPort)) return;
+
+  const port = await promptForPort();
+  if (port === null) {
+    console.log(
+      `\n  No port chosen — using default ${DEFAULT_PORT}. Set a custom port later with: kcgrouter --port <port>\n`,
+    );
+    return;
+  }
+  saveConfig({ port });
+  console.log(`\n  ✅ Port set to ${port} (saved to ${getConfigPath()})\n`);
 }
 
 type MenuMode = "menu" | "confirm-stop";
@@ -177,7 +289,7 @@ async function realtimeMenu(root: string) {
 
 function buildFrame(): string[] {
   const lines: string[] = new Array<string>(SCREEN_ROWS).fill("");
-  const port = process.env.PORT || "3000";
+  const port = getPort();
   const runningNow = isRunning();
   const pidInfo = getPidInfo();
   const version = getVersion();
@@ -229,7 +341,7 @@ function buildOptions(runningNow: boolean): MenuOption[] {
     {
       label: "Open Web UI",
       value: "web",
-      hint: `Opens http://localhost:${process.env.PORT || "3000"}`,
+      hint: `Opens http://localhost:${getPort()}`,
     },
     runningNow
       ? { label: "Stop Server", value: "stop" }
@@ -268,7 +380,7 @@ function requestExit(msg: string): void {
 }
 
 function handleAction(value: string) {
-  const port = process.env.PORT || "3000";
+  const port = getPort();
   switch (value) {
     case "web":
       openBrowser(port);
@@ -330,7 +442,7 @@ async function minimizeToTray() {
   resolveExit?.();
 }
 
-export function openBrowser(port: string) {
+export function openBrowser(port: number) {
   const url = `http://localhost:${port}`;
   const p = process.platform;
   if (p === "darwin") spawn(["open", url]);
@@ -338,8 +450,24 @@ export function openBrowser(port: string) {
   else spawn(["xdg-open", url]);
 }
 
+/** Quick health check — true if something responds on the given port. */
+async function isServerReachable(port: number): Promise<boolean> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await fetch(`http://localhost:${port}`, {
+        signal: AbortSignal.timeout(500),
+      });
+      return true; // any HTTP response means the server is up
+    } catch {
+      // not reachable yet
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
 async function waitForServer(timeoutMs: number): Promise<void> {
-  const port = process.env.PORT || "3000";
+  const port = getPort();
   const url = `http://localhost:${port}`;
   const start = Date.now();
 

@@ -1,10 +1,9 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "bun";
+import { getHome, getPort } from "../config";
 
-const KCGRouter_HOME =
-  process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+const KCGRouter_HOME = getHome();
 const PID_FILE = join(KCGRouter_HOME, "server.pid");
 const TRAY_PID_FILE = join(KCGRouter_HOME, "tray.pid");
 const LOG_FILE = join(KCGRouter_HOME, "server.log");
@@ -139,6 +138,19 @@ export function getProcessMemory(pid: number): number | null {
   }
 }
 
+/**
+ * Stop the running daemon and start a fresh one. Waits briefly first so the
+ * old process can release its socket (avoids EADDRINUSE on same-port restarts).
+ */
+export async function restartDaemon(
+  cwd: string,
+  waitMs = 400,
+): Promise<number | null> {
+  stopDaemon();
+  await new Promise((r) => setTimeout(r, waitMs));
+  return spawnDaemon(cwd);
+}
+
 export function stopDaemon() {
   if (!isRunning()) {
     console.log("\n  No server running\n");
@@ -166,6 +178,7 @@ export function stopDaemon() {
 export function showStatus() {
   if (isRunning()) {
     console.log(`\n  Server is running (PID: ${getPid()})`);
+    console.log(`  URL: http://localhost:${getPort()}`);
     console.log(`  Log file: ${LOG_FILE}\n`);
   } else {
     console.log("\n  Server is not running\n");

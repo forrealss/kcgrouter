@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { serve } from "bun";
+import { getServerPort } from "./config";
 import { runMigrations } from "./db/migrations";
 import index from "./index.html";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
@@ -61,7 +62,7 @@ function matchRoute(method: string, pathname: string) {
 }
 
 const server = serve({
-  port: Number(process.env.PORT) || 3000,
+  port: getServerPort(),
   idleTimeout: 0,
   routes: {
     "/v1/*": async (req) => {

@@ -1,4 +1,11 @@
-import { showStatus, startDaemon, stopDaemon } from "./daemon";
+import { getConfigPath, getPort, isValidPort, saveConfig } from "../config";
+import {
+  isRunning,
+  restartDaemon,
+  showStatus,
+  startDaemon,
+  stopDaemon,
+} from "./daemon";
 import { showMenu } from "./menu";
 import { initTray, isTraySupported } from "./tray";
 
@@ -7,6 +14,11 @@ export async function runCli(packageRoot: string) {
 
   if (args.includes("--help") || args.includes("-h")) {
     showHelp();
+    return;
+  }
+
+  if (args.includes("--port")) {
+    await setPortFlag(args, packageRoot);
     return;
   }
 
@@ -43,7 +55,7 @@ async function startTray(packageRoot: string) {
     process.exit(1);
   }
 
-  const port = Number(process.env.PORT) || 3000;
+  const port = getPort();
 
   // Start daemon if not running
   const { isRunning, spawnDaemon } = await import("./daemon");
@@ -88,6 +100,38 @@ async function startTray(packageRoot: string) {
   });
 }
 
+/** Persist a custom port to config.json via `kcgrouter --port <port>`. */
+async function setPortFlag(args: string[], packageRoot: string) {
+  const idx = args.indexOf("--port");
+  const raw = idx >= 0 ? args[idx + 1] : undefined;
+  const port = Number(raw);
+
+  if (!raw || !isValidPort(port)) {
+    console.log(
+      `\n  Invalid port: "${raw}". Use a number between 1 and 65535.\n`,
+    );
+    process.exit(1);
+  }
+
+  saveConfig({ port });
+  console.log(`\n  ✅ Port set to ${port}`);
+  console.log(`  Saved to ${getConfigPath()}`);
+
+  // Apply immediately: restart the daemon so it binds the new port.
+  if (isRunning()) {
+    console.log("  Restarting server to apply the new port...");
+    const pid = await restartDaemon(packageRoot);
+    console.log(
+      pid
+        ? `  Server restarted (PID: ${pid}) on port ${port}\n`
+        : "  Failed to restart server\n",
+    );
+  } else {
+    console.log("  Start the server (kcgrouter) to apply the new port.\n");
+  }
+  process.exit(0);
+}
+
 function showHelp() {
   console.log(`
   KCG Router — AI Proxy Gateway
@@ -100,6 +144,7 @@ function showHelp() {
     --tray, -t     Run in system tray
     --stop         Stop background process
     --status, -s   Check if running
+    --port <port>  Set a custom port (saved to ~/.kcgrouter/config.json)
     --help, -h     Show this help
   `);
 }

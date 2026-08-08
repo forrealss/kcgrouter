@@ -108,12 +108,9 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
           ) : activeModule === "token-saver" ? (
             <TokenSaverPage />
           ) : activeModule === "cli-tools" && cliToolDetailId ? (
-            <CLIToolDetailPage
-              toolId={cliToolDetailId}
-              onBack={() => navigate("/cli-tools")}
-            />
+            <CLIToolDetailPage toolId={cliToolDetailId} />
           ) : activeModule === "cli-tools" ? (
-            <CLIToolsListPage onSelect={(id) => navigate(`/cli-tools/${id}`)} />
+            <CLIToolsListPage />
           ) : activeModule === "settings" ? (
             <SettingsPage />
           ) : (

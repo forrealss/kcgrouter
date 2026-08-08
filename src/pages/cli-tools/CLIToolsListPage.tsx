@@ -1,158 +1,100 @@
-import { ChevronRightIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { RefreshCwIcon, TerminalIcon } from "lucide-react";
+import {
+  CLIToolCard,
+  CLIToolCardSkeleton,
+} from "@/components/cli-tools/CLIToolCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
+import { useCLITools } from "@/hooks/useCLITools";
+import { useRouter } from "@/hooks/useRouter";
 
-interface ToolEntry {
-  name: string;
-  icon: string;
-  description: string;
-  installed: boolean;
-  configured: boolean;
-}
-
-interface CLIToolsListProps {
-  onSelect: (toolId: string) => void;
-}
-
-const LOADING_SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
-
-export function CLIToolsListPage({ onSelect }: CLIToolsListProps) {
-  const [tools, setTools] = useState<Record<string, ToolEntry> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadTools = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.get<Record<string, ToolEntry>>(
-        "/api/cli-tools",
-        { signal },
-      );
-      setTools(data);
-    } catch (err) {
-      if (signal?.aborted) return;
-      setError(getApiErrorMessage(err));
-    } finally {
-      if (!signal?.aborted) setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    void loadTools(ctrl.signal);
-    return () => ctrl.abort();
-  }, [loadTools]);
-
-  if (isLoading) {
-    return (
-      <section className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">CLI Tools</h2>
-          <p className="text-sm text-muted-foreground">
-            Konfigurasi CLI tools untuk terhubung ke KCG Router.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {LOADING_SKELETON_KEYS.map((k) => (
-            <Card key={k}>
-              <CardContent className="flex items-center gap-3 py-5 px-4">
-                <div className="size-10 shrink-0 rounded-lg bg-muted animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-muted rounded w-24 animate-pulse" />
-                  <div className="h-3 bg-muted rounded w-32 animate-pulse" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">CLI Tools</h2>
-          <p className="text-sm text-muted-foreground">
-            Konfigurasi CLI tools untuk terhubung ke KCG Router.
-          </p>
-        </div>
-        <Alert variant="destructive">
-          <AlertTitle>Gagal memuat</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </section>
-    );
-  }
+export function CLIToolsListPage() {
+  const { tools, isLoading, error, refreshTools } = useCLITools();
+  const { navigate } = useRouter();
 
   const entries = tools ? Object.entries(tools) : [];
 
+  function handleToolClick(toolId: string) {
+    navigate(`/cli-tools/${toolId}`);
+  }
+
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">CLI Tools</h2>
-        <p className="text-sm text-muted-foreground">
-          Konfigurasi CLI tools untuk terhubung ke KCG Router.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {entries.map(([id, tool]) => (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold">CLI Tools</h2>
+          <p className="text-sm text-muted-foreground">
+            Konfigurasi CLI tools untuk terhubung ke KCG Router.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Button
-            key={id}
-            variant="ghost"
-            className="h-auto w-full justify-start rounded-lg border p-0"
-            onClick={() => onSelect(id)}
+            type="button"
+            variant="outline"
+            onClick={() => void refreshTools()}
+            disabled={isLoading}
           >
-            <Card className="h-full w-full border-0 shadow-none">
-              <CardContent className="flex items-center gap-3 py-5 px-4">
-                <div className="size-10 shrink-0 flex items-center justify-center rounded-lg bg-muted overflow-hidden">
-                  <img
-                    src={tool.icon}
-                    alt={tool.name}
-                    className="size-8 object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {tool.name}
-                    </span>
-                    {tool.configured ? (
-                      <Badge
-                        variant="secondary"
-                        className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 shrink-0"
-                      >
-                        Connected
-                      </Badge>
-                    ) : tool.installed ? (
-                      <Badge variant="outline" className="shrink-0">
-                        Not configured
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="shrink-0">
-                        Not installed
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {tool.description}
-                  </p>
-                </div>
-                <ChevronRightIcon className="size-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
+            {isLoading ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <RefreshCwIcon data-icon="inline-start" />
+            )}
+            Muat ulang
           </Button>
-        ))}
+        </div>
       </div>
+
+      {error ? (
+        <Alert variant="destructive">
+          <TerminalIcon />
+          <AlertTitle>CLI tools tidak dapat dimuat</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {tools === null ? (
+        isLoading ? (
+          <div
+            className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+            role="status"
+            aria-label="Memuat CLI tools"
+          >
+            <CLIToolCardSkeleton />
+            <CLIToolCardSkeleton />
+            <CLIToolCardSkeleton />
+          </div>
+        ) : null
+      ) : entries.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <TerminalIcon />
+            </EmptyMedia>
+            <EmptyTitle>Tidak ada CLI tool</EmptyTitle>
+            <EmptyDescription>
+              Belum ada CLI tool yang tersedia untuk dikonfigurasi.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {entries.map(([id, tool]) => (
+            <CLIToolCard
+              key={id}
+              tool={tool}
+              onClick={() => handleToolClick(id)}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

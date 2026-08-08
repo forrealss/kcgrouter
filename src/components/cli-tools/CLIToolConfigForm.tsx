@@ -175,25 +175,19 @@ export function CLIToolConfigForm({
           <div className="flex flex-col gap-1">
             <Label>Models</Label>
             <p className="text-sm text-muted-foreground">
-              {activeModel ? (
-                <>
-                  Active:{" "}
-                  <code className="font-mono text-xs">{activeModel}</code>
-                </>
-              ) : (
-                "Enabled models from all providers. Star one to set it active."
-              )}
+              Models this tool can use. Star one to set it as the default.
             </p>
           </div>
           <div className="flex flex-col gap-2">
             <MultiCombobox
-              className="w-full max-w-xl"
+              className="w-full"
               options={modelOptions}
               value={selectedModels}
               onValueChange={handleModelsChange}
               activeValue={activeModel}
               onActiveChange={setActiveModel}
               emptyLabel="No models selected"
+              emptyHint="Pick models from your enabled providers, then star one to make it the default."
               searchPlaceholder="Search models..."
               addLabel="Add model"
               dialogTitle="Select models"

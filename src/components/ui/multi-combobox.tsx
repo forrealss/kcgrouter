@@ -1,5 +1,6 @@
-import { CheckIcon, PlusIcon, Star, XIcon } from "lucide-react";
+import { BoxesIcon, CheckIcon, PlusIcon, Star, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +29,10 @@ interface MultiComboboxProps {
   /** Called when the user marks an item as active via the star toggle. */
   onActiveChange?: (value: string) => void;
   emptyLabel?: string;
+  /** Optional secondary line shown in the empty state. */
+  emptyHint?: string;
+  /** Label for the active item badge. */
+  activeLabel?: string;
   searchPlaceholder?: string;
   addLabel?: string;
   dialogTitle?: string;
@@ -51,6 +56,8 @@ export function MultiCombobox({
   activeValue,
   onActiveChange,
   emptyLabel = "Belum ada yang dipilih",
+  emptyHint,
+  activeLabel = "Active",
   searchPlaceholder = "Cari...",
   addLabel = "Tambah",
   dialogTitle,
@@ -113,70 +120,121 @@ export function MultiCombobox({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {value.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{emptyLabel}</span>
-        ) : (
-          value.map((val) => {
-            const option = optionByValue(val);
-            const isActive = val === activeValue;
-            return (
-              <span
-                key={val}
-                className={cn(
-                  "group inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                  isActive
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-secondary text-secondary-foreground",
-                )}
-              >
-                {onActiveChange ? (
-                  <button
-                    type="button"
-                    onClick={() => onActiveChange(val)}
-                    disabled={disabled}
-                    className="shrink-0 rounded-sm p-0.5 hover:bg-black/5 dark:hover:bg-white/10 disabled:pointer-events-none"
-                    aria-label={
-                      isActive ? `${val} aktif` : `Jadikan ${val} aktif`
-                    }
-                    title={isActive ? "Aktif" : "Jadikan aktif"}
-                  >
-                    <Star
-                      className={cn(
-                        "size-3",
-                        isActive
-                          ? "fill-primary text-primary"
-                          : "text-muted-foreground",
-                      )}
-                    />
-                  </button>
-                ) : null}
-                <span className="font-mono">{option?.label ?? val}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(val)}
-                  disabled={disabled}
-                  className="shrink-0 rounded-sm p-0.5 hover:bg-black/10 dark:hover:bg-white/10 disabled:pointer-events-none"
-                  aria-label={`Hapus ${val}`}
+      {value.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-8 text-center">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">{emptyLabel}</p>
+            {emptyHint ? (
+              <p className="text-xs text-muted-foreground">{emptyHint}</p>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setOpen(true)}
+          >
+            <PlusIcon data-icon="inline-start" />
+            {addLabel}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2">
+            {value.map((val) => {
+              const option = optionByValue(val);
+              const isActive = val === activeValue;
+              const groupIcon = option?.group
+                ? groupMeta?.[option.group]?.icon
+                : undefined;
+              return (
+                <div
+                  key={val}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border bg-background px-3 py-2 transition-colors",
+                    isActive
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border hover:border-muted-foreground/40",
+                  )}
                 >
-                  <XIcon className="size-3" />
-                </button>
-              </span>
-            );
-          })
-        )}
+                  {option?.group ? (
+                    <span
+                      className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-muted/50"
+                      aria-hidden
+                    >
+                      {groupIcon ? (
+                        <img
+                          src={groupIcon}
+                          alt=""
+                          className="size-4 object-contain"
+                        />
+                      ) : (
+                        <BoxesIcon className="size-3.5 text-muted-foreground" />
+                      )}
+                    </span>
+                  ) : null}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          onClick={() => setOpen(true)}
-        >
-          <PlusIcon data-icon="inline-start" />
-          {addLabel}
-        </Button>
-      </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {option?.description || option?.label || val}
+                    </p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {option?.value ?? val}
+                    </p>
+                  </div>
+
+                  {isActive ? (
+                    <Badge className="shrink-0 border-primary/30 bg-primary/10 font-normal text-primary">
+                      <Star className="fill-current" />
+                      {activeLabel}
+                    </Badge>
+                  ) : null}
+
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {onActiveChange && !isActive ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={disabled}
+                        onClick={() => onActiveChange(val)}
+                        aria-label={`Set ${val} as active`}
+                        title="Set as active"
+                      >
+                        <Star className="size-3.5 text-muted-foreground" />
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      disabled={disabled}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleRemove(val)}
+                      aria-label={`Hapus ${val}`}
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            disabled={disabled}
+            onClick={() => setOpen(true)}
+          >
+            <PlusIcon data-icon="inline-start" />
+            {addLabel}
+          </Button>
+        </>
+      )}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">

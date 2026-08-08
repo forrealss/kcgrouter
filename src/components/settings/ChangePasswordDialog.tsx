@@ -1,15 +1,16 @@
-import { CheckCircle2Icon, SaveIcon } from "lucide-react";
+import { SaveIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Field,
   FieldError,
@@ -34,20 +35,26 @@ const initialValues: PasswordValues = {
   confirmPassword: "",
 };
 
-function ChangePasswordForm() {
+interface ChangePasswordDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+}: ChangePasswordDialogProps) {
   const [values, setValues] = useState<PasswordValues>(initialValues);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<PasswordField, string>>
   >({});
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
 
   function updateValue(field: PasswordField, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setRequestError(null);
-    setIsSuccess(false);
   }
 
   function validate(): Partial<Record<PasswordField, string>> {
@@ -68,6 +75,18 @@ function ChangePasswordForm() {
     return nextErrors;
   }
 
+  function resetState() {
+    setValues(initialValues);
+    setFieldErrors({});
+    setRequestError(null);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (isSubmitting) return;
+    onOpenChange(nextOpen);
+    if (!nextOpen) resetState();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -79,7 +98,6 @@ function ChangePasswordForm() {
 
     setFieldErrors({});
     setRequestError(null);
-    setIsSuccess(false);
     setIsSubmitting(true);
 
     try {
@@ -87,8 +105,9 @@ function ChangePasswordForm() {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       });
-      setValues(initialValues);
-      setIsSuccess(true);
+      toast.success("Password diperbarui");
+      onOpenChange(false);
+      resetState();
     } catch (error) {
       setRequestError(getApiErrorMessage(error));
     } finally {
@@ -97,15 +116,15 @@ function ChangePasswordForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Ganti password</CardTitle>
-        <CardDescription>
-          Perbarui password yang digunakan untuk masuk ke dashboard.
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ganti password</DialogTitle>
+          <DialogDescription>
+            Perbarui password yang digunakan untuk masuk ke dashboard.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={Boolean(fieldErrors.currentPassword)}>
               <FieldLabel htmlFor="current-password">
@@ -121,6 +140,7 @@ function ChangePasswordForm() {
                 }
                 disabled={isSubmitting}
                 aria-invalid={Boolean(fieldErrors.currentPassword)}
+                autoFocus
                 required
               />
               <FieldError>{fieldErrors.currentPassword}</FieldError>
@@ -167,31 +187,30 @@ function ChangePasswordForm() {
                 <AlertDescription>{requestError}</AlertDescription>
               </Alert>
             ) : null}
-            {isSuccess ? (
-              <Alert>
-                <CheckCircle2Icon />
-                <AlertTitle>Password diperbarui</AlertTitle>
-                <AlertDescription>
-                  Gunakan password baru pada sesi login berikutnya.
-                </AlertDescription>
-              </Alert>
-            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={isSubmitting}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <SaveIcon data-icon="inline-start" />
+                )}
+                Simpan password
+              </Button>
+            </DialogFooter>
           </FieldGroup>
-        </CardContent>
-        <CardFooter className="justify-end border-t">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <SaveIcon data-icon="inline-start" />
-            )}
-            Simpan password
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-export { ChangePasswordForm };
-export default ChangePasswordForm;
+export { ChangePasswordDialog };
+export default ChangePasswordDialog;

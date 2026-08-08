@@ -7,6 +7,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -19,7 +20,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -66,9 +66,9 @@ import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 type ApiKey = {
   id: string;
   label: string;
+  has_key: boolean;
   created_at: string;
   last_used_at: string | null;
-  revoked_at: string | null;
 };
 
 type CreatedApiKey = {
@@ -98,6 +98,8 @@ function ApiKeyManager() {
   const [labelError, setLabelError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
+  const [copyingKeyId, setCopyingKeyId] = useState<string | null>(null);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [plaintextKey, setPlaintextKey] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
     "idle",
@@ -186,6 +188,26 @@ function ApiKeyManager() {
     }
   }
 
+  async function handleCopyKey(key: ApiKey) {
+    setCopyingKeyId(key.id);
+
+    try {
+      const res = await apiClient.get<{ key: string }>(
+        `/api/settings/api-keys/${encodeURIComponent(key.id)}/key`,
+      );
+      await navigator.clipboard.writeText(res.key);
+      setCopiedKeyId(key.id);
+      toast.success(`API key "${key.label}" disalin ke clipboard`);
+      setTimeout(() => {
+        setCopiedKeyId((current) => (current === key.id ? null : current));
+      }, 2000);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setCopyingKeyId(null);
+    }
+  }
+
   async function copyPlaintextKey() {
     if (!plaintextKey) return;
 
@@ -206,7 +228,15 @@ function ApiKeyManager() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Akses API</CardTitle>
+          <CardTitle className="flex items-center gap-3">
+            <span
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60"
+              aria-hidden
+            >
+              <KeyRoundIcon className="size-4 text-muted-foreground" />
+            </span>
+            Akses API
+          </CardTitle>
           <CardDescription>
             Kelola App API Key untuk mengautentikasi CLI ke endpoint router.
           </CardDescription>
@@ -252,31 +282,43 @@ function ApiKeyManager() {
                   <TableHead>Label</TableHead>
                   <TableHead>Dibuat</TableHead>
                   <TableHead>Terakhir digunakan</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {keys.map((key) => {
-                  const isRevoked = Boolean(key.revoked_at);
                   const isRevoking = revokingKeyId === key.id;
+                  const isCopying = copyingKeyId === key.id;
+                  const isCopied = copiedKeyId === key.id;
 
                   return (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">{key.label}</TableCell>
                       <TableCell>{formatDate(key.created_at)}</TableCell>
                       <TableCell>{formatDate(key.last_used_at)}</TableCell>
-                      <TableCell>
-                        <Badge variant={isRevoked ? "secondary" : "default"}>
-                          {isRevoked ? "Dicabut" : "Aktif"}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="text-right">
-                        {isRevoked ? (
-                          <span className="text-sm text-muted-foreground">
-                            —
-                          </span>
-                        ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void handleCopyKey(key)}
+                            disabled={isCopying || !key.has_key}
+                            aria-label={`Salin API key ${key.label}`}
+                            title={
+                              key.has_key
+                                ? "Salin key"
+                                : "Key ini dibuat sebelum enkripsi diaktifkan"
+                            }
+                          >
+                            {isCopying ? (
+                              <Spinner />
+                            ) : isCopied ? (
+                              <CheckIcon className="text-green-600 dark:text-green-400" />
+                            ) : (
+                              <CopyIcon />
+                            )}
+                          </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -299,8 +341,9 @@ function ApiKeyManager() {
                                   Cabut API key {key.label}?
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  CLI yang masih memakai key ini tidak akan
-                                  dapat mengakses endpoint router lagi.
+                                  Key akan dihapus permanen. CLI yang masih
+                                  memakai key ini tidak akan dapat mengakses
+                                  endpoint router lagi.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -320,7 +363,7 @@ function ApiKeyManager() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -342,7 +385,8 @@ function ApiKeyManager() {
           )}
         </CardContent>
         <CardFooter className="border-t text-sm text-muted-foreground">
-          API key plaintext hanya ditampilkan sekali setelah dibuat.
+          Plaintext API key disimpan terenkripsi dan dapat disalin kembali kapan
+          saja.
         </CardFooter>
       </Card>
 
@@ -406,8 +450,8 @@ function ApiKeyManager() {
           <DialogHeader>
             <DialogTitle>Simpan API key Anda</DialogTitle>
             <DialogDescription>
-              Nilai ini hanya dapat dilihat sekarang. Salin dan simpan di tempat
-              aman sebelum menutup dialog.
+              Salin dan simpan di tempat aman. Key juga dapat disalin kembali
+              dari tabel kapan saja.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>

@@ -50,12 +50,14 @@ export async function setPasswordHash(hash: string): Promise<void> {
   );
 }
 
-export async function getTheme(): Promise<"light" | "dark"> {
+export async function getTheme(): Promise<"light" | "dark" | "system"> {
   const settings = getSettings();
   return settings.theme;
 }
 
-export async function setTheme(theme: "light" | "dark"): Promise<void> {
+export async function setTheme(
+  theme: "light" | "dark" | "system",
+): Promise<void> {
   run(
     "UPDATE app_settings SET theme = ?, updated_at = ? WHERE id = 1",
     theme,
@@ -157,7 +159,6 @@ export interface ApiKeyPublic {
   has_key: boolean;
   created_at: string;
   last_used_at: string | null;
-  revoked_at: string | null;
 }
 
 export async function createApiKey(
@@ -186,18 +187,13 @@ export async function createApiKey(
 export async function revokeApiKey(id: string): Promise<void> {
   const row = get<ApiKeyRow>("SELECT * FROM api_keys WHERE id = ?", id);
   if (!row) throw new Error("API key not found");
-  if (row.revoked_at) throw new Error("API key already revoked");
 
-  run(
-    "UPDATE api_keys SET revoked_at = ? WHERE id = ?",
-    new Date().toISOString(),
-    id,
-  );
+  run("DELETE FROM api_keys WHERE id = ?", id);
 }
 
 export async function listApiKeys(): Promise<ApiKeyPublic[]> {
   const rows = query<ApiKeyRow>(
-    "SELECT id, label, key_enc, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC",
+    "SELECT id, label, key_enc, created_at, last_used_at FROM api_keys ORDER BY created_at DESC",
   );
   return rows.map((r) => ({
     id: r.id,
@@ -205,16 +201,13 @@ export async function listApiKeys(): Promise<ApiKeyPublic[]> {
     has_key: !!r.key_enc,
     created_at: r.created_at,
     last_used_at: r.last_used_at,
-    revoked_at: r.revoked_at,
   }));
 }
 
 export async function verifyApiKey(
   plaintext: string,
 ): Promise<ApiKeyRow | null> {
-  const rows = query<ApiKeyRow>(
-    "SELECT * FROM api_keys WHERE revoked_at IS NULL",
-  );
+  const rows = query<ApiKeyRow>("SELECT * FROM api_keys");
   for (const row of rows) {
     const valid = await verifyApiKeyHash(plaintext, row.key_hash);
     if (valid) {

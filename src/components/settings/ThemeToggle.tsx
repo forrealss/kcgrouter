@@ -1,33 +1,29 @@
-import { MoonIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
+import { ThemePicker } from "@/components/ui/theme-picker";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-
-type Theme = "light" | "dark";
+import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
 
 type ThemeResponse = { theme: Theme };
 
-function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
+function themeDescription(theme: Theme): string {
+  switch (theme) {
+    case "dark":
+      return "Tema gelap sedang digunakan.";
+    case "system":
+      return "Mengikuti preferensi tema perangkat.";
+    default:
+      return "Tema terang sedang digunakan.";
+  }
 }
 
 function ThemeToggle() {
@@ -68,6 +64,11 @@ function ThemeToggle() {
     return () => controller.abort();
   }, [loadTheme]);
 
+  useEffect(() => {
+    if (theme !== "system") return;
+    return onSystemThemeChange(() => applyTheme("system"));
+  }, [theme]);
+
   async function updateTheme(nextTheme: Theme) {
     if (!theme || isSaving || nextTheme === theme) return;
 
@@ -97,75 +98,56 @@ function ThemeToggle() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tampilan</CardTitle>
-        <CardDescription>
-          Pilih tema dashboard yang nyaman untuk digunakan.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner />
-            Memuat preferensi tema...
-          </div>
-        ) : theme ? (
-          <FieldGroup>
-            <Field
-              orientation="horizontal"
-              data-disabled={isSaving || undefined}
+    <div className="flex flex-col gap-3">
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner />
+          Memuat preferensi tema...
+        </div>
+      ) : theme ? (
+        <Field orientation="horizontal" data-disabled={isSaving || undefined}>
+          <FieldContent>
+            <FieldLabel className="items-center gap-2">
+              {theme === "dark" ? (
+                <MoonIcon className="size-4 text-muted-foreground" />
+              ) : theme === "system" ? (
+                <MonitorIcon className="size-4 text-muted-foreground" />
+              ) : (
+                <SunIcon className="size-4 text-muted-foreground" />
+              )}
+              Tema
+            </FieldLabel>
+            <FieldDescription>
+              {themeDescription(theme)} Preferensi disimpan pada perangkat ini.
+            </FieldDescription>
+          </FieldContent>
+          <ThemePicker
+            value={theme}
+            onChange={(nextTheme) => void updateTheme(nextTheme)}
+            disabled={isSaving}
+          />
+        </Field>
+      ) : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Preferensi tema tidak dapat diperbarui</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <p>{error}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadTheme()}
+              disabled={isSaving}
             >
-              <FieldContent>
-                <FieldLabel htmlFor="theme-toggle">Tema gelap</FieldLabel>
-                <FieldDescription>
-                  {theme === "dark"
-                    ? "Tema gelap sedang digunakan."
-                    : "Tema terang sedang digunakan."}
-                </FieldDescription>
-              </FieldContent>
-              <Switch
-                id="theme-toggle"
-                checked={theme === "dark"}
-                disabled={isSaving}
-                onCheckedChange={(checked) =>
-                  void updateTheme(checked ? "dark" : "light")
-                }
-              />
-            </Field>
-          </FieldGroup>
-        ) : null}
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTitle>Preferensi tema tidak dapat diperbarui</AlertTitle>
-            <AlertDescription className="flex flex-col gap-3">
-              <p>{error}</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void loadTheme()}
-                disabled={isSaving}
-              >
-                Coba lagi
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-      <CardFooter className="justify-between border-t">
-        <span className="flex items-center gap-2 text-sm text-muted-foreground">
-          {theme === "dark" ? <MoonIcon /> : <SunIcon />}
-          Tema disimpan pada perangkat ini
-        </span>
-        <Badge variant={theme === "dark" ? "secondary" : "outline"}>
-          {isSaving ? <Spinner data-icon="inline-start" /> : null}
-          {theme === "dark" ? "Dark" : "Light"}
-        </Badge>
-      </CardFooter>
-    </Card>
+              Coba lagi
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
   );
 }
 
-export { applyTheme, ThemeToggle };
+export { ThemeToggle };
 export default ThemeToggle;

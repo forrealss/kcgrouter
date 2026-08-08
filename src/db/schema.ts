@@ -1,7 +1,7 @@
 export interface AppSettingsRow {
   id: 1;
   password_hash: string;
-  theme: "light" | "dark";
+  theme: "light" | "dark" | "system";
   token_saver_default_enabled: 0 | 1;
   caveman_enabled: 0 | 1;
   caveman_level: string;

@@ -4,6 +4,7 @@ import {
   apiClient,
   getApiErrorMessage,
 } from "@/lib/api-client";
+import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
 
 export type SessionStatus =
   | "loading"
@@ -12,7 +13,7 @@ export type SessionStatus =
   | "error";
 
 type LoginResponse = { ok: true };
-type ThemeResponse = { theme: "light" | "dark" };
+type ThemeResponse = { theme: Theme };
 
 export function useSession() {
   const [status, setStatus] = useState<SessionStatus>("loading");
@@ -21,7 +22,10 @@ export function useSession() {
 
   useEffect(() => {
     if (!theme) return;
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    applyTheme(theme);
+    if (theme === "system") {
+      return onSystemThemeChange(() => applyTheme("system"));
+    }
   }, [theme]);
 
   const refresh = useCallback(async () => {

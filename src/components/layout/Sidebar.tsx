@@ -7,9 +7,7 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   type LucideIcon,
-  MoonIcon,
   SlidersHorizontalIcon,
-  SunIcon,
   TerminalIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -26,7 +24,9 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { ThemePicker } from "@/components/ui/theme-picker";
 import { apiClient } from "@/lib/api-client";
+import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
 
 export type AppModule =
   | "dashboard"
@@ -135,38 +135,51 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isDark, setIsDark] = useState(() =>
-    document.documentElement.classList.contains("dark"),
-  );
+  const [theme, setTheme] = useState<Theme | null>(null);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
+    let stopWatching: (() => void) | undefined;
     apiClient
-      .get<{ theme: "light" | "dark" }>("/api/settings/theme", {
+      .get<{ theme: Theme }>("/api/settings/theme", {
         signal: controller.signal,
       })
       .then((data) => {
-        const dark = data.theme === "dark";
-        setIsDark(dark);
-        document.documentElement.classList.toggle("dark", dark);
+        applyTheme(data.theme);
+        setTheme(data.theme);
+        if (data.theme === "system") {
+          stopWatching = onSystemThemeChange(() => applyTheme("system"));
+        }
       })
       .catch(() => {});
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      stopWatching?.();
+    };
   }, []);
 
-  const toggleTheme = useCallback(async () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    try {
-      await apiClient.patch<{ ok: true }>("/api/settings/theme", {
-        theme: next ? "dark" : "light",
-      });
-    } catch {
-      setIsDark(!next);
-      document.documentElement.classList.toggle("dark", !next);
-    }
-  }, [isDark]);
+  const changeTheme = useCallback(
+    async (nextTheme: Theme) => {
+      if (!theme || isSavingTheme || nextTheme === theme) return;
+
+      const previousTheme = theme;
+      setTheme(nextTheme);
+      applyTheme(nextTheme);
+      setIsSavingTheme(true);
+      try {
+        await apiClient.patch<{ ok: true }>("/api/settings/theme", {
+          theme: nextTheme,
+        });
+      } catch {
+        setTheme(previousTheme);
+        applyTheme(previousTheme);
+      } finally {
+        setIsSavingTheme(false);
+      }
+    },
+    [theme, isSavingTheme],
+  );
 
   function handleNav(path: string, e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
@@ -236,31 +249,14 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent transition-colors">
-              <MoonIcon className="size-4 shrink-0 text-sidebar-foreground/60" />
-              <span className="flex-1 text-sm">Mode Gelap</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isDark}
-                onClick={toggleTheme}
-                className={`
-                  peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
-                  border border-transparent transition-colors duration-200
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                  disabled:cursor-not-allowed disabled:opacity-50
-                  ${isDark ? "bg-sidebar-primary" : "bg-sidebar-accent"}
-                `}
-              >
-                <span
-                  className={`
-                    pointer-events-none block h-4 w-4 rounded-full bg-background shadow-sm ring-0
-                    transition-transform duration-200
-                    ${isDark ? "translate-x-4" : "translate-x-0"}
-                  `}
-                />
-              </button>
-              <SunIcon className="size-4 shrink-0 text-sidebar-foreground/60" />
+            <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
+              <span className="text-sm text-sidebar-foreground/80">Tema</span>
+              <ThemePicker
+                size="sm"
+                value={theme}
+                onChange={(nextTheme) => void changeTheme(nextTheme)}
+                disabled={theme === null || isSavingTheme}
+              />
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>

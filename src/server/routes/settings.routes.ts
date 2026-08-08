@@ -10,13 +10,13 @@ export const settingsRoutes: Record<string, RouteHandler> = {
 
   "PATCH /api/settings/theme": async (req) => {
     const body = (await req.json()) as { theme?: string };
-    if (!body.theme || !["light", "dark"].includes(body.theme)) {
+    if (!body.theme || !["light", "dark", "system"].includes(body.theme)) {
       return Response.json(
-        { error: "theme must be 'light' or 'dark'" },
+        { error: "theme must be 'light', 'dark', or 'system'" },
         { status: 400 },
       );
     }
-    await SettingsService.setTheme(body.theme as "light" | "dark");
+    await SettingsService.setTheme(body.theme as "light" | "dark" | "system");
     return Response.json({ ok: true });
   },
 

@@ -1,6 +1,5 @@
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
-import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
-import { ThemeToggle } from "@/components/settings/ThemeToggle";
+import { PreferencesCard } from "@/components/settings/PreferencesCard";
 
 export function SettingsPage() {
   return (
@@ -11,10 +10,7 @@ export function SettingsPage() {
           Kelola keamanan dashboard, preferensi tampilan, dan akses router.
         </p>
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <ChangePasswordForm />
-        <ThemeToggle />
-      </div>
+      <PreferencesCard />
       <ApiKeyManager />
     </section>
   );

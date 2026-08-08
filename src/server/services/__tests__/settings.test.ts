@@ -60,6 +60,12 @@ describe("SettingsService", () => {
       expect(theme).toBe("light");
     });
 
+    test("setTheme/getTheme round-trip for 'system'", async () => {
+      await setTheme("system");
+      const theme = await getTheme();
+      expect(theme).toBe("system");
+    });
+
     test("Property 37c: theme persists across multiple reads", async () => {
       await setTheme("dark");
       expect(await getTheme()).toBe("dark");
@@ -183,10 +189,19 @@ describe("SettingsService", () => {
       );
     });
 
-    test("revokeApiKey throws on already revoked key", async () => {
+    test("revokeApiKey removes the key from the database", async () => {
+      const { id } = await createApiKey("hard-delete-test");
+      await revokeApiKey(id);
+
+      const keys = await listApiKeys();
+      expect(keys.find((k) => k.id === id)).toBeUndefined();
+      expect(get("SELECT * FROM api_keys WHERE id = ?", id)).toBeFalsy();
+    });
+
+    test("revokeApiKey twice throws not found", async () => {
       const { id } = await createApiKey("double-revoke");
       await revokeApiKey(id);
-      await expect(revokeApiKey(id)).rejects.toThrow("API key already revoked");
+      await expect(revokeApiKey(id)).rejects.toThrow("API key not found");
     });
 
     test("Property 44c: multiple keys are unique", async () => {

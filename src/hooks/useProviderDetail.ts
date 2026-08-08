@@ -6,7 +6,12 @@ import type {
   ProviderModel,
 } from "@/types/provider";
 
-export type TestStatus = "ok" | "error" | null;
+export interface TestStatus {
+  status: "ok" | "error";
+  message?: string;
+}
+
+export type TestStatusValue = TestStatus | null;
 
 export function useProviderDetail(providerId: string) {
   const [provider, setProvider] = useState<Provider | null>(null);
@@ -19,11 +24,11 @@ export function useProviderDetail(providerId: string) {
   );
   const [testingAccountId, setTestingAccountId] = useState<string | null>(null);
   const [accountTestStatus, setAccountTestStatus] = useState<
-    Record<string, TestStatus>
+    Record<string, TestStatusValue>
   >({});
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
   const [modelTestStatus, setModelTestStatus] = useState<
-    Record<string, TestStatus>
+    Record<string, TestStatusValue>
   >({});
 
   const loadData = useCallback(async () => {
@@ -86,13 +91,52 @@ export function useProviderDetail(providerId: string) {
       const result = await apiClient.post<{
         status: "ok" | "error";
         latencyMs: number;
+        error?: string;
       }>(`/api/providers/accounts/${encodeURIComponent(account.id)}/test`);
       setAccountTestStatus((prev) => ({
         ...prev,
-        [account.id]: result.status,
+        [account.id]:
+          result.status === "ok"
+            ? { status: "ok" }
+            : {
+                status: "error",
+                message: result.error ?? "Test connection failed",
+              },
       }));
-    } catch {
-      setAccountTestStatus((prev) => ({ ...prev, [account.id]: "error" }));
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === account.id
+            ? {
+                ...a,
+                status: result.status === "ok" ? "active" : "error",
+                lastError:
+                  result.status === "ok"
+                    ? null
+                    : result.error ?? "Test connection failed",
+                lastErrorAt:
+                  result.status === "ok" ? null : new Date().toISOString(),
+              }
+            : a,
+        ),
+      );
+    } catch (err) {
+      const message = getApiErrorMessage(err);
+      setAccountTestStatus((prev) => ({
+        ...prev,
+        [account.id]: { status: "error", message },
+      }));
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === account.id
+            ? {
+                ...a,
+                status: "error",
+                lastError: message,
+                lastErrorAt: new Date().toISOString(),
+              }
+            : a,
+        ),
+      );
     } finally {
       setTestingAccountId(null);
     }
@@ -144,15 +188,54 @@ export function useProviderDetail(providerId: string) {
       const result = await apiClient.post<{
         status: "ok" | "error";
         latencyMs: number;
+        error?: string;
       }>(`/api/providers/models/${encodeURIComponent(model.modelId)}/test`, {
         accountId,
       });
       setModelTestStatus((prev) => ({
         ...prev,
-        [model.id]: result.status,
+        [model.id]:
+          result.status === "ok"
+            ? { status: "ok" }
+            : {
+                status: "error",
+                message: result.error ?? "Test model failed",
+              },
       }));
-    } catch {
-      setModelTestStatus((prev) => ({ ...prev, [model.id]: "error" }));
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === accountId
+            ? {
+                ...a,
+                status: result.status === "ok" ? "active" : "error",
+                lastError:
+                  result.status === "ok"
+                    ? null
+                    : result.error ?? "Test model failed",
+                lastErrorAt:
+                  result.status === "ok" ? null : new Date().toISOString(),
+              }
+            : a,
+        ),
+      );
+    } catch (err) {
+      const message = getApiErrorMessage(err);
+      setModelTestStatus((prev) => ({
+        ...prev,
+        [model.id]: { status: "error", message },
+      }));
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === accountId
+            ? {
+                ...a,
+                status: "error",
+                lastError: message,
+                lastErrorAt: new Date().toISOString(),
+              }
+            : a,
+        ),
+      );
     } finally {
       setTestingModelId(null);
     }

@@ -28,6 +28,8 @@ export interface ProviderAccount {
   quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
   createdAt: string;
 }
 

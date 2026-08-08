@@ -1,4 +1,5 @@
 import * as ComboEngine from "../services/combo-engine.service";
+import * as RequestLog from "../services/request-log.service";
 import type { RouteHandler } from "./types";
 
 export const combosRoutes: Record<string, RouteHandler> = {
@@ -21,6 +22,17 @@ export const combosRoutes: Record<string, RouteHandler> = {
         body.name,
         body.strategy as "fallback" | "round_robin",
       );
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: combo.id,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Combo "${combo.name}" created`,
+        latencyMs: null,
+      });
       return Response.json(combo, { status: 201 });
     } catch (err) {
       return Response.json(
@@ -31,8 +43,23 @@ export const combosRoutes: Record<string, RouteHandler> = {
   },
 
   "DELETE /api/combos/:id": (_req, params) => {
+    const comboId = params?.id ?? "";
+    const existing = ComboEngine.getCombo(comboId);
     try {
-      ComboEngine.deleteCombo(params?.id ?? "");
+      ComboEngine.deleteCombo(comboId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: existing
+          ? `Combo "${existing.name}" deleted`
+          : `Combo with ID "${comboId}" deleted`,
+        latencyMs: null,
+      });
       return Response.json({ ok: true });
     } catch (err) {
       return Response.json(
@@ -67,12 +94,24 @@ export const combosRoutes: Record<string, RouteHandler> = {
     }
 
     try {
+      const combo = ComboEngine.getCombo(params?.id ?? "");
       const member = ComboEngine.addMember(params?.id ?? "", {
         providerAccountId: body.providerAccountId,
         modelName: body.modelName,
         priority: body.priority,
         inputCostPer1M: body.inputCostPer1M,
         outputCostPer1M: body.outputCostPer1M,
+      });
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: member.providerAccountId,
+        comboId: combo?.id ?? member.comboId,
+        model: member.modelName,
+        sourceFormat: null,
+        stream: false,
+        message: `Member "${member.modelName}" added to combo "${combo?.name ?? member.comboId}"`,
+        latencyMs: null,
       });
       return Response.json(member, { status: 201 });
     } catch (err) {
@@ -93,7 +132,21 @@ export const combosRoutes: Record<string, RouteHandler> = {
     }
 
     try {
+      const combo = ComboEngine.getCombo(params?.id ?? "");
       ComboEngine.reorderMembers(params?.id ?? "", body.orderedMemberIds);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: params?.id ?? null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: combo
+          ? `Member order of combo "${combo.name}" changed`
+          : `Combo members reordered`,
+        latencyMs: null,
+      });
       return Response.json({ ok: true });
     } catch (err) {
       return Response.json(

@@ -9,6 +9,7 @@ import * as m007 from "./migrations/007_add_mimo_provider";
 import * as m008 from "./migrations/008_add_caveman_ponytail";
 import * as m009 from "./migrations/009_add_api_key_enc";
 import * as m010 from "./migrations/010_purge_revoked_api_keys";
+import * as m011 from "./migrations/011_add_request_logs_and_last_error";
 import * as s001 from "./seeders/001_seed_builtin_providers";
 import * as s002 from "./seeders/002_seed_default_app_settings";
 import * as s003 from "./seeders/003_seed_provider_models";
@@ -39,6 +40,7 @@ const migrations: MigrationModule[] = [
   m008,
   m009,
   m010,
+  m011,
 ].sort((a, b) => a.id - b.id);
 
 const seeders: SeederModule[] = [s001, s002, s003, s004];

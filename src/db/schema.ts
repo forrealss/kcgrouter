@@ -46,6 +46,8 @@ export interface ProviderAccountRow {
   quota_reset_type: "5h" | "daily" | "weekly" | "none";
   quota_limit_tokens: number | null;
   last_used_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
   created_at: string;
 }
 
@@ -74,6 +76,23 @@ export interface ComboMemberRow {
   priority: number;
   input_cost_per_1m: number | null;
   output_cost_per_1m: number | null;
+}
+
+export type RequestLogType = "request" | "success" | "error" | "admin";
+export type RequestLogSource = "router" | "test" | "admin";
+
+export interface RequestLogRow {
+  id: string;
+  timestamp: string;
+  type: RequestLogType;
+  source: RequestLogSource;
+  provider_account_id: string | null;
+  combo_id: string | null;
+  model: string | null;
+  source_format: string | null;
+  stream: number;
+  message: string | null;
+  latency_ms: number | null;
 }
 
 export interface UsageRecordRow {

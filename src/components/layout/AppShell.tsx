@@ -28,6 +28,7 @@ import { CLIToolDetailPage } from "@/pages/cli-tools/CLIToolDetailPage";
 import { CLIToolsListPage } from "@/pages/cli-tools/CLIToolsListPage";
 import { CombosPage } from "@/pages/combos/CombosPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import { LogsPage } from "@/pages/logs/LogsPage";
 import { ProviderDetailPage } from "@/pages/providers/ProviderDetailPage";
 import { ProvidersPage } from "@/pages/providers/ProvidersPage";
 import { QuotaPage } from "@/pages/quota/QuotaPage";
@@ -104,6 +105,8 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
             <CombosPage />
           ) : activeModule === "usage" ? (
             <UsagePage />
+          ) : activeModule === "logs" ? (
+            <LogsPage />
           ) : activeModule === "quota" ? (
             <QuotaPage />
           ) : activeModule === "token-saver" ? (

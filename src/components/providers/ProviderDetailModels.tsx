@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type { TestStatus } from "@/hooks/useProviderDetail";
+import type { TestStatusValue } from "@/hooks/useProviderDetail";
 import type {
   Provider,
   ProviderAccount,
@@ -32,7 +32,7 @@ interface ProviderDetailModelsProps {
   models: ProviderModel[];
   accounts: ProviderAccount[];
   testingModelId: string | null;
-  modelTestStatus: Record<string, TestStatus>;
+  modelTestStatus: Record<string, TestStatusValue>;
   onToggleModel: (model: ProviderModel) => void;
   onAddModel: (modelId: string, modelName: string) => void;
   onDeleteModel: (modelId: string) => void;
@@ -98,18 +98,18 @@ export function ProviderDetailModels({
           onClick={() => handleTestModel(model)}
           disabled={isDisabled}
           title={
-            testStatus === "ok"
+            testStatus?.status === "ok"
               ? "OK"
-              : testStatus === "error"
-                ? "Error"
+              : testStatus?.status === "error"
+                ? testStatus.message ?? "Error"
                 : "Test model"
           }
         >
           {isTesting ? (
             <Spinner className="size-4" />
-          ) : testStatus === "ok" ? (
+          ) : testStatus?.status === "ok" ? (
             <CheckCircleIcon className="size-4 text-green-500" />
-          ) : testStatus === "error" ? (
+          ) : testStatus?.status === "error" ? (
             <XCircleIcon className="size-4 text-red-500" />
           ) : (
             <FlaskConicalIcon className="size-4" />

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { get, query, run } from "../../db/client";
 import type {
+  AccountStatus,
   ProviderAccountRow,
   ProviderRow,
   ProviderTransport,
@@ -51,6 +52,8 @@ export interface ProviderAccount {
   quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
   createdAt: string;
 }
 
@@ -80,6 +83,8 @@ function rowToAccount(row: ProviderAccountRow): ProviderAccount {
     quotaResetType: row.quota_reset_type,
     quotaLimitTokens: row.quota_limit_tokens,
     lastUsedAt: row.last_used_at,
+    lastError: row.last_error,
+    lastErrorAt: row.last_error_at,
     createdAt: row.created_at,
   };
 }
@@ -268,6 +273,8 @@ export function addAccount(
     quotaResetType: resetType,
     quotaLimitTokens: input.quotaLimitTokens ?? null,
     lastUsedAt: null,
+    lastError: null,
+    lastErrorAt: null,
     createdAt: now,
   };
 }
@@ -297,6 +304,10 @@ export function updateAccount(
       throw new Error("API key cannot be empty");
     updates.push("credential_enc = ?");
     values.push(encrypt(patch.apiKey));
+    // A fresh credential should clear any previous upstream error state.
+    updates.push("status = 'active'");
+    updates.push("last_error = NULL");
+    updates.push("last_error_at = NULL");
   }
 
   if (patch.quotaResetType !== undefined) {
@@ -363,6 +374,25 @@ export function listAccounts(providerId: string): ProviderAccount[] {
     providerId,
   );
   return rows.map(rowToAccount);
+}
+
+export function recordAccountError(accountId: string, message: string): void {
+  const now = new Date().toISOString();
+  run(
+    "UPDATE provider_accounts SET status = 'error', last_error = ?, last_error_at = ? WHERE id = ?",
+    message,
+    now,
+    accountId,
+  );
+}
+
+export function recordAccountSuccess(accountId: string): void {
+  const now = new Date().toISOString();
+  run(
+    "UPDATE provider_accounts SET status = 'active', last_error = NULL, last_error_at = NULL, last_used_at = ? WHERE id = ?",
+    now,
+    accountId,
+  );
 }
 
 export function getDecryptedCredential(accountId: string): { apiKey: string } {

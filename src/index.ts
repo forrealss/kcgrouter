@@ -10,6 +10,7 @@ import { authRoutes } from "./server/routes/auth.routes";
 import { cliToolsRoutes } from "./server/routes/cli-tools.routes";
 import { combosRoutes } from "./server/routes/combos.routes";
 import { eventsRoutes } from "./server/routes/events.routes";
+import { logsRoutes } from "./server/routes/logs.routes";
 import { matchRoute as resolveRoute } from "./server/routes/match-route";
 import { providersRoutes } from "./server/routes/providers.routes";
 import { quotaRoutes } from "./server/routes/quota.routes";
@@ -50,6 +51,7 @@ const apiRoutes: Record<string, RouteHandler> = {
   ...cliToolsRoutes,
   ...providersRoutes,
   ...combosRoutes,
+  ...logsRoutes,
   ...usageRoutes,
   ...quotaRoutes,
   ...settingsRoutes,
@@ -143,6 +145,7 @@ const server = serve({
     "/combos": index,
     "/combos/*": index,
     "/usage": index,
+    "/logs": index,
     "/quota": index,
     "/token-saver": index,
     "/cli-tools": index,

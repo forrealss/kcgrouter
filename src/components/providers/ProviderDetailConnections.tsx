@@ -29,7 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import type { TestStatus } from "@/hooks/useProviderDetail";
+import type { TestStatusValue } from "@/hooks/useProviderDetail";
 import { cn } from "@/lib/utils";
 import type { Provider, ProviderAccount } from "@/types/provider";
 
@@ -38,7 +38,7 @@ interface ProviderDetailConnectionsProps {
   accounts: ProviderAccount[];
   deletingAccountId: string | null;
   testingAccountId: string | null;
-  accountTestStatus: Record<string, TestStatus>;
+  accountTestStatus: Record<string, TestStatusValue>;
   onDeleteAccount: (account: ProviderAccount) => void;
   onAccountSaved: () => void;
   onTestConnection: (account: ProviderAccount) => void;
@@ -131,7 +131,7 @@ export function ProviderDetailConnections({
                               : "bg-yellow-500",
                         )}
                       />
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium">{account.label}</p>
                         <p className="text-xs text-muted-foreground">
                           {account.quotaResetType !== "none"
@@ -141,6 +141,14 @@ export function ProviderDetailConnections({
                             ? ` · Limit: ${account.quotaLimitTokens.toLocaleString()} tokens`
                             : ""}
                         </p>
+                        {account.lastError ? (
+                          <p
+                            className="mt-1 max-w-80 truncate text-xs font-medium text-red-600 dark:text-red-400"
+                            title={account.lastError}
+                          >
+                            ⚠ {account.lastError}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -151,18 +159,18 @@ export function ProviderDetailConnections({
                         onClick={() => onTestConnection(account)}
                         disabled={isTesting || isDeleting}
                         title={
-                          testStatus === "ok"
+                          testStatus?.status === "ok"
                             ? "OK"
-                            : testStatus === "error"
-                              ? "Error"
+                            : testStatus?.status === "error"
+                              ? testStatus.message ?? "Error"
                               : "Test connection"
                         }
                       >
                         {isTesting ? (
                           <Spinner className="size-4" />
-                        ) : testStatus === "ok" ? (
+                        ) : testStatus?.status === "ok" ? (
                           <CheckCircleIcon className="size-4 text-green-500" />
-                        ) : testStatus === "error" ? (
+                        ) : testStatus?.status === "error" ? (
                           <XCircleIcon className="size-4 text-red-500" />
                         ) : (
                           <FlaskConicalIcon className="size-4" />

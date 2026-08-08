@@ -12,6 +12,7 @@ import {
 } from "./format-translator.service";
 import * as ProviderRegistry from "./provider-registry.service";
 import * as QuotaTracker from "./quota-tracker.service";
+import * as RequestLog from "./request-log.service";
 import {
   getCavemanSettings,
   getPonytailSettings,
@@ -121,11 +122,15 @@ function estimateCost(
   );
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function formatErrorResponse(
   error: unknown,
   sourceFormat: SourceFormat,
 ): unknown {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   if (sourceFormat === "openai") {
     return { error: { message, type: "server_error", code: "upstream_error" } };
   }
@@ -154,12 +159,21 @@ async function handlePrefixRoute(
   // Find provider by prefix
   const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
   if (!provider) {
+    const message = `Provider with prefix "${providerPrefix}" not found`;
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: null,
+      comboId: null,
+      model: modelName,
+      sourceFormat,
+      stream,
+      message,
+      latencyMs: null,
+    });
     return {
       status: 404,
-      body: formatErrorResponse(
-        new Error(`Provider with prefix "${providerPrefix}" not found`),
-        sourceFormat,
-      ),
+      body: formatErrorResponse(new Error(message), sourceFormat),
       headers: {},
     };
   }
@@ -169,12 +183,21 @@ async function handlePrefixRoute(
   const activeAccount = accounts.find((a) => a.status === "active");
 
   if (!activeAccount) {
+    const message = `No active account found for provider "${provider.name}"`;
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: null,
+      comboId: null,
+      model: modelName,
+      sourceFormat,
+      stream,
+      message,
+      latencyMs: null,
+    });
     return {
       status: 404,
-      body: formatErrorResponse(
-        new Error(`No active account found for provider "${provider.name}"`),
-        sourceFormat,
-      ),
+      body: formatErrorResponse(new Error(message), sourceFormat),
       headers: {},
     };
   }
@@ -240,6 +263,18 @@ async function handlePrefixRoute(
             activeAccount.id,
             usage.inputTokens + usage.outputTokens,
           );
+          ProviderRegistry.recordAccountSuccess(activeAccount.id);
+          RequestLog.record({
+            type: "success",
+            source: "router",
+            providerAccountId: activeAccount.id,
+            comboId: null,
+            model: modelName,
+            sourceFormat,
+            stream: true,
+            message: null,
+            latencyMs,
+          });
         },
       });
     }
@@ -278,6 +313,18 @@ async function handlePrefixRoute(
       activeAccount.id,
       response.usage.inputTokens + response.usage.outputTokens,
     );
+    ProviderRegistry.recordAccountSuccess(activeAccount.id);
+    RequestLog.record({
+      type: "success",
+      source: "router",
+      providerAccountId: activeAccount.id,
+      comboId: null,
+      model: modelName,
+      sourceFormat,
+      stream: false,
+      message: null,
+      latencyMs,
+    });
 
     return {
       status: 200,
@@ -288,6 +335,19 @@ async function handlePrefixRoute(
       },
     };
   } catch (err) {
+    const message = errorMessage(err);
+    ProviderRegistry.recordAccountError(activeAccount.id, message);
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: activeAccount.id,
+      comboId: null,
+      model: modelName,
+      sourceFormat,
+      stream,
+      message,
+      latencyMs: Date.now() - startedAt,
+    });
     return {
       status: 502,
       body: formatErrorResponse(err, sourceFormat),
@@ -307,12 +367,21 @@ async function handleComboRoute(
 ): Promise<RouterResult> {
   const combo = ComboEngine.getCombo(comboName);
   if (!combo) {
+    const message = `Combo "${comboName}" not found`;
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: null,
+      comboId: null,
+      model: comboName,
+      sourceFormat,
+      stream,
+      message,
+      latencyMs: null,
+    });
     return {
       status: 404,
-      body: formatErrorResponse(
-        new Error(`Combo "${comboName}" not found`),
-        sourceFormat,
-      ),
+      body: formatErrorResponse(new Error(message), sourceFormat),
       headers: {},
     };
   }
@@ -326,12 +395,21 @@ async function handleComboRoute(
         : ComboEngine.nextFallback(combo.id, excludedMemberIds);
 
     if (!member) {
+      const message = "All combo members exhausted";
+      RequestLog.record({
+        type: "error",
+        source: "router",
+        providerAccountId: null,
+        comboId: combo.id,
+        model: comboName,
+        sourceFormat,
+        stream,
+        message,
+        latencyMs: null,
+      });
       return {
         status: 503,
-        body: formatErrorResponse(
-          new Error(`All combo members exhausted`),
-          sourceFormat,
-        ),
+        body: formatErrorResponse(new Error(message), sourceFormat),
         headers: {},
       };
     }
@@ -406,6 +484,18 @@ async function handleComboRoute(
               account.id,
               usage.inputTokens + usage.outputTokens,
             );
+            ProviderRegistry.recordAccountSuccess(account.id);
+            RequestLog.record({
+              type: "success",
+              source: "router",
+              providerAccountId: account.id,
+              comboId: combo.id,
+              model: member.modelName,
+              sourceFormat,
+              stream: true,
+              message: null,
+              latencyMs,
+            });
           },
         });
       }
@@ -444,6 +534,18 @@ async function handleComboRoute(
         account.id,
         response.usage.inputTokens + response.usage.outputTokens,
       );
+      ProviderRegistry.recordAccountSuccess(account.id);
+      RequestLog.record({
+        type: "success",
+        source: "router",
+        providerAccountId: account.id,
+        comboId: combo.id,
+        model: member.modelName,
+        sourceFormat,
+        stream: false,
+        message: null,
+        latencyMs,
+      });
 
       return {
         status: 200,
@@ -456,6 +558,19 @@ async function handleComboRoute(
     } catch (err) {
       excludedMemberIds.push(member.id);
       QuotaTracker.markError(account.id, classifyError(err));
+      const message = errorMessage(err);
+      ProviderRegistry.recordAccountError(account.id, message);
+      RequestLog.record({
+        type: "error",
+        source: "router",
+        providerAccountId: account.id,
+        comboId: combo.id,
+        model: member.modelName,
+        sourceFormat,
+        stream,
+        message,
+        latencyMs: Date.now() - startedAt,
+      });
     }
   }
 }
@@ -480,14 +595,22 @@ export async function handleChatRequest(
   // content_block_* / message_stop); emitting OpenAI frames there would look
   // like a silent hang, so fail loudly instead.
   if (input.stream && input.sourceFormat === "anthropic") {
+    const message =
+      "Streaming is not yet supported on /v1/messages. Use stream:false, or call /v1/chat/completions.";
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: null,
+      comboId: null,
+      model: input.targetSelector,
+      sourceFormat: input.sourceFormat,
+      stream: true,
+      message,
+      latencyMs: null,
+    });
     return {
       status: 501,
-      body: formatErrorResponse(
-        new Error(
-          "Streaming is not yet supported on /v1/messages. Use stream:false, or call /v1/chat/completions.",
-        ),
-        input.sourceFormat,
-      ),
+      body: formatErrorResponse(new Error(message), input.sourceFormat),
       headers: { "Content-Type": "application/json" },
     };
   }
@@ -497,12 +620,37 @@ export async function handleChatRequest(
   try {
     canonical = toCanonical(input.rawBody, input.sourceFormat);
   } catch (err) {
+    const message = errorMessage(err);
+    RequestLog.record({
+      type: "error",
+      source: "router",
+      providerAccountId: null,
+      comboId: null,
+      model: input.targetSelector,
+      sourceFormat: input.sourceFormat,
+      stream: input.stream,
+      message,
+      latencyMs: null,
+    });
     return {
       status: 400,
       body: formatErrorResponse(err, input.sourceFormat),
       headers: {},
     };
   }
+
+  // 1b. Log incoming request
+  RequestLog.record({
+    type: "request",
+    source: "router",
+    providerAccountId: null,
+    comboId: null,
+    model: input.targetSelector,
+    sourceFormat: input.sourceFormat,
+    stream: input.stream,
+    message: null,
+    latencyMs: null,
+  });
 
   // 2. Token Saver
   const tokenSaverEnabled = resolveTokenSaverEnabled(input.tokenSaverOverride);

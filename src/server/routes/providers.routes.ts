@@ -2,6 +2,7 @@ import type { ProviderTransport } from "../../db/schema";
 import { getDefaultModels } from "../providers/registry";
 import * as ModelRegistry from "../services/model-registry.service";
 import * as ProviderRegistry from "../services/provider-registry.service";
+import * as RequestLog from "../services/request-log.service";
 import * as TestConnection from "../services/test-connection.service";
 import type { RouteHandler } from "./types";
 
@@ -67,6 +68,17 @@ export const providersRoutes: Record<string, RouteHandler> = {
         baseUrl: body.baseUrl,
         prefix: body.prefix,
       });
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Provider "${provider.name}" created`,
+        latencyMs: null,
+      });
       return Response.json(provider, { status: 201 });
     } catch (err) {
       return Response.json(
@@ -77,8 +89,23 @@ export const providersRoutes: Record<string, RouteHandler> = {
   },
 
   "DELETE /api/providers/:id": (_req, params) => {
+    const providerId = params?.id ?? "";
+    const existing = ProviderRegistry.getProvider(providerId);
     try {
-      ProviderRegistry.deleteProvider(params?.id ?? "");
+      ProviderRegistry.deleteProvider(providerId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: existing
+          ? `Provider "${existing.name}" deleted`
+          : `Provider with ID "${providerId}" deleted`,
+        latencyMs: null,
+      });
       return Response.json({ ok: true });
     } catch (err) {
       return Response.json(
@@ -118,6 +145,17 @@ export const providersRoutes: Record<string, RouteHandler> = {
           | "none",
         quotaLimitTokens: body.quotaLimitTokens,
       });
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: account.id,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Account "${account.label}" created`,
+        latencyMs: null,
+      });
       return Response.json(account, { status: 201 });
     } catch (err) {
       return Response.json(
@@ -145,6 +183,17 @@ export const providersRoutes: Record<string, RouteHandler> = {
           | "none",
         quotaLimitTokens: body.quotaLimitTokens,
       });
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: account.id,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: `Account "${account.label}" updated`,
+        latencyMs: null,
+      });
       return Response.json(account);
     } catch (err) {
       return Response.json(
@@ -155,8 +204,23 @@ export const providersRoutes: Record<string, RouteHandler> = {
   },
 
   "DELETE /api/providers/accounts/:id": (_req, params) => {
+    const accountId = params?.id ?? "";
+    const existing = ProviderRegistry.getAccount(accountId);
     try {
-      ProviderRegistry.removeAccount(params?.id ?? "");
+      ProviderRegistry.removeAccount(accountId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: existing
+          ? `Account "${existing.label}" deleted`
+          : `Account with ID "${accountId}" deleted`,
+        latencyMs: null,
+      });
       return Response.json({ ok: true });
     } catch (err) {
       return Response.json(
@@ -194,6 +258,17 @@ export const providersRoutes: Record<string, RouteHandler> = {
         body.contextLength,
         body.maxOutputTokens,
       );
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: model.modelId,
+        sourceFormat: null,
+        stream: false,
+        message: `Model "${model.modelName}" (${model.modelId}) added`,
+        latencyMs: null,
+      });
       return Response.json(model, { status: 201 });
     } catch (err) {
       return Response.json(
@@ -204,8 +279,21 @@ export const providersRoutes: Record<string, RouteHandler> = {
   },
 
   "PATCH /api/providers/models/:modelId/toggle": (_req, params) => {
+    const modelId = params?.modelId ?? "";
     try {
-      const enabled = ModelRegistry.toggleModel(params?.modelId ?? "");
+      const enabled = ModelRegistry.toggleModel(modelId);
+      const model = ModelRegistry.getModel(modelId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: model?.modelId ?? modelId,
+        sourceFormat: null,
+        stream: false,
+        message: `Model "${model?.modelName ?? modelId}" ${enabled ? "enabled" : "disabled"}`,
+        latencyMs: null,
+      });
       return Response.json({ enabled });
     } catch (err) {
       return Response.json(
@@ -216,8 +304,21 @@ export const providersRoutes: Record<string, RouteHandler> = {
   },
 
   "DELETE /api/providers/models/:modelId": (_req, params) => {
+    const modelId = params?.modelId ?? "";
+    const existing = ModelRegistry.getModel(modelId);
     try {
-      ModelRegistry.deleteModel(params?.modelId ?? "");
+      ModelRegistry.deleteModel(modelId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: existing?.modelId ?? modelId,
+        sourceFormat: null,
+        stream: false,
+        message: `Model "${existing?.modelName ?? modelId}" deleted`,
+        latencyMs: null,
+      });
       return Response.json({ ok: true });
     } catch (err) {
       return Response.json(
@@ -232,6 +333,28 @@ export const providersRoutes: Record<string, RouteHandler> = {
   "POST /api/providers/accounts/:id/test": async (_req, params) => {
     const accountId = params?.id ?? "";
     const result = await TestConnection.testConnection(accountId);
+    const account = ProviderRegistry.getAccount(accountId);
+    if (account) {
+      if (result.status === "ok") {
+        ProviderRegistry.recordAccountSuccess(accountId);
+      } else {
+        ProviderRegistry.recordAccountError(
+          accountId,
+          result.error ?? "Test connection failed",
+        );
+      }
+    }
+    RequestLog.record({
+      type: result.status === "ok" ? "success" : "error",
+      source: "test",
+      providerAccountId: account ? accountId : null,
+      comboId: null,
+      model: null,
+      sourceFormat: null,
+      stream: false,
+      message: result.error ?? null,
+      latencyMs: result.latencyMs,
+    });
     if (result.status === "ok") {
       return Response.json(result);
     }
@@ -240,11 +363,44 @@ export const providersRoutes: Record<string, RouteHandler> = {
 
   "POST /api/providers/models/:modelId/test": async (req, params) => {
     const body = (await req.json()) as { accountId?: string };
+    const modelId = params?.modelId ?? "";
     if (!body.accountId) {
+      RequestLog.record({
+        type: "error",
+        source: "test",
+        providerAccountId: null,
+        comboId: null,
+        model: modelId,
+        sourceFormat: null,
+        stream: false,
+        message: "accountId is required",
+        latencyMs: null,
+      });
       return Response.json({ error: "accountId is required" }, { status: 400 });
     }
-    const modelId = params?.modelId ?? "";
     const result = await TestConnection.testModel(body.accountId, modelId);
+    const account = ProviderRegistry.getAccount(body.accountId);
+    if (account) {
+      if (result.status === "ok") {
+        ProviderRegistry.recordAccountSuccess(body.accountId);
+      } else {
+        ProviderRegistry.recordAccountError(
+          body.accountId,
+          result.error ?? "Test model failed",
+        );
+      }
+    }
+    RequestLog.record({
+      type: result.status === "ok" ? "success" : "error",
+      source: "test",
+      providerAccountId: account ? body.accountId : null,
+      comboId: null,
+      model: modelId,
+      sourceFormat: null,
+      stream: false,
+      message: result.error ?? null,
+      latencyMs: result.latencyMs,
+    });
     if (result.status === "ok") {
       return Response.json(result);
     }

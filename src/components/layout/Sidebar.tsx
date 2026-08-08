@@ -7,6 +7,7 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   type LucideIcon,
+  ScrollTextIcon,
   SlidersHorizontalIcon,
   TerminalIcon,
 } from "lucide-react";
@@ -33,6 +34,7 @@ export type AppModule =
   | "providers"
   | "combos"
   | "usage"
+  | "logs"
   | "quota"
   | "token-saver"
   | "cli-tools"
@@ -74,6 +76,13 @@ const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     label: "Usage",
     description: "Pantau penggunaan token dan biaya.",
     icon: ChartNoAxesCombinedIcon,
+  },
+  {
+    id: "logs",
+    path: "/logs",
+    label: "Logs",
+    description: "View request, error, and admin activity logs.",
+    icon: ScrollTextIcon,
   },
   {
     id: "quota",

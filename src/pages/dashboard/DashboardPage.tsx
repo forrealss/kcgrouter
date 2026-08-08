@@ -9,9 +9,8 @@ import {
   SignalIcon,
   ZapIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,13 +35,13 @@ import type { AccountStatus } from "@/types/provider";
 import type { UsageRecord } from "@/types/usage";
 
 // ─── formatters ──────────────────────────────────────────────────────────────
-const numFmt = new Intl.NumberFormat("id-ID");
-const costFmt = new Intl.NumberFormat("id-ID", {
+const numFmt = new Intl.NumberFormat("en-US");
+const costFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 4,
 });
-const timeFmt = new Intl.DateTimeFormat("id-ID", {
+const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -52,13 +51,13 @@ const timeFmt = new Intl.DateTimeFormat("id-ID", {
 const statusLed: Record<AccountStatus, { dot: string; label: string }> = {
   active: {
     dot: "bg-emerald-500 shadow-[0_0_6px_var(--tw-shadow-color)] shadow-emerald-500/70",
-    label: "Aktif",
+    label: "Active",
   },
   error: {
     dot: "bg-destructive shadow-[0_0_6px_var(--tw-shadow-color)] shadow-destructive/70",
     label: "Error",
   },
-  expired: { dot: "bg-muted-foreground/50", label: "Kedaluwarsa" },
+  expired: { dot: "bg-muted-foreground/50", label: "Expired" },
 };
 
 function StatusLed({ status }: { status: AccountStatus }) {
@@ -86,7 +85,7 @@ function SysMetric({
   tone?: "ok" | "warn" | "bad";
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-r border-border/60 last:border-0 min-w-0">
+    <div className="flex items-center gap-3 px-4 py-3 min-w-0">
       <span
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-md border",
@@ -154,6 +153,8 @@ export function DashboardPage() {
 
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const mainRowRef = useRef<HTMLDivElement>(null);
+  const [graphH, setGraphH] = useState(360);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +203,26 @@ export function DashboardPage() {
       } catch {}
     });
     return () => es.close();
+  }, []);
+
+  // ── responsive height for graph + log row ────────────────────────────────
+  useEffect(() => {
+    const el = mainRowRef.current;
+    if (!el) return;
+    const calc = () => {
+      const w = el.offsetWidth;
+      setGraphH(
+        w < 640
+          ? Math.floor(w * 0.62)
+          : w < 1024
+            ? Math.floor(w * 0.44)
+            : Math.floor(w * 0.38),
+      );
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // ── flattened list of all accounts with provider ref, for the port table ──
@@ -261,57 +282,73 @@ export function DashboardPage() {
           <div className="flex items-center gap-2">
             <RouterIcon className="size-5 text-primary" />
             <h2 className="text-xl font-semibold">
-              KCG Router — Status Sistem
+              KCG Router — System Status
             </h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Panel kendali: koneksi provider, jalur combo, dan lalu lintas
-            request secara real-time.
+            Control panel: provider connections, combo routes, and real-time
+            request traffic.
           </p>
         </div>
-        <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
-          <span className="block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          LIVE
-        </Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
+            <span className="block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            LIVE
+          </Badge>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => navigate("/providers")}
+          >
+            Providers <span className="ml-0.5">→</span>
+          </button>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => navigate("/combos")}
+          >
+            Combos <span className="ml-0.5">→</span>
+          </button>
+        </div>
       </div>
 
       {/* ── System Status Strip ────────────────────────────────────── */}
       <Card className="!py-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 [&>*:nth-child(2)]:border-r-0 sm:[&>*:nth-child(2)]:border-r sm:[&>*:nth-child(3n)]:border-r-0 lg:[&>*:nth-child(3n)]:border-r lg:[&>*:last-child]:border-r-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-border/60 [&>*]:bg-card">
           <SysMetric
-            label="Penyedia Terhubung"
+            label="Providers Connected"
             value={numFmt.format(providers?.length ?? 0)}
             icon={ServerIcon}
             loading={!providers}
             tone="ok"
           />
           <SysMetric
-            label="Koneksi Aktif"
+            label="Active Connections"
             value={`${numFmt.format(activeCount)}/${numFmt.format(allAccounts.length)}`}
             icon={SignalIcon}
             loading={!providers}
             tone={errorCount > 0 ? "warn" : "ok"}
           />
           <SysMetric
-            label="Combo Terpasang"
+            label="Combos Configured"
             value={numFmt.format(combos?.length ?? 0)}
             icon={Layers3Icon}
             loading={!combos}
           />
           <SysMetric
-            label="Total Request"
+            label="Total Requests"
             value={numFmt.format(totalRequests)}
             icon={ZapIcon}
             loading={!summary}
           />
           <SysMetric
-            label="Estimasi Biaya"
+            label="Estimated Cost"
             value={costFmt.format(summary?.totalCost ?? 0)}
             icon={CoinsIcon}
             loading={!summary}
           />
           <SysMetric
-            label="Koneksi Error"
+            label="Failed Connections"
             value={numFmt.format(errorCount)}
             icon={GaugeIcon}
             loading={!providers}
@@ -321,35 +358,32 @@ export function DashboardPage() {
       </Card>
 
       {/* ── Main: Router Graph + Packet Log ──────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-8 !py-0 overflow-hidden">
-          <CardHeader className="px-5 pt-4 pb-2 flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <RouterIcon className="size-4" />
-              Topologi Jaringan
-            </CardTitle>
-            <span className="text-xs text-muted-foreground font-mono">
-              hub → transport
-            </span>
-          </CardHeader>
-          <CardContent className="p-0">
-            <UsageGraph height={360} />
+      <div ref={mainRowRef} className="grid gap-4 lg:grid-cols-12">
+        <Card
+          className="lg:col-span-8 !py-0 overflow-hidden"
+          style={{ height: graphH }}
+        >
+          <CardContent className="p-0 h-full">
+            <UsageGraph height={graphH} />
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4 !py-0 overflow-hidden">
-          <CardHeader className="px-4 pt-4 pb-2 flex-row items-center justify-between">
+        <Card
+          className="lg:col-span-4 !py-0 overflow-hidden flex flex-col"
+          style={{ height: graphH }}
+        >
+          <CardHeader className="px-4 pt-4 pb-2 flex-row items-center justify-between shrink-0">
             <CardTitle className="text-base flex items-center gap-2">
               <ActivityIcon className="size-4" />
-              Log Paket
+              Packet Log
             </CardTitle>
             <Badge variant="outline" className="text-[10px] font-mono">
               tail -f
             </Badge>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-4 flex-1 min-h-0">
             <div
-              className="max-h-[320px] overflow-y-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+              className="h-full overflow-y-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
               style={{
                 scrollbarWidth: "thin",
                 scrollbarColor: "var(--border) transparent",
@@ -364,7 +398,7 @@ export function DashboardPage() {
                 </div>
               ) : records.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  Belum ada aktivitas
+                  No activity yet
                 </p>
               ) : (
                 records.map((r) => <LogRow key={r.id} record={r} />)
@@ -376,35 +410,31 @@ export function DashboardPage() {
 
       {/* ── Port Table: provider account status/load/quota ────────────── */}
       <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2 flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BoxesIcon className="size-4" />
-            Status Koneksi Provider
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => navigate("/providers")}
-          >
-            Kelola →
-          </Button>
+        <CardHeader className="px-5 pt-4 pb-2">
+          <div className="flex items-center gap-2">
+            <BoxesIcon className="size-4 text-muted-foreground" />
+            <CardTitle className="text-base">
+              Provider Connection Status
+            </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent className="px-0 pb-0">
+        <CardContent className="px-5 pb-5">
           {allAccounts.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-10">
-              Belum ada akun provider yang dikonfigurasi
+              No provider accounts configured yet
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Akun</TableHead>
-                  <TableHead>Transport</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Request</TableHead>
-                  <TableHead className="text-right">Token Terpakai</TableHead>
-                  <TableHead className="w-[160px]">Kuota</TableHead>
+                  <TableHead className="w-[28%]">Account</TableHead>
+                  <TableHead className="w-[18%]">Transport</TableHead>
+                  <TableHead className="w-[12%]">Status</TableHead>
+                  <TableHead className="w-[12%] text-right">Requests</TableHead>
+                  <TableHead className="w-[15%] text-right">
+                    Tokens Used
+                  </TableHead>
+                  <TableHead className="w-[15%]">Quota</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -416,8 +446,8 @@ export function DashboardPage() {
                     <TableRow key={account.id}>
                       <TableCell className="font-medium">
                         <div className="flex flex-col">
-                          <span>{account.label}</span>
-                          <span className="text-xs text-muted-foreground font-mono">
+                          <span className="truncate">{account.label}</span>
+                          <span className="text-xs text-muted-foreground font-mono truncate">
                             {provider.name}
                           </span>
                         </div>
@@ -433,20 +463,23 @@ export function DashboardPage() {
                       <TableCell>
                         <StatusLed status={account.status} />
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
                         {numFmt.format(usage?.requestCount ?? 0)}
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
                         {numFmt.format(usage?.tokens ?? 0)}
                       </TableCell>
                       <TableCell>
                         {quotaPct === undefined ? (
                           <span className="text-xs text-muted-foreground">
-                            Tidak terbatas
+                            Unlimited
                           </span>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <Progress value={quotaPct} className="h-1.5" />
+                            <Progress
+                              value={quotaPct}
+                              className="h-1.5 flex-1"
+                            />
                             <span className="text-xs font-mono text-muted-foreground w-9 text-right shrink-0">
                               {quotaPct}%
                             </span>
@@ -464,49 +497,47 @@ export function DashboardPage() {
 
       {/* ── Combo Routing Table ─────────────────────────────────────── */}
       <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2 flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers3Icon className="size-4" />
-            Jalur Combo
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => navigate("/combos")}
-          >
-            Kelola →
-          </Button>
+        <CardHeader className="px-5 pt-4 pb-2">
+          <div className="flex items-center gap-2">
+            <Layers3Icon className="size-4 text-muted-foreground" />
+            <CardTitle className="text-base">Combo Routes</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {!combos || combos.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              Belum ada combo yang dikonfigurasi
+              No combos configured yet
             </p>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {combos.map((combo) => (
-                <div
-                  key={combo.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
-                >
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-sm font-medium truncate">
-                      {combo.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {combo.memberCount} target
-                    </span>
-                  </div>
-                  <Badge
-                    variant="secondary"
-                    className="shrink-0 font-mono text-[10px]"
-                  >
-                    {combo.strategy === "fallback" ? "FALLBACK" : "ROUND-ROBIN"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">Name</TableHead>
+                  <TableHead className="w-[25%]">Targets</TableHead>
+                  <TableHead className="w-[20%]">Strategy</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {combos.map((combo) => (
+                  <TableRow key={combo.id}>
+                    <TableCell className="font-medium">{combo.name}</TableCell>
+                    <TableCell className="font-mono text-sm tabular-nums">
+                      {combo.memberCount}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className="font-mono text-[10px]"
+                      >
+                        {combo.strategy === "fallback"
+                          ? "FALLBACK"
+                          : "ROUND-ROBIN"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

@@ -1,15 +1,23 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/hooks/useRouter";
+import {
+  formatDate,
+  type AccountErrorSummary,
+} from "@/lib/provider-errors";
 import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/types/provider";
 
 interface ProviderDetailHeaderProps {
   provider: Provider;
+  lastError?: AccountErrorSummary | null;
 }
 
-export function ProviderDetailHeader({ provider }: ProviderDetailHeaderProps) {
+export function ProviderDetailHeader({
+  provider,
+  lastError,
+}: ProviderDetailHeaderProps) {
   const { navigate } = useRouter();
   const meta = transportMeta[provider.transport];
 
@@ -48,6 +56,18 @@ export function ProviderDetailHeader({ provider }: ProviderDetailHeaderProps) {
             {provider.accountCount !== 1 ? "s" : ""} · Prefix:{" "}
             <code className="font-mono">{provider.prefix}</code>
           </p>
+          {lastError ? (
+            <p
+              className="truncate text-xs font-medium text-red-600 dark:text-red-400"
+              title={
+                lastError.at
+                  ? `${lastError.message} (${formatDate(lastError.at)})`
+                  : lastError.message
+              }
+            >
+              ⚠ {lastError.message}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

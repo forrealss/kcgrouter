@@ -24,30 +24,24 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient } from "@/lib/api-client";
+import { formatDate } from "@/lib/provider-errors";
+import type { AccountErrorSummary } from "@/lib/provider-errors";
 import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/types/provider";
-
-export function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 interface ProviderCardProps {
   provider: Provider;
   onClick?: () => void;
   onDelete?: () => void | Promise<void>;
+  lastError?: AccountErrorSummary | null;
 }
 
 export function ProviderCard({
   provider,
   onClick,
   onDelete,
+  lastError,
 }: ProviderCardProps) {
   const meta = transportMeta[provider.transport];
   const [isDeleting, setIsDeleting] = useState(false);
@@ -147,6 +141,18 @@ export function ProviderCard({
           <p className="text-xs text-muted-foreground">
             Prefix: <code className="font-mono">{provider.prefix}</code>
           </p>
+          {lastError ? (
+            <p
+              className="truncate text-xs font-medium text-red-600 dark:text-red-400"
+              title={
+                lastError.at
+                  ? `${lastError.message} (${formatDate(lastError.at)})`
+                  : lastError.message
+              }
+            >
+              ⚠ {lastError.message}
+            </p>
+          ) : null}
         </div>
       </CardContent>
     </Card>

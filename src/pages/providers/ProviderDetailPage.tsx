@@ -4,6 +4,7 @@ import { ProviderDetailModels } from "@/components/providers/ProviderDetailModel
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { useProviderDetail } from "@/hooks/useProviderDetail";
+import { getLatestAccountError } from "@/lib/provider-errors";
 
 interface ProviderDetailPageProps {
   providerId: string;
@@ -30,6 +31,8 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     handleTestModel,
   } = useProviderDetail(providerId);
 
+  const latestAccountError = getLatestAccountError(accounts);
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -50,7 +53,10 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
 
   return (
     <section className="flex flex-col gap-6">
-      <ProviderDetailHeader provider={provider} />
+      <ProviderDetailHeader
+        provider={provider}
+        lastError={latestAccountError}
+      />
       <ProviderDetailConnections
         provider={provider}
         accounts={accounts}

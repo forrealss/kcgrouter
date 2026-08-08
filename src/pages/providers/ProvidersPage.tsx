@@ -18,9 +18,11 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useProviders } from "@/hooks/useProviders";
 import { useRouter } from "@/hooks/useRouter";
+import { getLatestAccountError } from "@/lib/provider-errors";
 
 export function ProvidersPage() {
-  const { providers, isLoading, error, refreshProviders } = useProviders();
+  const { providers, accounts, isLoading, error, refreshProviders } =
+    useProviders();
   const { navigate } = useRouter();
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
 
@@ -113,6 +115,9 @@ export function ProvidersPage() {
                     key={provider.id}
                     provider={provider}
                     onClick={() => handleProviderClick(provider.id)}
+                    lastError={getLatestAccountError(
+                      accounts[provider.id]?.accounts ?? [],
+                    )}
                   />
                 ))}
               </div>
@@ -132,6 +137,9 @@ export function ProvidersPage() {
                     provider={provider}
                     onClick={() => handleProviderClick(provider.id)}
                     onDelete={refreshProviders}
+                    lastError={getLatestAccountError(
+                      accounts[provider.id]?.accounts ?? [],
+                    )}
                   />
                 ))}
               </div>

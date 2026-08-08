@@ -44,9 +44,9 @@ interface MultiComboboxProps {
   className?: string;
 }
 
-function shortLabel(option: MultiComboboxOption): string {
-  const idx = option.value.indexOf("/");
-  return idx >= 0 ? option.value.slice(idx + 1) : option.value;
+function shortLabel(value: string): string {
+  const idx = value.indexOf("/");
+  return idx >= 0 ? value.slice(idx + 1) : value;
 }
 
 export function MultiCombobox({
@@ -180,7 +180,7 @@ export function MultiCombobox({
                       {option?.description || option?.label || val}
                     </p>
                     <p className="truncate font-mono text-xs text-muted-foreground">
-                      {option?.value ?? val}
+                      {shortLabel(val)}
                     </p>
                   </div>
 
@@ -300,7 +300,7 @@ export function MultiCombobox({
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate font-mono text-xs">
-                                  {shortLabel(option)}
+                                  {shortLabel(option.value)}
                                 </span>
                                 {option.description ? (
                                   <span className="block truncate text-xs text-muted-foreground">

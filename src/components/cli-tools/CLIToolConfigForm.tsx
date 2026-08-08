@@ -105,7 +105,7 @@ export function CLIToolConfigForm({
   }
 
   return (
-    <Card className="max-w-3xl">
+    <Card>
       <CardHeader>
         <CardTitle>Configuration</CardTitle>
         <CardDescription>
@@ -114,16 +114,16 @@ export function CLIToolConfigForm({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
           {/* Endpoint */}
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="endpoint">Endpoint</Label>
-            <p className="text-sm text-muted-foreground">
-              Base URL of the router. Defaults to{" "}
-              <code className="font-mono text-xs">{defaultEndpoint}</code>.
-            </p>
-          </div>
-          <div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="endpoint">Endpoint</Label>
+              <p className="text-sm text-muted-foreground">
+                Base URL of the router. Defaults to{" "}
+                <code className="font-mono text-xs">{defaultEndpoint}</code>.
+              </p>
+            </div>
             <Input
               id="endpoint"
               value={selectedEndpoint}
@@ -134,51 +134,53 @@ export function CLIToolConfigForm({
           </div>
 
           {/* API Key */}
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="apikey">API Key</Label>
-            <p className="text-sm text-muted-foreground">
-              Select an existing key or enter manually.
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-2">
-            {apiKeys.length > 0 ? (
-              <Select
-                value={selectedApiKeyId}
-                onValueChange={(id) => void handleApiKeySelect(id)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select API key..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {apiKeys.map((key) => (
-                    <SelectItem key={key.id} value={key.id}>
-                      {key.label}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="__custom">Custom...</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : null}
-            {selectedApiKeyId === "__custom" || apiKeys.length === 0 ? (
-              <Input
-                id="apikey"
-                type="password"
-                value={selectedApiKey}
-                onChange={(e) => setSelectedApiKey(e.target.value)}
-                placeholder="sk_kcgrouter"
-                className="w-full font-mono text-sm"
-              />
-            ) : null}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="apikey">API Key</Label>
+              <p className="text-sm text-muted-foreground">
+                Select an existing key or enter manually.
+              </p>
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              {apiKeys.length > 0 ? (
+                <Select
+                  value={selectedApiKeyId}
+                  onValueChange={(id) => void handleApiKeySelect(id)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select API key..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {apiKeys.map((key) => (
+                      <SelectItem key={key.id} value={key.id}>
+                        {key.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom">Custom...</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+              {selectedApiKeyId === "__custom" || apiKeys.length === 0 ? (
+                <Input
+                  id="apikey"
+                  type="password"
+                  value={selectedApiKey}
+                  onChange={(e) => setSelectedApiKey(e.target.value)}
+                  placeholder="sk_kcgrouter"
+                  className="w-full font-mono text-sm"
+                />
+              ) : null}
+            </div>
           </div>
 
           {/* Models */}
-          <div className="flex flex-col gap-1">
-            <Label>Models</Label>
-            <p className="text-sm text-muted-foreground">
-              Models this tool can use. Star one to set it as the default.
-            </p>
-          </div>
           <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <Label>Models</Label>
+              <p className="text-sm text-muted-foreground">
+                Models this tool can use. Star one to set it as the default.
+              </p>
+            </div>
             <MultiCombobox
               className="w-full"
               options={modelOptions}
@@ -204,37 +206,39 @@ export function CLIToolConfigForm({
           </div>
 
           {/* Subagent Model */}
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="subagent-model">Subagent Model</Label>
-            <p className="text-sm text-muted-foreground">
-              Model used for subagent tasks. Leave empty to skip.
-            </p>
-          </div>
-          <div className="flex w-full items-center gap-2">
-            <Combobox
-              className="flex-1"
-              options={modelOptions}
-              value={subagentModel}
-              onValueChange={setSubagentModel}
-              placeholder="Select model..."
-              searchPlaceholder="Search models..."
-              dialogTitle="Select subagent model"
-              closeLabel="Close"
-              noResultsLabel="No models found"
-              customLabel="Use"
-              groupMeta={modelGroupMeta}
-            />
-            {subagentModel ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setSubagentModel("")}
-                aria-label="Clear subagent model"
-              >
-                <XIcon className="size-3.5" />
-              </Button>
-            ) : null}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="subagent-model">Subagent Model</Label>
+              <p className="text-sm text-muted-foreground">
+                Model used for subagent tasks. Leave empty to skip.
+              </p>
+            </div>
+            <div className="flex w-full items-center gap-2">
+              <Combobox
+                className="flex-1"
+                options={modelOptions}
+                value={subagentModel}
+                onValueChange={setSubagentModel}
+                placeholder="Select model..."
+                searchPlaceholder="Search models..."
+                dialogTitle="Select subagent model"
+                closeLabel="Close"
+                noResultsLabel="No models found"
+                customLabel="Use"
+                groupMeta={modelGroupMeta}
+              />
+              {subagentModel ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSubagentModel("")}
+                  aria-label="Clear subagent model"
+                >
+                  <XIcon className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       </CardContent>
@@ -263,7 +267,7 @@ export function CLIToolConfigForm({
 
 export function CLIToolConfigFormSkeleton() {
   return (
-    <Card aria-hidden className="max-w-3xl">
+    <Card aria-hidden>
       <CardHeader>
         <CardTitle>
           <Skeleton className="h-5 w-32" />
@@ -273,30 +277,38 @@ export function CLIToolConfigFormSkeleton() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-3.5 w-40 max-w-full" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3.5 w-40 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-full" />
           </div>
-          <Skeleton className="h-9 w-full" />
 
           <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-3.5 w-48 max-w-full" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-3.5 w-48 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-full" />
           </div>
-          <Skeleton className="h-9 w-full" />
 
           <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-3.5 w-56 max-w-full" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-3.5 w-56 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-full" />
           </div>
-          <Skeleton className="h-9 w-full" />
 
           <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3.5 w-44 max-w-full" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3.5 w-44 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-full" />
           </div>
-          <Skeleton className="h-9 w-full" />
         </div>
       </CardContent>
       <CardFooter className="justify-between border-t">

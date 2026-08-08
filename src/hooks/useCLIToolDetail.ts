@@ -70,7 +70,7 @@ export function useCLIToolDetail(toolId: string) {
           seen.add(value);
           options.push({
             value,
-            label: value,
+            label: model.modelId,
             description: model.modelName,
             group: provider.name,
           });

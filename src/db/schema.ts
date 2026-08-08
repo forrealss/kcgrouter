@@ -43,7 +43,6 @@ export interface ProviderAccountRow {
   label: string;
   status: "active" | "error" | "expired";
   credential_enc: string;
-  quota_reset_type: "5h" | "daily" | "weekly" | "none";
   quota_limit_tokens: number | null;
   last_used_at: string | null;
   last_error: string | null;
@@ -53,9 +52,6 @@ export interface ProviderAccountRow {
 
 export interface QuotaStateRow {
   account_id: string;
-  window_type: "5h" | "daily" | "weekly" | "none";
-  window_start: string;
-  window_end: string | null;
   tokens_used: number;
   request_count: number;
 }
@@ -117,7 +113,6 @@ export type ProviderTransport =
   | "kiro"
   | "command-code"
   | "mimo";
-export type QuotaResetType = "5h" | "daily" | "weekly" | "none";
 export type AccountStatus = "active" | "error" | "expired";
 export type ComboStrategy = "fallback" | "round_robin";
 

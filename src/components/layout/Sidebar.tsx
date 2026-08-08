@@ -78,13 +78,6 @@ const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     icon: ChartNoAxesCombinedIcon,
   },
   {
-    id: "logs",
-    path: "/logs",
-    label: "Logs",
-    description: "View request, error, and admin activity logs.",
-    icon: ScrollTextIcon,
-  },
-  {
     id: "quota",
     path: "/quota",
     label: "Quota Tracker",
@@ -108,6 +101,13 @@ const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
 ];
 
 const secondaryModules: [ModuleDefinition, ...ModuleDefinition[]] = [
+  {
+    id: "logs",
+    path: "/logs",
+    label: "Logs",
+    description: "View request, error, and admin activity logs.",
+    icon: ScrollTextIcon,
+  },
   {
     id: "settings",
     path: "/settings",

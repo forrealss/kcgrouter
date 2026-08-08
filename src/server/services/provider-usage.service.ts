@@ -219,6 +219,14 @@ const usageFetchers: Partial<
   "command-code": fetchCommandCodeUsage,
 };
 
+/**
+ * Whether a provider transport has a usage tracker (i.e. a fetcher above).
+ * Used to decide which connections appear on the Quota page.
+ */
+export function isTrackedTransport(transport: ProviderTransport): boolean {
+  return usageFetchers[transport] != null;
+}
+
 export async function getProviderUsage(
   accountId: string,
 ): Promise<ProviderUsageResult | null> {

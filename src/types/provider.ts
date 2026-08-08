@@ -18,14 +18,12 @@ export interface Provider {
 }
 
 export type AccountStatus = "active" | "error" | "expired";
-export type QuotaResetType = "5h" | "daily" | "weekly" | "none";
 
 export interface ProviderAccount {
   id: string;
   providerId: string;
   label: string;
   status: AccountStatus;
-  quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
   lastError: string | null;
@@ -43,7 +41,6 @@ export interface ProviderFormValues {
 export interface AccountFormValues {
   label: string;
   apiKey?: string;
-  quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
 }
 

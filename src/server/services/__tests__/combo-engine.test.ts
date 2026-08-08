@@ -30,13 +30,11 @@ function setupProvider() {
   acc1 = addAccount(providerId, {
     label: "A1",
     apiKey: "sk1",
-    quotaResetType: "daily",
     quotaLimitTokens: 1000,
   }).id;
   acc2 = addAccount(providerId, {
     label: "A2",
     apiKey: "sk2",
-    quotaResetType: "daily",
     quotaLimitTokens: 1000,
   }).id;
 }

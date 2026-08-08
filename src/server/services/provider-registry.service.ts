@@ -5,7 +5,6 @@ import type {
   ProviderAccountRow,
   ProviderRow,
   ProviderTransport,
-  QuotaResetType,
 } from "../../db/schema";
 import { decrypt, encrypt } from "./crypto.service";
 
@@ -17,7 +16,6 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "command-code",
   "mimo",
 ];
-const VALID_QUOTA_RESET: QuotaResetType[] = ["5h", "daily", "weekly", "none"];
 
 export interface NewProviderInput {
   name: string;
@@ -29,7 +27,6 @@ export interface NewProviderInput {
 export interface NewAccountInput {
   label: string;
   apiKey: string;
-  quotaResetType?: QuotaResetType;
   quotaLimitTokens?: number | null;
 }
 
@@ -49,7 +46,6 @@ export interface ProviderAccount {
   providerId: string;
   label: string;
   status: AccountStatus;
-  quotaResetType: QuotaResetType;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
   lastError: string | null;
@@ -80,7 +76,6 @@ function rowToAccount(row: ProviderAccountRow): ProviderAccount {
     providerId: row.provider_id,
     label: row.label,
     status: row.status,
-    quotaResetType: row.quota_reset_type,
     quotaLimitTokens: row.quota_limit_tokens,
     lastUsedAt: row.last_used_at,
     lastError: row.last_error,
@@ -230,11 +225,6 @@ export function addAccount(
   if (!input.apiKey || input.apiKey.trim().length === 0)
     throw new Error("API key is required");
 
-  const resetType = input.quotaResetType ?? "none";
-  if (!VALID_QUOTA_RESET.includes(resetType)) {
-    throw new Error(`Invalid quota reset type: ${resetType}`);
-  }
-
   if (input.quotaLimitTokens != null && input.quotaLimitTokens <= 0) {
     throw new Error("quota_limit_tokens must be a positive number or null");
   }
@@ -244,25 +234,19 @@ export function addAccount(
   const now = new Date().toISOString();
 
   run(
-    `INSERT INTO provider_accounts (id, provider_id, label, status, credential_enc, quota_reset_type, quota_limit_tokens, created_at)
-     VALUES (?, ?, ?, 'active', ?, ?, ?, ?)`,
+    `INSERT INTO provider_accounts (id, provider_id, label, status, credential_enc, quota_limit_tokens, created_at)
+     VALUES (?, ?, ?, 'active', ?, ?, ?)`,
     id,
     providerId,
     input.label.trim(),
     credentialEnc,
-    resetType,
     input.quotaLimitTokens ?? null,
     now,
   );
 
   run(
-    "INSERT INTO quota_state (account_id, window_type, window_start, window_end, tokens_used, request_count) VALUES (?, ?, ?, ?, 0, 0)",
+    "INSERT INTO quota_state (account_id, tokens_used, request_count) VALUES (?, 0, 0)",
     id,
-    resetType,
-    now,
-    resetType === "none"
-      ? null
-      : computeWindowEnd(resetType, new Date(now)).toISOString(),
   );
 
   return {
@@ -270,7 +254,6 @@ export function addAccount(
     providerId,
     label: input.label.trim(),
     status: "active",
-    quotaResetType: resetType,
     quotaLimitTokens: input.quotaLimitTokens ?? null,
     lastUsedAt: null,
     lastError: null,
@@ -308,21 +291,6 @@ export function updateAccount(
     updates.push("status = 'active'");
     updates.push("last_error = NULL");
     updates.push("last_error_at = NULL");
-  }
-
-  if (patch.quotaResetType !== undefined) {
-    if (!VALID_QUOTA_RESET.includes(patch.quotaResetType)) {
-      throw new Error(`Invalid quota reset type: ${patch.quotaResetType}`);
-    }
-    updates.push("quota_reset_type = ?");
-    values.push(patch.quotaResetType);
-
-    // Update window_type in quota_state too
-    run(
-      "UPDATE quota_state SET window_type = ? WHERE account_id = ?",
-      patch.quotaResetType,
-      accountId,
-    );
   }
 
   if (patch.quotaLimitTokens !== undefined) {
@@ -406,17 +374,4 @@ export function getDecryptedCredential(accountId: string): { apiKey: string } {
   return { apiKey };
 }
 
-// --- Helpers ---
 
-function computeWindowEnd(type: QuotaResetType, start: Date): Date {
-  switch (type) {
-    case "5h":
-      return new Date(start.getTime() + 5 * 60 * 60 * 1000);
-    case "daily":
-      return new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    case "weekly":
-      return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-    default:
-      throw new Error(`computeWindowEnd called with type=${type}`);
-  }
-}

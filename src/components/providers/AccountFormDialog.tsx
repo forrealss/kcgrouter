@@ -17,21 +17,9 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import type {
-  AccountFormValues,
-  ProviderAccount,
-  QuotaResetType,
-} from "@/types/provider";
+import type { AccountFormValues, ProviderAccount } from "@/types/provider";
 
 interface AccountFormDialogProps {
   providerId: string;
@@ -41,17 +29,9 @@ interface AccountFormDialogProps {
   onSaved: () => void | Promise<void>;
 }
 
-const quotaResetLabels: Record<QuotaResetType, string> = {
-  "5h": "Setiap 5 jam",
-  daily: "Harian",
-  weekly: "Mingguan",
-  none: "Tanpa reset",
-};
-
 function getInitialValues(account?: ProviderAccount | null): AccountFormValues {
   return {
     label: account?.label ?? "",
-    quotaResetType: account?.quotaResetType ?? "none",
     quotaLimitTokens: account?.quotaLimitTokens ?? null,
   };
 }
@@ -125,7 +105,6 @@ export function AccountFormDialog({
     try {
       const payload: AccountFormValues = {
         label,
-        quotaResetType: values.quotaResetType,
         quotaLimitTokens: parsedQuotaLimit,
         ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
       };
@@ -202,31 +181,6 @@ export function AccountFormDialog({
                   ? "Key yang tersimpan tidak ditampilkan. Isi hanya untuk menggantinya."
                   : "API key disimpan secara aman dan tidak akan ditampilkan kembali."}
               </FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="account-quota-reset">Reset kuota</FieldLabel>
-              <Select
-                value={values.quotaResetType}
-                onValueChange={(quotaResetType: QuotaResetType) =>
-                  setValues((current) => ({ ...current, quotaResetType }))
-                }
-                disabled={isSubmitting}
-              >
-                <SelectTrigger id="account-quota-reset" className="w-full">
-                  <SelectValue placeholder="Pilih periode reset" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {(Object.keys(quotaResetLabels) as QuotaResetType[]).map(
-                      (quotaResetType) => (
-                        <SelectItem key={quotaResetType} value={quotaResetType}>
-                          {quotaResetLabels[quotaResetType]}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
             </Field>
             <Field>
               <FieldLabel htmlFor="account-quota-limit">

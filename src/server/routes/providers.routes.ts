@@ -124,7 +124,6 @@ export const providersRoutes: Record<string, RouteHandler> = {
     const body = (await req.json()) as {
       label?: string;
       apiKey?: string;
-      quotaResetType?: string;
       quotaLimitTokens?: number | null;
     };
     if (!body.label || !body.apiKey) {
@@ -138,11 +137,6 @@ export const providersRoutes: Record<string, RouteHandler> = {
       const account = ProviderRegistry.addAccount(params?.id ?? "", {
         label: body.label,
         apiKey: body.apiKey,
-        quotaResetType: body.quotaResetType as
-          | "5h"
-          | "daily"
-          | "weekly"
-          | "none",
         quotaLimitTokens: body.quotaLimitTokens,
       });
       RequestLog.record({
@@ -169,18 +163,12 @@ export const providersRoutes: Record<string, RouteHandler> = {
     const body = (await req.json()) as {
       label?: string;
       apiKey?: string;
-      quotaResetType?: string;
       quotaLimitTokens?: number | null;
     };
     try {
       const account = ProviderRegistry.updateAccount(params?.id ?? "", {
         label: body.label,
         apiKey: body.apiKey,
-        quotaResetType: body.quotaResetType as
-          | "5h"
-          | "daily"
-          | "weekly"
-          | "none",
         quotaLimitTokens: body.quotaLimitTokens,
       });
       RequestLog.record({

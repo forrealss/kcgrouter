@@ -134,12 +134,9 @@ export function ProviderDetailConnections({
                       <div className="min-w-0">
                         <p className="text-sm font-medium">{account.label}</p>
                         <p className="text-xs text-muted-foreground">
-                          {account.quotaResetType !== "none"
-                            ? `Quota: ${account.quotaResetType}`
-                            : "No quota reset"}
                           {account.quotaLimitTokens
-                            ? ` · Limit: ${account.quotaLimitTokens.toLocaleString()} tokens`
-                            : ""}
+                            ? `Quota limit: ${account.quotaLimitTokens.toLocaleString()} tokens`
+                            : "No quota limit"}
                         </p>
                         {account.lastError ? (
                           <p

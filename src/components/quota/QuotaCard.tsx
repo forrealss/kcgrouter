@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -32,13 +31,6 @@ const dateFormatter = new Intl.DateTimeFormat("id-ID", {
   dateStyle: "medium",
   timeStyle: "short",
 });
-
-const resetTypeLabels: Record<QuotaAccount["quotaResetType"], string> = {
-  "5h": "5 jam",
-  daily: "harian",
-  weekly: "mingguan",
-  none: "tanpa reset",
-};
 
 const statusLabels: Record<QuotaAccount["status"], string> = {
   active: "Aktif",
@@ -170,30 +162,6 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
   );
 }
 
-function ResetCountdown({ windowEnd }: { windowEnd: string | null }) {
-  const resetAt = useMemo(() => {
-    if (!windowEnd) return null;
-
-    const timestamp = new Date(windowEnd).getTime();
-    return Number.isNaN(timestamp) ? null : timestamp;
-  }, [windowEnd]);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (resetAt === null) return;
-
-    setNow(Date.now());
-    const intervalId = window.setInterval(() => setNow(Date.now()), 1_000);
-
-    return () => window.clearInterval(intervalId);
-  }, [resetAt]);
-
-  if (!windowEnd) return "Tidak ada jadwal reset";
-  if (resetAt === null) return "Jadwal reset tidak tersedia";
-
-  return `Reset dalam ${formatCountdown(resetAt - now)}`;
-}
-
 export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
   const { quotaState } = account;
   const quotaLimitTokens = account.quotaLimitTokens;
@@ -287,14 +255,6 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
           </div>
         </dl>
       </CardContent>
-      <CardFooter className="flex-wrap justify-between gap-2 text-sm text-muted-foreground">
-        <Badge variant="outline">
-          {resetTypeLabels[account.quotaResetType]}
-        </Badge>
-        <span aria-live="polite">
-          <ResetCountdown windowEnd={quotaState.windowEnd} />
-        </span>
-      </CardFooter>
     </Card>
   );
 }

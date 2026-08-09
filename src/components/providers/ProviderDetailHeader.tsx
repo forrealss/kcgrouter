@@ -1,10 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/hooks/useRouter";
-import {
-  formatDate,
-  type AccountErrorSummary,
-} from "@/lib/provider-errors";
+import { type AccountErrorSummary, formatDate } from "@/lib/provider-errors";
 import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/types/provider";

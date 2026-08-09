@@ -1,9 +1,9 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { serve } from "bun";
 import { getServerPort } from "./config";
 import { runMigrations } from "./db/migrations";
 import { ensureSecrets } from "./env";
-import index from "./index.html";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
@@ -30,6 +30,7 @@ const MIME_TYPES: Record<string, string> = {
   ".css": "text/css",
   ".js": "application/javascript",
   ".json": "application/json",
+  ".map": "application/json",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
 };
@@ -37,6 +38,45 @@ const MIME_TYPES: Record<string, string> = {
 function getMimeType(pathname: string): string | null {
   const ext = pathname.slice(pathname.lastIndexOf("."));
   return MIME_TYPES[ext] ?? null;
+}
+
+// Production installs serve the prebuilt frontend from dist/ (produced by
+// `bun run build` at publish time). Bundling src/ at runtime from a globally
+// installed package can resolve `react` to two different copies — the
+// package's own node_modules and a hoisted copy in the shared global
+// node_modules — which duplicates React and crashes hooks with
+// "Cannot read properties of null (reading 'useContext')".
+const DIST_DIR = join(import.meta.dir, "../dist");
+const DIST_INDEX_PATH = join(DIST_DIR, "index.html");
+const serveDist =
+  process.env.NODE_ENV === "production" && existsSync(DIST_INDEX_PATH);
+
+async function buildDistIndex(): Promise<Response> {
+  const html = await Bun.file(DIST_INDEX_PATH).text();
+  // Rewrite any `src`/`href` pointing at ./assets relative to the page
+  // (breaks on nested SPA routes like /providers/:id) to root-relative.
+  return new Response(html.replace(/(src|href)="\.\//g, '$1="/'), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+// Lazy-load the source HTML bundle only when dist/ is not being served, so
+// production installs never bundle src/ (with its skewed dependency tree).
+const index = serveDist
+  ? await buildDistIndex()
+  : (await import("./index.html")).default;
+
+/** Serve a hashed asset from dist/ (JS/CSS chunks, favicon, sourcemaps). */
+async function serveDistAsset(req: Request): Promise<Response> {
+  if (!serveDist) return new Response("Not found", { status: 404 });
+  const url = new URL(req.url);
+  const filePath = join(DIST_DIR, url.pathname.replace(/^\/+/, ""));
+  const file = Bun.file(filePath);
+  if (await file.exists()) {
+    const mime = getMimeType(url.pathname) ?? "application/octet-stream";
+    return new Response(file, { headers: { "Content-Type": mime } });
+  }
+  return new Response("Not found", { status: 404 });
 }
 
 // Bootstrap secrets before anything touches the database/crypto
@@ -136,6 +176,10 @@ const server = serve({
       }
       return new Response("Not found", { status: 404 });
     },
+
+    // Prebuilt frontend assets (dist/) — hashed chunks, favicon, sourcemaps.
+    // Registered only in production so /_bun/* dev assets stay uncaught.
+    ...(serveDist ? { "/*": serveDistAsset } : {}),
 
     // SPA routes — list explicitly to avoid /* catching /_bun/* dev assets
     "/": index,

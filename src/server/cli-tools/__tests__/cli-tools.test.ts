@@ -9,6 +9,7 @@ import {
 import { join } from "node:path";
 import { claudeTool } from "../claude";
 import { coworkTool } from "../cowork";
+import { opencodeTool } from "../opencode";
 
 // Isolate all home-dir writes from the real user home. Bun caches
 // os.homedir() at process start, so set HOME at runtime doesn't work —
@@ -64,6 +65,7 @@ describe("claudeTool (Claude Code)", () => {
     const status = claudeTool.read();
     expect(status.configured).toBe(true);
     expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.apiKey).toBe("sk-test");
     expect(status.details?.activeModel).toBe("cc/claude-sonnet-5");
     const models = status.details?.models as string[];
     expect(models).toContain("cc/claude-sonnet-5");
@@ -195,6 +197,7 @@ describe("coworkTool (Claude Cowork)", () => {
     expect(status.installed).toBe(true);
     expect(status.configured).toBe(true);
     expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.apiKey).toBe("sk-test");
     const models = status.details?.models as string[];
     expect(models).toContain("cc/claude-sonnet-5");
     expect(models).toContain("cc/claude-haiku-4-5-20251001");
@@ -204,5 +207,85 @@ describe("coworkTool (Claude Cowork)", () => {
     coworkTool.remove();
     const status = coworkTool.read();
     expect(status.configured).toBe(false);
+  });
+});
+
+describe("opencodeTool (OpenCode)", () => {
+  const configPath = () =>
+    join(testHome, ".config", "opencode", "opencode.json");
+
+  test("read exposes apiKey and subagentModel from the saved config", () => {
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      apiKey: "sk-opencode",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+      subagentModel: "cc/claude-haiku-4-5-20251001",
+    });
+
+    const status = opencodeTool.read();
+    expect(status.configured).toBe(true);
+    expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.apiKey).toBe("sk-opencode");
+    expect(status.details?.activeModel).toBe("cc/claude-sonnet-5");
+    expect(status.details?.subagentModel).toBe("cc/claude-haiku-4-5-20251001");
+
+    const config = readJsonFile(configPath());
+    const explorer = config.agent as Record<string, unknown>;
+    expect(explorer.explorer).toEqual({
+      model: "kcgrouter/cc/claude-haiku-4-5-20251001",
+    });
+  });
+
+  test("read reports no subagent when only base config is set", () => {
+    opencodeTool.remove();
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+    });
+
+    const status = opencodeTool.read();
+    expect(status.details?.apiKey).toBeNull();
+    expect(status.details?.subagentModel).toBeNull();
+  });
+
+  test("re-apply without subagent clears a previously saved one", () => {
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+      subagentModel: "cc/claude-haiku-4-5-20251001",
+    });
+    expect(opencodeTool.read().details?.subagentModel).toBe(
+      "cc/claude-haiku-4-5-20251001",
+    );
+
+    // Empty string (user cleared the field) removes it.
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+      subagentModel: "",
+    });
+    expect(opencodeTool.read().details?.subagentModel).toBeNull();
+  });
+
+  test("re-apply with empty apiKey clears a previously saved one", () => {
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      apiKey: "sk-temp",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+    });
+    expect(opencodeTool.read().details?.apiKey).toBe("sk-temp");
+
+    opencodeTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      apiKey: "",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+    });
+    expect(opencodeTool.read().details?.apiKey).toBeNull();
   });
 });

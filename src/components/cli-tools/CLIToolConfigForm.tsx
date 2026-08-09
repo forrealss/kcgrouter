@@ -77,8 +77,51 @@ export function CLIToolConfigForm({
     setSelectedEndpoint(toolDetails?.baseUrl ?? defaultEndpoint);
     setSelectedModels(toolDetails?.models ?? []);
     setActiveModel(toolDetails?.activeModel ?? "");
+    setSubagentModel(toolDetails?.subagentModel ?? "");
     setRoleSlotValues(toolDetails?.roleSlots ?? {});
   }, [status, defaultEndpoint]);
+
+  // Restore the saved API key: match it against the known keys by value.
+  useEffect(() => {
+    const savedKey = status?.details?.apiKey;
+    if (!savedKey) {
+      setSelectedApiKeyId("");
+      setSelectedApiKey("");
+      return;
+    }
+    if (apiKeys.length === 0) {
+      setSelectedApiKeyId("__custom");
+      setSelectedApiKey(savedKey);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      for (const key of apiKeys) {
+        try {
+          const res = await apiClient.get<{ key: string }>(
+            `/api/settings/api-keys/${encodeURIComponent(key.id)}/key`,
+          );
+          if (res.key === savedKey) {
+            if (!cancelled) {
+              setSelectedApiKeyId(key.id);
+              setSelectedApiKey(savedKey);
+            }
+            return;
+          }
+        } catch {
+          // ignore — keep scanning
+        }
+      }
+      if (!cancelled) {
+        setSelectedApiKeyId("__custom");
+        setSelectedApiKey(savedKey);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status?.details?.apiKey, apiKeys]);
 
   async function handleApiKeySelect(id: string) {
     setSelectedApiKeyId(id);
@@ -112,7 +155,8 @@ export function CLIToolConfigForm({
         : {
             models: selectedModels,
             activeModel,
-            subagentModel: subagentModel || undefined,
+            // Send raw value — empty string clears the saved subagent.
+            subagentModel,
           }),
     });
   }

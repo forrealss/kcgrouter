@@ -98,6 +98,8 @@ function read(): ToolStatus {
     configured: Boolean(env[BASE_URL_KEY]),
     details: {
       baseUrl: typeof env[BASE_URL_KEY] === "string" ? env[BASE_URL_KEY] : null,
+      apiKey:
+        typeof env[AUTH_TOKEN_KEY] === "string" ? env[AUTH_TOKEN_KEY] : null,
       roleSlots,
       models,
       activeModel: typeof env[MODEL_KEY] === "string" ? env[MODEL_KEY] : null,

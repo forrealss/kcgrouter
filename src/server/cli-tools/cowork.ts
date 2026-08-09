@@ -150,6 +150,10 @@ function read(): ToolStatus {
     typeof config.inferenceGatewayBaseUrl === "string"
       ? config.inferenceGatewayBaseUrl
       : null;
+  const apiKey =
+    typeof config.inferenceGatewayApiKey === "string"
+      ? config.inferenceGatewayApiKey
+      : null;
   const models = Array.isArray(config.inferenceModels)
     ? config.inferenceModels
         .map((m) =>
@@ -161,7 +165,7 @@ function read(): ToolStatus {
   return {
     installed: isInstalled(),
     configured: config.inferenceProvider === PROVIDER && Boolean(baseUrl),
-    details: { baseUrl, models, activeModel: null },
+    details: { baseUrl, apiKey, models, activeModel: null },
   };
 }
 

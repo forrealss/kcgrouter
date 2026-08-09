@@ -30,22 +30,36 @@ function read(): ToolStatus {
   const config = readJsonc(getConfigPath());
   const providers = (config.provider ?? {}) as Record<string, unknown>;
   const provider = providers[PROVIDER_KEY] as
-    | { options?: { baseURL?: string }; models?: Record<string, unknown> }
+    | {
+        options?: { baseURL?: string; apiKey?: string };
+        models?: Record<string, unknown>;
+      }
     | undefined;
 
   const models = provider?.models ? Object.keys(provider.models) : [];
+
+  // Subagent model is stored as "kcgrouter/prefix/modelId" under agent.explorer.
+  const agent = config.agent as Record<string, unknown> | undefined;
+  const explorer = agent?.explorer as Record<string, unknown> | undefined;
+  const subagentModel =
+    typeof explorer?.model === "string" &&
+    explorer.model.startsWith(`${PROVIDER_KEY}/`)
+      ? explorer.model.replace(`${PROVIDER_KEY}/`, "")
+      : null;
 
   return {
     installed: isInstalled(),
     configured: !!provider,
     details: {
       baseUrl: provider?.options?.baseURL ?? null,
+      apiKey: provider?.options?.apiKey ?? null,
       models,
       activeModel:
         typeof config.model === "string" &&
         config.model.startsWith(`${PROVIDER_KEY}/`)
           ? config.model.replace(`${PROVIDER_KEY}/`, "")
           : null,
+      subagentModel,
     },
   };
 }
@@ -78,14 +92,20 @@ function apply(args: ToolApplyArgs): void {
   const existing = (providers[PROVIDER_KEY] ?? {}) as Record<string, unknown>;
   const existingOptions = (existing.options ?? {}) as Record<string, unknown>;
 
+  // apiKey: only touch when explicitly sent — empty string clears the saved key.
+  const nextOptions: Record<string, unknown> = {
+    ...existingOptions,
+    baseURL: args.baseUrl,
+  };
+  if (args.apiKey !== undefined) {
+    if (args.apiKey) nextOptions.apiKey = args.apiKey;
+    else delete nextOptions.apiKey;
+  }
+
   providers[PROVIDER_KEY] = {
     ...existing,
     npm: existing.npm ?? "@ai-sdk/openai-compatible",
-    options: {
-      ...existingOptions,
-      baseURL: args.baseUrl,
-      ...(args.apiKey ? { apiKey: args.apiKey } : {}),
-    },
+    options: nextOptions,
     models: modelsObj,
   };
   config.provider = providers;
@@ -99,14 +119,19 @@ function apply(args: ToolApplyArgs): void {
     config.model = `${PROVIDER_KEY}/${active}`;
   }
 
-  // Set subagent model
-  if (args.subagentModel) {
+  // Subagent model: only touch when explicitly sent — empty string clears it.
+  if (args.subagentModel !== undefined) {
     const agent = (config.agent ?? {}) as Record<string, unknown>;
     const existingAgent = agent.explorer as Record<string, unknown> | undefined;
-    agent.explorer = {
-      ...existingAgent,
-      model: `${PROVIDER_KEY}/${args.subagentModel}`,
-    };
+    if (args.subagentModel) {
+      agent.explorer = {
+        ...existingAgent,
+        model: `${PROVIDER_KEY}/${args.subagentModel}`,
+      };
+    } else if (existingAgent) {
+      delete existingAgent.model;
+      if (Object.keys(existingAgent).length === 0) delete agent.explorer;
+    }
     config.agent = agent;
   }
 

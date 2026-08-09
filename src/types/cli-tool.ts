@@ -34,8 +34,10 @@ export interface CLIToolDetails {
   form?: CLIToolFormConfig;
   details?: {
     baseUrl?: string | null;
+    apiKey?: string | null;
     models?: string[] | null;
     activeModel?: string | null;
+    subagentModel?: string | null;
     /** Role-slot model values keyed by env key (e.g. Claude Code roles). */
     roleSlots?: Record<string, string>;
   };

@@ -121,7 +121,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
     void loadBuilderData();
   }, [loadBuilderData]);
 
-  // Fetch models when provider account changes
+  // Fetch models (default + custom) when provider account changes
   useEffect(() => {
     if (!providerAccountId) {
       setModelOptions([]);
@@ -131,26 +131,48 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
     const account = accounts.find((a) => a.id === providerAccountId);
     if (!account) return;
 
-    // Find the provider to get transport type
     const fetchModels = async () => {
       try {
         const providers = await apiClient.get<Provider[]>("/api/providers");
         const provider = providers.find((p) => p.id === account.providerId);
         if (!provider) return;
 
-        // Fetch default models from registry
-        const models = await apiClient.get<Array<{ id: string; name: string }>>(
-          `/api/providers/models/${provider.transport}`,
-        );
+        // Fetch both default registry models AND custom DB models in parallel
+        const [defaultModels, customModels] = await Promise.all([
+          apiClient
+            .get<Array<{ id: string; name: string }>>(
+              `/api/providers/models/${provider.transport}`,
+            )
+            .catch(() => [] as Array<{ id: string; name: string }>),
+          apiClient
+            .get<
+              Array<{
+                id: string;
+                modelId: string;
+                modelName: string;
+              }>
+            >(`/api/providers/${encodeURIComponent(provider.id)}/models`)
+            .catch(
+              () =>
+                [] as Array<{ id: string; modelId: string; modelName: string }>,
+            ),
+        ]);
 
-        setModelOptions(
-          models.map((m) => ({
-            value: m.id,
-            label: m.name,
-          })),
-        );
+        const customValueSet = new Set(customModels.map((m) => m.modelId));
+
+        // Registry models (skip if a custom model with the same modelId exists)
+        const registryOptions: ComboboxOption[] = defaultModels
+          .filter((m) => !customValueSet.has(m.id))
+          .map((m) => ({ value: m.id, label: m.name }));
+
+        // Custom DB models
+        const customOptions: ComboboxOption[] = customModels.map((m) => ({
+          value: m.modelId,
+          label: m.modelName,
+        }));
+
+        setModelOptions([...customOptions, ...registryOptions]);
       } catch {
-        // If fetch fails, allow custom input
         setModelOptions([]);
       }
     };

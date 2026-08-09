@@ -18,3 +18,21 @@ export interface RequestLog {
   providerName: string | null;
   requestId?: string | null;
 }
+
+export interface LogsStats {
+  errors: number;
+  successes: number;
+  averageLatency: number | null;
+}
+
+export type ConnectionStatus = "connecting" | "live" | "offline";
+
+export interface PayloadData {
+  requestBody: string | null;
+  responseBody: string | null;
+}
+
+export interface AccountOption {
+  id: string;
+  label: string;
+}

@@ -2,10 +2,16 @@
  * Registry of all CLI tools. Import new tools here and add to the array.
  */
 
+import { claudeTool } from "./claude";
+import { coworkTool } from "./cowork";
 import { opencodeTool } from "./opencode";
 import type { CLIToolDefinition } from "./registry";
 
-export const cliTools: CLIToolDefinition[] = [opencodeTool];
+export const cliTools: CLIToolDefinition[] = [
+  claudeTool,
+  coworkTool,
+  opencodeTool,
+];
 
 export function getTool(id: string): CLIToolDefinition | undefined {
   return cliTools.find((t) => t.id === id);

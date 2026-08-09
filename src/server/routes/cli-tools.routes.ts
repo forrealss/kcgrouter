@@ -24,7 +24,11 @@ const handleGet: RouteHandler = (_req, params) => {
     return Response.json({ error: "Tool not found" }, { status: 404 });
   }
   const status = tool.read();
-  return Response.json({ ...status, configPath: tool.getConfigPath() });
+  return Response.json({
+    ...status,
+    configPath: tool.getConfigPath(),
+    form: tool.form,
+  });
 };
 
 // POST /api/cli-tools/:id — apply config
@@ -40,6 +44,7 @@ const handlePost: RouteHandler = async (req, params) => {
     models?: string[];
     activeModel?: string;
     subagentModel?: string;
+    roleSlots?: Record<string, string>;
   };
 
   if (!body.baseUrl) {
@@ -53,6 +58,7 @@ const handlePost: RouteHandler = async (req, params) => {
       models: body.models,
       activeModel: body.activeModel,
       subagentModel: body.subagentModel,
+      roleSlots: body.roleSlots,
     });
     return Response.json({ ok: true });
   } catch (err) {
@@ -88,6 +94,7 @@ const handlePatch: RouteHandler = async (req, params) => {
       baseUrl?: string;
       models?: string[];
       activeModel?: string;
+      roleSlots?: Record<string, string>;
     };
 
     const clearActiveModel = body.clearActiveModel === true;
@@ -112,6 +119,7 @@ const handlePatch: RouteHandler = async (req, params) => {
       baseUrl: details.baseUrl ?? `http://localhost:${getPort()}/v1`,
       models,
       activeModel,
+      roleSlots: details.roleSlots,
     });
 
     return Response.json({ ok: true });

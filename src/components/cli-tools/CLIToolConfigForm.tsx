@@ -31,6 +31,7 @@ import type {
   ApiKeySummary,
   CLIToolApplyPayload,
   CLIToolDetails,
+  CLIToolRoleSlot,
 } from "@/types/cli-tool";
 
 interface CLIToolConfigFormProps {
@@ -60,6 +61,14 @@ export function CLIToolConfigForm({
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [activeModel, setActiveModel] = useState("");
   const [subagentModel, setSubagentModel] = useState("");
+  const [roleSlotValues, setRoleSlotValues] = useState<Record<string, string>>(
+    {},
+  );
+
+  const form = status?.form;
+  const roleSlots = form?.roleSlots ?? [];
+  const hideSubagentModel = form?.hideSubagentModel ?? false;
+  const usesRoleSlots = roleSlots.length > 0;
 
   // Sync fields from the loaded config whenever status changes
   // (initial load, after apply, after reset).
@@ -68,6 +77,7 @@ export function CLIToolConfigForm({
     setSelectedEndpoint(toolDetails?.baseUrl ?? defaultEndpoint);
     setSelectedModels(toolDetails?.models ?? []);
     setActiveModel(toolDetails?.activeModel ?? "");
+    setRoleSlotValues(toolDetails?.roleSlots ?? {});
   }, [status, defaultEndpoint]);
 
   async function handleApiKeySelect(id: string) {
@@ -89,13 +99,21 @@ export function CLIToolConfigForm({
     }
   }
 
+  function handleRoleSlotChange(slot: CLIToolRoleSlot, value: string) {
+    setRoleSlotValues((prev) => ({ ...prev, [slot.envKey]: value }));
+  }
+
   function handleSubmit() {
     void onApply({
       baseUrl: selectedEndpoint.trim(),
       apiKey: selectedApiKey,
-      models: selectedModels,
-      activeModel,
-      subagentModel: subagentModel || undefined,
+      ...(usesRoleSlots
+        ? { roleSlots: roleSlotValues }
+        : {
+            models: selectedModels,
+            activeModel,
+            subagentModel: subagentModel || undefined,
+          }),
     });
   }
 
@@ -173,73 +191,122 @@ export function CLIToolConfigForm({
             </div>
           </div>
 
-          {/* Models */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <Label>Models</Label>
-              <p className="text-sm text-muted-foreground">
-                Models this tool can use. Star one to set it as the default.
-              </p>
-            </div>
-            <MultiCombobox
-              className="w-full"
-              options={modelOptions}
-              value={selectedModels}
-              onValueChange={handleModelsChange}
-              activeValue={activeModel}
-              onActiveChange={setActiveModel}
-              emptyLabel="No models selected"
-              emptyHint="Pick models from your enabled providers, then star one to make it the default."
-              searchPlaceholder="Search models..."
-              addLabel="Add model"
-              dialogTitle="Select models"
-              doneLabel="Done"
-              noResultsLabel="No models found"
-              groupMeta={modelGroupMeta}
-            />
-            {modelOptions.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No enabled models found. Enable models in the Providers page
-                first.
-              </p>
-            ) : null}
-          </div>
+          {usesRoleSlots ? (
+            /* Role-slot model pickers (e.g. Claude Code fable/opus/sonnet/haiku) */
+            roleSlots.map((slot) => (
+              <div key={slot.envKey} className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`role-${slot.envKey}`}>{slot.label}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Model routed for this role. Leave empty to skip.
+                  </p>
+                </div>
+                <div className="flex w-full items-center gap-2">
+                  {" "}
+                  <Combobox
+                    className="flex-1"
+                    options={modelOptions}
+                    value={roleSlotValues[slot.envKey] ?? ""}
+                    onValueChange={(value) => handleRoleSlotChange(slot, value)}
+                    placeholder={
+                      slot.defaultValue
+                        ? `${slot.defaultValue} (default)`
+                        : "Select model..."
+                    }
+                    searchPlaceholder="Search models..."
+                    dialogTitle={`Select model for ${slot.label}`}
+                    closeLabel="Close"
+                    noResultsLabel="No models found"
+                    customLabel="Use"
+                    groupMeta={modelGroupMeta}
+                  />
+                  {roleSlotValues[slot.envKey] ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRoleSlotChange(slot, "")}
+                      aria-label={`Clear ${slot.label} model`}
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          ) : (
+            <>
+              {/* Models */}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label>Models</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Models this tool can use. Star one to set it as the default.
+                  </p>
+                </div>
+                <MultiCombobox
+                  className="w-full"
+                  options={modelOptions}
+                  value={selectedModels}
+                  onValueChange={handleModelsChange}
+                  activeValue={activeModel}
+                  onActiveChange={setActiveModel}
+                  emptyLabel="No models selected"
+                  emptyHint="Pick models from your enabled providers, then star one to make it the default."
+                  searchPlaceholder="Search models..."
+                  addLabel="Add model"
+                  dialogTitle="Select models"
+                  doneLabel="Done"
+                  noResultsLabel="No models found"
+                  groupMeta={modelGroupMeta}
+                />
+                {modelOptions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No enabled models found. Enable models in the Providers page
+                    first.
+                  </p>
+                ) : null}
+              </div>
 
-          {/* Subagent Model */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="subagent-model">Subagent Model</Label>
-              <p className="text-sm text-muted-foreground">
-                Model used for subagent tasks. Leave empty to skip.
-              </p>
-            </div>
-            <div className="flex w-full items-center gap-2">
-              <Combobox
-                className="flex-1"
-                options={modelOptions}
-                value={subagentModel}
-                onValueChange={setSubagentModel}
-                placeholder="Select model..."
-                searchPlaceholder="Search models..."
-                dialogTitle="Select subagent model"
-                closeLabel="Close"
-                noResultsLabel="No models found"
-                customLabel="Use"
-                groupMeta={modelGroupMeta}
-              />
-              {subagentModel ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSubagentModel("")}
-                  aria-label="Clear subagent model"
-                >
-                  <XIcon className="size-3.5" />
-                </Button>
+              {/* Subagent Model */}
+              {!hideSubagentModel ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="subagent-model">Subagent Model</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Model used for subagent tasks. Leave empty to skip.
+                    </p>
+                  </div>
+                  <div className="flex w-full items-center gap-2">
+                    <Combobox
+                      className="flex-1"
+                      options={modelOptions}
+                      value={subagentModel}
+                      onValueChange={setSubagentModel}
+                      placeholder="Select model..."
+                      searchPlaceholder="Search models..."
+                      dialogTitle="Select subagent model"
+                      closeLabel="Close"
+                      noResultsLabel="No models found"
+                      customLabel="Use"
+                      groupMeta={modelGroupMeta}
+                    />
+                    {subagentModel ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSubagentModel("")}
+                        aria-label="Clear subagent model"
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </CardContent>
 

@@ -15,6 +15,29 @@ export interface ToolApplyArgs {
   models?: string[];
   activeModel?: string;
   subagentModel?: string;
+  /** Role-slot model values keyed by env key (e.g. Claude Code roles). */
+  roleSlots?: Record<string, string>;
+}
+
+/** A named model role (e.g. "Claude Opus") mapped to an env key. */
+export interface CLIToolRoleSlot {
+  /** Env key that stores the model for this role. */
+  envKey: string;
+  /** Display label shown in the form. */
+  label: string;
+  /** Fallback model id when the user leaves the slot empty. */
+  defaultValue?: string;
+}
+
+/** Per-tool UI hints so the generic form adapts to each tool. */
+export interface CLIToolFormConfig {
+  /** Hide the generic subagent-model field. */
+  hideSubagentModel?: boolean;
+  /**
+   * When set, render one model picker per role slot instead of the generic
+   * multi-select; values are keyed by env key in apply/read.
+   */
+  roleSlots?: CLIToolRoleSlot[];
 }
 
 export interface CLIToolDefinition {
@@ -22,6 +45,8 @@ export interface CLIToolDefinition {
   name: string;
   icon: string;
   description: string;
+  /** Per-tool UI hints for the generic config form. */
+  form?: CLIToolFormConfig;
   /** Returns the config file path for display */
   getConfigPath(): string;
   /** Check if the CLI is installed on this machine */
@@ -46,7 +71,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import * as jsonc from "jsonc-parser";
 
 export function readJsonc(filePath: string): Record<string, unknown> {
@@ -74,7 +99,7 @@ export function writeJson(
   filePath: string,
   data: Record<string, unknown>,
 ): void {
-  const dir = filePath.slice(0, filePath.lastIndexOf("/"));
+  const dir = dirname(filePath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
 }

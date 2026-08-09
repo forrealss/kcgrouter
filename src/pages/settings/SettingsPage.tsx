@@ -3,15 +3,18 @@ import { PreferencesCard } from "@/components/settings/PreferencesCard";
 
 export function SettingsPage() {
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">Pengaturan</h2>
+    <section className="flex flex-col gap-5 pb-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-xl font-semibold tracking-tight">Pengaturan</h2>
         <p className="text-sm text-muted-foreground">
-          Kelola keamanan dashboard, preferensi tampilan, dan akses router.
+          Kelola preferensi dashboard dan akses API.
         </p>
+      </header>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:items-start">
+        <PreferencesCard />
+        <ApiKeyManager />
       </div>
-      <PreferencesCard />
-      <ApiKeyManager />
     </section>
   );
 }

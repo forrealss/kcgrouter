@@ -16,4 +16,5 @@ export interface RequestLog {
   accountLabel: string | null;
   providerId: string | null;
   providerName: string | null;
+  requestId?: string | null;
 }

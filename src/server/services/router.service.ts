@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getAdapter } from "../providers/registry";
 import type {
   CanonicalRequest,
@@ -147,6 +148,7 @@ function classifyError(err: unknown): "auth" | "rate_limit" | "server_error" {
 }
 
 async function handlePrefixRoute(
+  requestId: string,
   canonical: CanonicalRequest,
   providerPrefix: string,
   modelName: string,
@@ -161,6 +163,7 @@ async function handlePrefixRoute(
   if (!provider) {
     const message = `Provider with prefix "${providerPrefix}" not found`;
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: null,
@@ -185,6 +188,7 @@ async function handlePrefixRoute(
   if (!activeAccount) {
     const message = `No active account found for provider "${provider.name}"`;
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: null,
@@ -240,6 +244,7 @@ async function handlePrefixRoute(
               : undefined,
           }));
           UsageRecorder.record({
+            requestId,
             providerAccountId: activeAccount.id,
             comboId: null,
             model: modelName,
@@ -265,6 +270,7 @@ async function handlePrefixRoute(
           );
           ProviderRegistry.recordAccountSuccess(activeAccount.id);
           RequestLog.record({
+            requestId,
             type: "success",
             source: "router",
             providerAccountId: activeAccount.id,
@@ -290,6 +296,7 @@ async function handlePrefixRoute(
     const responseBody = fromCanonical(response, sourceFormat);
 
     UsageRecorder.record({
+      requestId,
       providerAccountId: activeAccount.id,
       comboId: null,
       model: modelName,
@@ -315,6 +322,7 @@ async function handlePrefixRoute(
     );
     ProviderRegistry.recordAccountSuccess(activeAccount.id);
     RequestLog.record({
+      requestId,
       type: "success",
       source: "router",
       providerAccountId: activeAccount.id,
@@ -338,6 +346,7 @@ async function handlePrefixRoute(
     const message = errorMessage(err);
     ProviderRegistry.recordAccountError(activeAccount.id, message);
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: activeAccount.id,
@@ -357,6 +366,7 @@ async function handlePrefixRoute(
 }
 
 async function handleComboRoute(
+  requestId: string,
   canonical: CanonicalRequest,
   comboName: string,
   sourceFormat: SourceFormat,
@@ -369,6 +379,7 @@ async function handleComboRoute(
   if (!combo) {
     const message = `Combo "${comboName}" not found`;
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: null,
@@ -397,6 +408,7 @@ async function handleComboRoute(
     if (!member) {
       const message = "All combo members exhausted";
       RequestLog.record({
+        requestId,
         type: "error",
         source: "router",
         providerAccountId: null,
@@ -461,6 +473,7 @@ async function handleComboRoute(
                 : undefined,
             }));
             UsageRecorder.record({
+              requestId,
               providerAccountId: account.id,
               comboId: combo.id,
               model: member.modelName,
@@ -486,6 +499,7 @@ async function handleComboRoute(
             );
             ProviderRegistry.recordAccountSuccess(account.id);
             RequestLog.record({
+              requestId,
               type: "success",
               source: "router",
               providerAccountId: account.id,
@@ -511,6 +525,7 @@ async function handleComboRoute(
       const responseBody = fromCanonical(response, sourceFormat);
 
       UsageRecorder.record({
+        requestId,
         providerAccountId: account.id,
         comboId: combo.id,
         model: member.modelName,
@@ -536,6 +551,7 @@ async function handleComboRoute(
       );
       ProviderRegistry.recordAccountSuccess(account.id);
       RequestLog.record({
+        requestId,
         type: "success",
         source: "router",
         providerAccountId: account.id,
@@ -561,6 +577,7 @@ async function handleComboRoute(
       const message = errorMessage(err);
       ProviderRegistry.recordAccountError(account.id, message);
       RequestLog.record({
+        requestId,
         type: "error",
         source: "router",
         providerAccountId: account.id,
@@ -590,6 +607,8 @@ function wantsUsageChunk(rawBody: unknown): boolean {
 export async function handleChatRequest(
   input: RouterInput,
 ): Promise<RouterResult> {
+  const requestId = randomUUID();
+
   // Streaming is only implemented for the OpenAI SSE dialect so far. Anthropic
   // clients need a different, stateful event sequence (message_start /
   // content_block_* / message_stop); emitting OpenAI frames there would look
@@ -598,6 +617,7 @@ export async function handleChatRequest(
     const message =
       "Streaming is not yet supported on /v1/messages. Use stream:false, or call /v1/chat/completions.";
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: null,
@@ -622,6 +642,7 @@ export async function handleChatRequest(
   } catch (err) {
     const message = errorMessage(err);
     RequestLog.record({
+      requestId,
       type: "error",
       source: "router",
       providerAccountId: null,
@@ -641,6 +662,7 @@ export async function handleChatRequest(
 
   // 1b. Log incoming request
   RequestLog.record({
+    requestId,
     type: "request",
     source: "router",
     providerAccountId: null,
@@ -691,6 +713,7 @@ export async function handleChatRequest(
   // 4. Route based on prefix or combo
   if (providerPrefix) {
     return handlePrefixRoute(
+      requestId,
       canonical,
       providerPrefix,
       modelName,
@@ -703,6 +726,7 @@ export async function handleChatRequest(
   }
 
   return handleComboRoute(
+    requestId,
     canonical,
     input.targetSelector,
     input.sourceFormat,

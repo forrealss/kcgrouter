@@ -1,5 +1,6 @@
 import {
   CheckIcon,
+  CircleAlertIcon,
   CopyIcon,
   KeyRoundIcon,
   PlusIcon,
@@ -53,14 +54,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 
 type ApiKey = {
@@ -227,27 +220,29 @@ function ApiKeyManager() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3">
+        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <span
               className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60"
               aria-hidden
             >
               <KeyRoundIcon className="size-4 text-muted-foreground" />
             </span>
-            Akses API
-          </CardTitle>
-          <CardDescription>
-            Kelola App API Key untuk mengautentikasi CLI ke endpoint router.
-          </CardDescription>
-          <CardAction>
+            <div className="flex min-w-0 flex-col gap-1">
+              <CardTitle>Akses API</CardTitle>
+              <CardDescription className="truncate">
+                API key untuk CLI dan aplikasi Anda.
+              </CardDescription>
+            </div>
+          </div>
+          <CardAction className="shrink-0">
             <Button
               type="button"
               size="sm"
               onClick={() => setIsCreateDialogOpen(true)}
             >
               <PlusIcon data-icon="inline-start" />
-              Buat API key
+              Buat key
             </Button>
           </CardAction>
         </CardHeader>
@@ -271,122 +266,131 @@ function ApiKeyManager() {
           ) : null}
 
           {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
               <Spinner />
               Memuat API key...
             </div>
           ) : keys?.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Dibuat</TableHead>
-                  <TableHead>Terakhir digunakan</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {keys.map((key) => {
-                  const isRevoking = revokingKeyId === key.id;
-                  const isCopying = copyingKeyId === key.id;
-                  const isCopied = copiedKeyId === key.id;
+            <div className="flex flex-col divide-y rounded-lg border">
+              {keys.map((key) => {
+                const isRevoking = revokingKeyId === key.id;
+                const isCopying = copyingKeyId === key.id;
+                const isCopied = copiedKeyId === key.id;
 
-                  return (
-                    <TableRow key={key.id}>
-                      <TableCell className="font-medium">{key.label}</TableCell>
-                      <TableCell>{formatDate(key.created_at)}</TableCell>
-                      <TableCell>{formatDate(key.last_used_at)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                return (
+                  <div
+                    key={key.id}
+                    className="flex flex-col gap-3 p-3 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <KeyRoundIcon className="size-4" />
+                      </span>
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate text-sm font-medium">
+                          {key.label}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {!key.has_key
+                            ? "Key lama — salin tidak tersedia"
+                            : key.last_used_at
+                              ? `Terakhir digunakan ${formatDate(key.last_used_at)}`
+                              : `Dibuat ${formatDate(key.created_at)}`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 pl-11 sm:shrink-0 sm:pl-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleCopyKey(key)}
+                        disabled={isCopying || !key.has_key}
+                        aria-label={`Salin API key ${key.label}`}
+                        title={
+                          key.has_key
+                            ? "Salin key"
+                            : "Key ini dibuat sebelum enkripsi diaktifkan"
+                        }
+                      >
+                        {isCopying ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : isCopied ? (
+                          <CheckIcon
+                            data-icon="inline-start"
+                            className="text-green-600 dark:text-green-400"
+                          />
+                        ) : (
+                          <CopyIcon data-icon="inline-start" />
+                        )}
+                        {isCopied ? "Tersalin" : "Salin"}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
-                            size="icon"
-                            onClick={() => void handleCopyKey(key)}
-                            disabled={isCopying || !key.has_key}
-                            aria-label={`Salin API key ${key.label}`}
-                            title={
-                              key.has_key
-                                ? "Salin key"
-                                : "Key ini dibuat sebelum enkripsi diaktifkan"
-                            }
+                            size="icon-sm"
+                            disabled={isRevoking}
+                            aria-label={`Cabut API key ${key.label}`}
+                            title="Cabut key"
                           >
-                            {isCopying ? (
+                            {isRevoking ? (
                               <Spinner />
-                            ) : isCopied ? (
-                              <CheckIcon className="text-green-600 dark:text-green-400" />
                             ) : (
-                              <CopyIcon />
+                              <Trash2Icon className="text-destructive" />
                             )}
                           </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                disabled={isRevoking}
-                              >
-                                {isRevoking ? (
-                                  <Spinner data-icon="inline-start" />
-                                ) : (
-                                  <Trash2Icon data-icon="inline-start" />
-                                )}
-                                Cabut
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Cabut API key {key.label}?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Key akan dihapus permanen. CLI yang masih
-                                  memakai key ini tidak akan dapat mengakses
-                                  endpoint router lagi.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isRevoking}>
-                                  Batal
-                                </AlertDialogCancel>
-                                <AlertDialogAction
-                                  variant="destructive"
-                                  disabled={isRevoking}
-                                  onClick={() => void handleRevoke(key)}
-                                >
-                                  {isRevoking ? (
-                                    <Spinner data-icon="inline-start" />
-                                  ) : null}
-                                  Cabut API key
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Cabut API key {key.label}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Key akan dihapus permanen dan tidak bisa digunakan
+                              lagi.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isRevoking}>
+                              Batal
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              disabled={isRevoking}
+                              onClick={() => void handleRevoke(key)}
+                            >
+                              {isRevoking ? (
+                                <Spinner data-icon="inline-start" />
+                              ) : null}
+                              Cabut key
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
-            <Empty className="border">
+            <Empty className="border-dashed py-10">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <KeyRoundIcon />
                 </EmptyMedia>
                 <EmptyTitle>Belum ada API key</EmptyTitle>
                 <EmptyDescription>
-                  Buat key untuk menghubungkan CLI ke endpoint `/v1/*`.
+                  Buat key pertama Anda untuk mulai menggunakan CLI.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
         </CardContent>
-        <CardFooter className="border-t text-sm text-muted-foreground">
-          Plaintext API key disimpan terenkripsi dan dapat disalin kembali kapan
-          saja.
+        <CardFooter className="gap-2 border-t text-xs text-muted-foreground">
+          <CircleAlertIcon className="size-3.5 shrink-0" />
+          Key dapat dicabut kapan saja.
         </CardFooter>
       </Card>
 
@@ -450,8 +454,8 @@ function ApiKeyManager() {
           <DialogHeader>
             <DialogTitle>Simpan API key Anda</DialogTitle>
             <DialogDescription>
-              Salin dan simpan di tempat aman. Key juga dapat disalin kembali
-              dari tabel kapan saja.
+              Salin key ini sekarang. Setelah dialog ditutup, key tetap dapat
+              disalin dari daftar.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>

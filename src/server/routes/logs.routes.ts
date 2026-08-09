@@ -2,6 +2,23 @@ import * as RequestLog from "../services/request-log.service";
 import type { RouteHandler } from "./types";
 
 export const logsRoutes: Record<string, RouteHandler> = {
+  "GET /api/logs/:id/payloads": (_req, params) => {
+    const logId = params?.id;
+    if (!logId) {
+      return Response.json({ error: "Log ID is required" }, { status: 400 });
+    }
+
+    const payloads = RequestLog.getPayloads(logId);
+    if (!payloads) {
+      return Response.json(
+        { error: "Payload detail not found" },
+        { status: 404 },
+      );
+    }
+
+    return Response.json(payloads);
+  },
+
   "GET /api/logs": (req) => {
     const url = new URL(req.url);
     const type = url.searchParams.get("type") ?? undefined;

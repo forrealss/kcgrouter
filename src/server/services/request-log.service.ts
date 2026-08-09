@@ -21,6 +21,7 @@ export interface RequestLogEntry {
   stream: boolean;
   message: string | null;
   latencyMs: number | null;
+  requestId?: string | null;
 }
 
 export interface RequestLogRecord extends RequestLogEntry {
@@ -51,6 +52,7 @@ function rowToRecord(row: LogRowWithJoins): RequestLogRecord {
     stream: row.stream === 1,
     message: row.message,
     latencyMs: row.latency_ms,
+    requestId: row.request_id ?? null,
     accountLabel: row.account_label ?? null,
     providerId: row.provider_id ?? null,
     providerName: row.provider_name ?? null,
@@ -74,8 +76,8 @@ export function record(entry: Omit<RequestLogEntry, "id" | "timestamp">): void {
   const now = new Date().toISOString();
 
   run(
-    `INSERT INTO request_logs (id, timestamp, type, source, provider_account_id, combo_id, model, source_format, stream, message, latency_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO request_logs (id, timestamp, type, source, provider_account_id, combo_id, model, source_format, stream, message, latency_ms, request_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     now,
     entry.type,
@@ -87,6 +89,7 @@ export function record(entry: Omit<RequestLogEntry, "id" | "timestamp">): void {
     entry.stream ? 1 : 0,
     entry.message,
     entry.latencyMs,
+    entry.requestId ?? null,
   );
 
   EventBus.publish("log:new", {
@@ -152,6 +155,31 @@ export function getHistory(opts: {
   );
 
   return rows.map(rowToRecord);
+}
+
+export interface RequestLogPayloads {
+  requestBody: string | null;
+  responseBody: string | null;
+}
+
+export function getPayloads(logId: string): RequestLogPayloads | null {
+  const row = get<{
+    usage_id: string | null;
+    request_body: string | null;
+    response_body: string | null;
+  }>(
+    `SELECT ur.id AS usage_id, ur.request_body, ur.response_body
+     FROM request_logs rl
+     LEFT JOIN usage_records ur ON ur.request_id = rl.request_id
+     WHERE rl.id = ? AND rl.type IN ('request', 'success')
+     ORDER BY ur.timestamp DESC
+     LIMIT 1`,
+    logId,
+  );
+
+  return row?.usage_id
+    ? { requestBody: row.request_body, responseBody: row.response_body }
+    : null;
 }
 
 export function clearAll(): void {

@@ -15,6 +15,7 @@ export interface UsageRecord {
   estimatedCost: number;
   requestBody?: string | null;
   responseBody?: string | null;
+  requestId?: string | null;
 }
 
 export interface UsageSummary {
@@ -44,6 +45,7 @@ function rowToRecord(row: UsageRecordRow): UsageRecord {
     estimatedCost: row.estimated_cost,
     requestBody: row.request_body,
     responseBody: row.response_body,
+    requestId: row.request_id ?? null,
   };
 }
 
@@ -52,8 +54,8 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
   const now = new Date().toISOString();
 
   run(
-    `INSERT INTO usage_records (id, timestamp, provider_account_id, combo_id, model, input_tokens, output_tokens, status, latency_ms, estimated_cost, request_body, response_body)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO usage_records (id, timestamp, provider_account_id, combo_id, model, input_tokens, output_tokens, status, latency_ms, estimated_cost, request_body, response_body, request_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     now,
     entry.providerAccountId,
@@ -66,6 +68,7 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
     entry.estimatedCost,
     entry.requestBody ?? null,
     entry.responseBody ?? null,
+    entry.requestId ?? null,
   );
 }
 

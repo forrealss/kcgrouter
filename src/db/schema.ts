@@ -89,6 +89,7 @@ export interface RequestLogRow {
   stream: number;
   message: string | null;
   latency_ms: number | null;
+  request_id: string | null;
 }
 
 export interface UsageRecordRow {
@@ -104,6 +105,7 @@ export interface UsageRecordRow {
   estimated_cost: number;
   request_body: string | null;
   response_body: string | null;
+  request_id: string | null;
 }
 
 export type ProviderTransport =

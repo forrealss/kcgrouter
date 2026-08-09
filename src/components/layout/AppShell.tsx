@@ -85,7 +85,7 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
             </h1>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 md:p-6 overflow-x-hidden max-w-[1700px] mx-auto w-full">
+        <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-4 md:p-6 mx-auto w-full max-w-[1700px]">
           {logoutError ? (
             <Alert variant="destructive">
               <AlertCircleIcon />

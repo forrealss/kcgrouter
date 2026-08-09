@@ -12,17 +12,17 @@ export function StatCard({
   tone: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 border-b p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+    <div className="flex min-w-0 items-center gap-2 border-b p-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-3 sm:py-2.5">
       <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}
+        className={`flex size-7 shrink-0 items-center justify-center rounded-md ${tone}`}
       >
-        <Icon className="size-4" />
+        <Icon className="size-3.5" />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="truncate text-[9px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[10px]">
           {label}
         </p>
-        <p className="mt-0.5 truncate font-mono text-lg font-semibold tabular-nums tracking-tight">
+        <p className="mt-0.5 truncate font-mono text-sm font-semibold tabular-nums tracking-tight sm:text-base">
           {value}
         </p>
       </div>

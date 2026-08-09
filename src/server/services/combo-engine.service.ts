@@ -82,10 +82,17 @@ export function createCombo(name: string, strategy: ComboStrategy): Combo {
   };
 }
 
-export function getCombo(id: string): Combo | null {
-  const row = get<ComboRow>("SELECT * FROM combos WHERE id = ?", id);
-  if (!row) return null;
-  return rowToCombo(row);
+/**
+ * Look up a combo by id (CRUD paths) or by unique name (router selectors:
+ * an unprefixed model string like `prod-primary` resolves to the combo).
+ * Id wins if the string happens to match both.
+ */
+export function getCombo(idOrName: string): Combo | null {
+  const row = get<ComboRow>("SELECT * FROM combos WHERE id = ?", idOrName);
+  if (row) return rowToCombo(row);
+  const byName = get<ComboRow>("SELECT * FROM combos WHERE name = ?", idOrName);
+  if (!byName) return null;
+  return rowToCombo(byName);
 }
 
 export function listCombos(): (Combo & { memberCount: number })[] {

@@ -1,4 +1,9 @@
-import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronsUpDownIcon,
+  type LucideIcon,
+  PlusIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,8 +36,9 @@ interface ComboboxProps {
   closeLabel?: string;
   noResultsLabel?: string;
   /** Optional render metadata per group (keyed by the option `group` value). */
-  groupMeta?: Record<string, { icon?: string }>;
+  groupMeta?: Record<string, { icon?: string; iconComponent?: LucideIcon }>;
   disabled?: boolean;
+  id?: string;
   className?: string;
 }
 
@@ -49,6 +55,7 @@ export function Combobox({
   noResultsLabel = "Tidak ada opsi ditemukan",
   groupMeta,
   disabled = false,
+  id,
   className,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
@@ -103,6 +110,7 @@ export function Combobox({
         variant="outline"
         role="combobox"
         aria-expanded={open}
+        id={id}
         className="w-full justify-between"
         disabled={disabled}
         onClick={() => setOpen(true)}
@@ -153,7 +161,9 @@ export function Combobox({
                     <div key={groupName || "__ungrouped"}>
                       {groupName ? (
                         <div className="flex items-center gap-2 px-2 pb-1.5 text-sm font-semibold text-foreground">
-                          {meta?.icon ? (
+                          {meta?.iconComponent ? (
+                            <meta.iconComponent className="size-4 shrink-0 text-muted-foreground" />
+                          ) : meta?.icon ? (
                             <img
                               src={meta.icon}
                               alt=""

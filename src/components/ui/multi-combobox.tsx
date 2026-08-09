@@ -1,4 +1,11 @@
-import { BoxesIcon, CheckIcon, PlusIcon, Star, XIcon } from "lucide-react";
+import {
+  BoxesIcon,
+  CheckIcon,
+  type LucideIcon,
+  PlusIcon,
+  Star,
+  XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +46,7 @@ interface MultiComboboxProps {
   doneLabel?: string;
   noResultsLabel?: string;
   /** Optional render metadata per group (keyed by the option `group` value). */
-  groupMeta?: Record<string, { icon?: string }>;
+  groupMeta?: Record<string, { icon?: string; iconComponent?: LucideIcon }>;
   disabled?: boolean;
   className?: string;
 }
@@ -148,6 +155,9 @@ export function MultiCombobox({
               const groupIcon = option?.group
                 ? groupMeta?.[option.group]?.icon
                 : undefined;
+              const GroupIcon = option?.group
+                ? groupMeta?.[option.group]?.iconComponent
+                : undefined;
               return (
                 <div
                   key={val}
@@ -163,7 +173,9 @@ export function MultiCombobox({
                       className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-muted/50"
                       aria-hidden
                     >
-                      {groupIcon ? (
+                      {GroupIcon ? (
+                        <GroupIcon className="size-4 text-muted-foreground" />
+                      ) : groupIcon ? (
                         <img
                           src={groupIcon}
                           alt=""
@@ -177,7 +189,7 @@ export function MultiCombobox({
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {option?.description || option?.label || val}
+                      {option?.label || option?.description || val}
                     </p>
                     <p className="truncate font-mono text-xs text-muted-foreground">
                       {shortLabel(val)}
@@ -263,7 +275,9 @@ export function MultiCombobox({
                     <div key={groupName || "__ungrouped"}>
                       {groupName ? (
                         <div className="flex items-center gap-2 px-2 pb-1.5 text-sm font-semibold text-foreground">
-                          {meta?.icon ? (
+                          {meta?.iconComponent ? (
+                            <meta.iconComponent className="size-4 shrink-0 text-muted-foreground" />
+                          ) : meta?.icon ? (
                             <img
                               src={meta.icon}
                               alt=""
@@ -300,7 +314,7 @@ export function MultiCombobox({
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate font-mono text-xs">
-                                  {shortLabel(option.value)}
+                                  {option.label || shortLabel(option.value)}
                                 </span>
                                 {option.description ? (
                                   <span className="block truncate text-xs text-muted-foreground">

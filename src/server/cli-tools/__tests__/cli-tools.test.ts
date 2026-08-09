@@ -44,9 +44,9 @@ describe("claudeTool (Claude Code)", () => {
     expect(status.configured).toBe(false);
   });
 
-  test("apply writes env vars and normalizes /v1", () => {
+  test("apply writes env vars and strips /v1 from the base URL", () => {
     claudeTool.apply({
-      baseUrl: "http://localhost:4000",
+      baseUrl: "http://localhost:4000/v1",
       apiKey: "sk-test",
       models: ["cc/claude-sonnet-5", "cc/claude-opus-5"],
       activeModel: "cc/claude-sonnet-5",
@@ -54,17 +54,26 @@ describe("claudeTool (Claude Code)", () => {
 
     const config = readJsonFile(claudeConfigPath());
     const env = config.env as Record<string, unknown>;
-    expect(env.ANTHROPIC_BASE_URL).toBe("http://localhost:4000/v1");
+    // Claude Code appends /v1 itself — the base URL is the router root.
+    expect(env.ANTHROPIC_BASE_URL).toBe("http://localhost:4000");
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-test");
     expect(env.ANTHROPIC_MODEL).toBe("cc/claude-sonnet-5");
     expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("cc/claude-sonnet-5");
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("cc/claude-opus-5");
   });
 
+  test("read normalizes a legacy /v1 base URL stored in the config", () => {
+    const config = readJsonFile(claudeConfigPath());
+    (config.env as Record<string, unknown>).ANTHROPIC_BASE_URL =
+      "http://localhost:4000/v1";
+    writeFileSync(claudeConfigPath(), JSON.stringify(config, null, 2));
+    expect(claudeTool.read().details?.baseUrl).toBe("http://localhost:4000");
+  });
+
   test("read reflects the applied config", () => {
     const status = claudeTool.read();
     expect(status.configured).toBe(true);
-    expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.baseUrl).toBe("http://localhost:4000");
     expect(status.details?.apiKey).toBe("sk-test");
     expect(status.details?.activeModel).toBe("cc/claude-sonnet-5");
     const models = status.details?.models as string[];
@@ -173,7 +182,8 @@ describe("coworkTool (Claude Cowork)", () => {
     expect(existsSync(cfgPath)).toBe(true);
     const cfg = readJsonFile(cfgPath);
     expect(cfg.inferenceProvider).toBe("gateway");
-    expect(cfg.inferenceGatewayBaseUrl).toBe("http://localhost:4000/v1");
+    // Cowork appends /v1 itself — the base URL is the router root.
+    expect(cfg.inferenceGatewayBaseUrl).toBe("http://localhost:4000");
     expect(cfg.inferenceGatewayApiKey).toBe("sk-test");
     expect(cfg.inferenceModels).toEqual([
       { name: "cc/claude-sonnet-5" },
@@ -196,7 +206,7 @@ describe("coworkTool (Claude Cowork)", () => {
     const status = coworkTool.read();
     expect(status.installed).toBe(true);
     expect(status.configured).toBe(true);
-    expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.baseUrl).toBe("http://localhost:4000");
     expect(status.details?.apiKey).toBe("sk-test");
     const models = status.details?.models as string[];
     expect(models).toContain("cc/claude-sonnet-5");

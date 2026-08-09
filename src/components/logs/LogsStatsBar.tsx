@@ -19,7 +19,7 @@ export function LogsStatsBar({
 }) {
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
-      <CardContent className="grid gap-px bg-border/60 p-0 sm:grid-cols-2 lg:grid-cols-4 [&>*]:bg-card">
+      <CardContent className="grid grid-cols-2 gap-px bg-border/60 p-0 sm:grid-cols-4 [&>*]:bg-card">
         <StatCard
           label="Total entries"
           value={numberFormatter.format(totalEntries)}
@@ -39,7 +39,7 @@ export function LogsStatsBar({
           tone="bg-destructive/10 text-destructive"
         />
         <StatCard
-          label="Average latency"
+          label="Avg latency"
           value={
             stats.averageLatency == null ? "—" : `${stats.averageLatency} ms`
           }

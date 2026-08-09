@@ -17,6 +17,7 @@ import { join } from "node:path";
 import {
   type CLIToolDefinition,
   homedirPath,
+  normalizeRouterBaseUrl,
   readJsonc,
   type ToolApplyArgs,
   type ToolStatus,
@@ -148,7 +149,7 @@ function read(): ToolStatus {
 
   const baseUrl =
     typeof config.inferenceGatewayBaseUrl === "string"
-      ? config.inferenceGatewayBaseUrl
+      ? normalizeRouterBaseUrl(config.inferenceGatewayBaseUrl)
       : null;
   const apiKey =
     typeof config.inferenceGatewayApiKey === "string"
@@ -192,7 +193,8 @@ function apply(args: ToolApplyArgs): void {
 
   const newConfig: Record<string, unknown> = {
     inferenceProvider: PROVIDER,
-    inferenceGatewayBaseUrl: args.baseUrl,
+    // Cowork appends /v1 itself, so the base URL is the router root.
+    inferenceGatewayBaseUrl: normalizeRouterBaseUrl(args.baseUrl),
     inferenceGatewayApiKey: args.apiKey,
     inferenceModels: models.map((name) => ({ name })),
   };
@@ -222,6 +224,7 @@ export const coworkTool: CLIToolDefinition = {
   description: "Claude Desktop Cowork (third-party inference)",
   form: {
     hideSubagentModel: true,
+    baseUrlStyle: "root",
   },
   getConfigPath,
   isInstalled,

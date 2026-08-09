@@ -42,7 +42,7 @@ export function CreateComboForm({
 }: CreateComboFormProps) {
   return (
     <>
-      <form id="create-combo-form" onSubmit={onSubmit}>
+      <form id="create-combo-form" onSubmit={onSubmit} className="min-w-0">
         <FieldGroup className="gap-4">
           <Field data-invalid={Boolean(error)}>
             <FieldLabel htmlFor="combo-name">Nama combo</FieldLabel>

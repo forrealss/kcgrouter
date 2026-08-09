@@ -12,6 +12,7 @@ import {
   type CLIToolDefinition,
   commandExists,
   homedirPath,
+  normalizeRouterBaseUrl,
   readJsonc,
   readJsoncRaw,
   type ToolApplyArgs,
@@ -73,12 +74,6 @@ function isInstalled(): boolean {
   return commandExists("claude") || existsSync(getConfigPath());
 }
 
-function normalizeBaseUrl(url: string): string {
-  const trimmed = url.trim();
-  if (trimmed.endsWith("/v1")) return trimmed;
-  return `${trimmed.replace(/\/+$/, "")}/v1`;
-}
-
 function read(): ToolStatus {
   const config = readJsonc(getConfigPath());
   const env = (config.env ?? {}) as Record<string, unknown>;
@@ -97,7 +92,10 @@ function read(): ToolStatus {
     installed: isInstalled(),
     configured: Boolean(env[BASE_URL_KEY]),
     details: {
-      baseUrl: typeof env[BASE_URL_KEY] === "string" ? env[BASE_URL_KEY] : null,
+      baseUrl:
+        typeof env[BASE_URL_KEY] === "string"
+          ? normalizeRouterBaseUrl(env[BASE_URL_KEY])
+          : null,
       apiKey:
         typeof env[AUTH_TOKEN_KEY] === "string" ? env[AUTH_TOKEN_KEY] : null,
       roleSlots,
@@ -123,7 +121,8 @@ function apply(args: ToolApplyArgs): void {
 
   const env = (config.env ?? {}) as Record<string, unknown>;
 
-  env[BASE_URL_KEY] = normalizeBaseUrl(args.baseUrl);
+  // Claude Code appends /v1/messages itself, so the base URL is the root.
+  env[BASE_URL_KEY] = normalizeRouterBaseUrl(args.baseUrl);
   if (args.apiKey) env[AUTH_TOKEN_KEY] = args.apiKey;
 
   // Role-slot payload (Claude-specific form): write each slot verbatim and
@@ -178,6 +177,7 @@ export const claudeTool: CLIToolDefinition = {
   description: "Anthropic Claude Code CLI",
   form: {
     hideSubagentModel: true,
+    baseUrlStyle: "root",
     roleSlots: ROLE_SLOTS.map((slot) => ({
       envKey: slot.envKey,
       label: slot.label,

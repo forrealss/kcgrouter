@@ -2,7 +2,6 @@ import { FilterIcon, SearchIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
@@ -52,33 +51,35 @@ export function LogsFilters({
   onResetFilters,
 }: LogsFiltersProps) {
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
-      <CardHeader className="gap-1 border-b bg-muted/15 px-5 py-4 sm:px-6">
-        <div className="flex items-center gap-2">
+    <div className="shrink-0 overflow-hidden border-b border-border/70">
+      <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/15 px-4 py-2.5 sm:px-5">
+        <div className="flex min-w-0 items-center gap-2">
           <FilterIcon className="size-4 text-muted-foreground" />
-          <CardTitle className="text-base">Activity filters</CardTitle>
+          <CardTitle className="truncate text-sm">Filters</CardTitle>
           {hasActiveFilters ? (
             <Badge variant="secondary" className="ml-1 text-[10px]">
               Active
             </Badge>
           ) : null}
         </div>
-        <CardDescription>
+        <CardDescription className="sr-only">
           Narrow the list by status, source, account, or keyword.
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-5 py-4 sm:px-6">
-        <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(3,minmax(140px,1fr))_auto]">
+      <CardContent className="px-4 py-2.5 sm:px-5">
+        <FieldGroup className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(3,minmax(140px,1fr))_auto]">
           <Field>
-            <FieldLabel htmlFor="log-search">Search</FieldLabel>
+            <FieldLabel htmlFor="log-search" className="sr-only">
+              Search
+            </FieldLabel>
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="log-search"
                 value={searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
-                placeholder="Model, provider, message..."
-                className="pr-9 pl-9"
+                placeholder="Search logs..."
+                className="h-8 pr-9 pl-9"
               />
               {searchQuery ? (
                 <button
@@ -93,14 +94,16 @@ export function LogsFilters({
             </div>
           </Field>
           <Field>
-            <FieldLabel htmlFor="log-type">Type</FieldLabel>
+            <FieldLabel htmlFor="log-type" className="sr-only">
+              Type
+            </FieldLabel>
             <Select
               value={typeFilter}
               onValueChange={(value) =>
                 onTypeFilterChange(value as "all" | RequestLogType)
               }
             >
-              <SelectTrigger id="log-type" className="w-full">
+              <SelectTrigger id="log-type" className="h-8 w-full">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
@@ -115,14 +118,16 @@ export function LogsFilters({
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="log-source">Source</FieldLabel>
+            <FieldLabel htmlFor="log-source" className="sr-only">
+              Source
+            </FieldLabel>
             <Select
               value={sourceFilter}
               onValueChange={(value) =>
                 onSourceFilterChange(value as "all" | RequestLogSource)
               }
             >
-              <SelectTrigger id="log-source" className="w-full">
+              <SelectTrigger id="log-source" className="h-8 w-full">
                 <SelectValue placeholder="All sources" />
               </SelectTrigger>
               <SelectContent>
@@ -136,9 +141,11 @@ export function LogsFilters({
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="log-account">Account</FieldLabel>
+            <FieldLabel htmlFor="log-account" className="sr-only">
+              Account
+            </FieldLabel>
             <Select value={accountFilter} onValueChange={onAccountFilterChange}>
-              <SelectTrigger id="log-account" className="w-full">
+              <SelectTrigger id="log-account" className="h-8 w-full">
                 <SelectValue placeholder="All accounts" />
               </SelectTrigger>
               <SelectContent>
@@ -159,13 +166,13 @@ export function LogsFilters({
               variant="ghost"
               onClick={onResetFilters}
               disabled={!hasActiveFilters}
-              className="w-full sm:w-auto"
+              className="h-8 w-full sm:w-auto"
             >
               Reset
             </Button>
           </Field>
         </FieldGroup>
       </CardContent>
-    </Card>
+    </div>
   );
 }

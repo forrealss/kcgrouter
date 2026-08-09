@@ -70,6 +70,14 @@ describe("ComboEngine — CRUD", () => {
     deleteCombo(c1.id);
   });
 
+  test("getCombo resolves by name (router selector) and by id", () => {
+    const c = createCombo(`ByName-${Date.now()}`, "fallback");
+    expect(getCombo(c.name)?.id).toBe(c.id);
+    expect(getCombo(c.id)?.name).toBe(c.name);
+    expect(getCombo("no-such-combo")).toBeNull();
+    deleteCombo(c.id);
+  });
+
   test("Property 22: added member appears in sorted list", () => {
     const c = createCombo(`P22-${Date.now()}`, "fallback");
     const m = addMember(c.id, {

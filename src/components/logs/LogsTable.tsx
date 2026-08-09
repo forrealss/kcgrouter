@@ -5,7 +5,6 @@ import { LogIdentity } from "@/components/logs/LogIdentity";
 import { LogMessage } from "@/components/logs/LogMessage";
 import { Badge } from "@/components/ui/badge";
 import {
-  Card,
   CardContent,
   CardDescription,
   CardFooter,
@@ -71,7 +70,7 @@ export function LogsTable({
   onLogKeyDown: (event: KeyboardEvent, log: RequestLog) => void;
 }) {
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/15 px-5 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           <RadioIcon className="size-4 shrink-0 text-primary" />
@@ -90,15 +89,15 @@ export function LogsTable({
           LIMIT 200
         </Badge>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="min-h-0 flex-1 overflow-auto p-0">
         <div aria-live="polite" className="sr-only">
           {liveAnnouncement}
         </div>
         {/* Desktop table */}
         <div className="hidden md:block">
-          <Table>
+          <Table className="min-w-[980px]">
             <TableHeader>
-              <TableRow className="bg-muted/20 hover:bg-muted/20">
+              <TableRow className="bg-muted/20 hover:bg-muted/20 [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-muted/95">
                 <TableHead className="pl-5">Time</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Source</TableHead>
@@ -261,6 +260,6 @@ export function LogsTable({
               : "Sync disconnected"}
         </span>
       </CardFooter>
-    </Card>
+    </div>
   );
 }

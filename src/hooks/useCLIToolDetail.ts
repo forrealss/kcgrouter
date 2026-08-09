@@ -1,3 +1,4 @@
+import { Layers3Icon, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { MultiComboboxOption } from "@/components/ui/multi-combobox";
@@ -9,16 +10,37 @@ import type {
   CLIToolDetails,
   CLIToolSummary,
 } from "@/types/cli-tool";
+import type { Combo } from "@/types/combo";
 import type { Provider, ProviderModel } from "@/types/provider";
 
 export interface ModelGroupMeta {
+  /** Image URL rendered next to the group header (e.g. provider logos). */
   icon?: string;
+  /** Lucide icon rendered instead of `icon` when present (e.g. combos). */
+  iconComponent?: LucideIcon;
+}
+
+/** Group key for combo targets so they stay separate from providers. */
+const COMBO_GROUP = "Combos";
+
+function comboDescription(combo: Combo): string {
+  const strategy = combo.strategy === "fallback" ? "Fallback" : "Round-robin";
+  const models =
+    combo.memberCount === 1 ? "1 model" : `${combo.memberCount} models`;
+  return `${strategy} · ${models}`;
 }
 
 export function useCLIToolDetail(toolId: string) {
-  const defaultEndpoint = useMemo(() => `${window.location.origin}/v1`, []);
-
   const [status, setStatus] = useState<CLIToolDetails | null>(null);
+  // Root-style tools (Claude Code / Cowork) append /v1 themselves, so the
+  // default endpoint points at the router root instead of /v1.
+  const defaultEndpoint = useMemo(
+    () =>
+      `${window.location.origin}${
+        status?.form?.baseUrlStyle === "root" ? "" : "/v1"
+      }`,
+    [status?.form?.baseUrlStyle],
+  );
   const [toolMeta, setToolMeta] = useState<CLIToolSummary | null>(null);
   const [modelOptions, setModelOptions] = useState<MultiComboboxOption[]>([]);
   const [modelGroupMeta, setModelGroupMeta] = useState<
@@ -33,7 +55,7 @@ export function useCLIToolDetail(toolId: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const [toolStatus, toolsList, providersList, keysList] =
+      const [toolStatus, toolsList, providersList, keysList, combosList] =
         await Promise.all([
           apiClient.get<CLIToolDetails>(
             `/api/cli-tools/${encodeURIComponent(toolId)}`,
@@ -41,6 +63,7 @@ export function useCLIToolDetail(toolId: string) {
           apiClient.get<Record<string, CLIToolSummary>>("/api/cli-tools"),
           apiClient.get<Provider[]>("/api/providers"),
           apiClient.get<ApiKeySummary[]>("/api/settings/api-keys"),
+          apiClient.get<Combo[]>("/api/combos"),
         ]);
       setStatus(toolStatus);
       setToolMeta(toolsList[toolId] ?? null);
@@ -59,6 +82,28 @@ export function useCLIToolDetail(toolId: string) {
       const options: MultiComboboxOption[] = [];
       const groupMeta: Record<string, ModelGroupMeta> = {};
       const seen = new Set<string>();
+
+      // Combos first: the selector is the combo name (the router resolves
+      // unprefixed selectors by name, ids stay accepted for old configs).
+      // Names containing "/" would be misparsed as a provider prefix, so
+      // those combos are excluded.
+      const usableCombos = combosList.filter(
+        (combo) => combo.memberCount > 0 && !combo.name.includes("/"),
+      );
+      if (usableCombos.length > 0) {
+        groupMeta[COMBO_GROUP] = { iconComponent: Layers3Icon };
+        for (const combo of usableCombos) {
+          if (seen.has(combo.name)) continue;
+          seen.add(combo.name);
+          options.push({
+            value: combo.name,
+            label: combo.name,
+            description: comboDescription(combo),
+            group: COMBO_GROUP,
+          });
+        }
+      }
+
       providersList.forEach((provider, index) => {
         groupMeta[provider.name] = {
           icon: transportMeta[provider.transport].icon,
@@ -70,8 +115,8 @@ export function useCLIToolDetail(toolId: string) {
           seen.add(value);
           options.push({
             value,
-            label: model.modelId,
-            description: model.modelName,
+            label: model.modelName,
+            description: model.modelId,
             group: provider.name,
           });
         }

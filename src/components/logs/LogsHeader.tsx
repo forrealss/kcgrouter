@@ -31,15 +31,13 @@ export function LogsHeader({
   onClearLogs: () => void;
 }) {
   return (
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div className="flex min-w-0 flex-col gap-2">
+    <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-xl border bg-card text-primary shadow-xs">
+          <span className="flex size-8 items-center justify-center rounded-lg border bg-card text-primary shadow-xs">
             <ListTreeIcon className="size-4" />
           </span>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Activity log
-          </h2>
+          <h2 className="text-xl font-semibold tracking-tight">Activity log</h2>
           <Badge
             variant="outline"
             className={`gap-1.5 font-mono text-[10px] uppercase tracking-wider ${
@@ -66,15 +64,15 @@ export function LogsHeader({
                 : "Offline"}
           </Badge>
         </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Monitor requests, provider results, connection tests, and admin
-          activity in one place.
+        <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm">
+          Monitor requests, provider results, and admin activity.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex shrink-0 gap-2">
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={onRefresh}
           disabled={isLoading}
         >
@@ -90,6 +88,7 @@ export function LogsHeader({
             <Button
               type="button"
               variant="outline"
+              size="sm"
               disabled={isClearing || logsCount === 0}
             >
               <Trash2Icon data-icon="inline-start" />

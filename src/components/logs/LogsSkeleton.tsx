@@ -14,7 +14,7 @@ const skeletonRows = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"];
 export function LogsSkeleton() {
   return (
     <div
-      className="overflow-hidden rounded-xl border"
+      className="min-h-0 flex-1 overflow-hidden"
       role="status"
       aria-label="Loading logs"
     >
@@ -23,7 +23,7 @@ export function LogsSkeleton() {
           <Skeleton key={column} className="h-3 w-16" />
         ))}
       </div>
-      <div className="divide-y">
+      <div className="divide-y overflow-hidden rounded-md border">
         {skeletonRows.map((row) => (
           <div
             key={row}

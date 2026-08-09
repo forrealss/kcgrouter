@@ -26,11 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
@@ -72,35 +69,24 @@ function getStrategyMeta(strategy: Combo["strategy"], cursor: number) {
 
 function ComboCardSkeleton() {
   return (
-    <Card aria-hidden>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Skeleton className="size-4 rounded" />
-          <Skeleton className="h-4 w-32" />
-        </CardTitle>
-        <CardDescription>
-          <Skeleton className="h-3.5 w-24" />
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <Skeleton className="h-5 w-full" />
-        <Skeleton className="h-5 w-3/4" />
-        <Skeleton className="h-5 w-2/3" />
-      </CardContent>
-      <CardFooter className="justify-between">
-        <Skeleton className="h-5 w-20 rounded-full" />
-        <Skeleton className="h-3.5 w-28" />
-      </CardFooter>
-    </Card>
+    <div
+      className="flex items-center gap-3 rounded-lg border px-3 py-3"
+      aria-hidden
+    >
+      <Skeleton className="size-8 rounded-md" />
+      <div className="flex flex-1 flex-col gap-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3.5 w-48" />
+      </div>
+      <Skeleton className="h-6 w-20 rounded-md" />
+    </div>
   );
 }
 
-function MemberChain({ members }: { members: ComboMember[] }) {
+function MemberSummary({ members }: { members: ComboMember[] }) {
   if (members.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
-        Belum ada target model. Klik untuk menambahkan.
-      </div>
+      <span className="text-xs text-muted-foreground">Belum ada target</span>
     );
   }
 
@@ -108,29 +94,15 @@ function MemberChain({ members }: { members: ComboMember[] }) {
   const remaining = members.length - visible.length;
 
   return (
-    <div className="flex flex-col">
+    <span className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
       {visible.map((member, index) => (
-        <div key={member.id}>
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-medium text-secondary-foreground">
-              {index + 1}
-            </span>
-            <span className="truncate text-sm font-medium">
-              {member.modelName}
-            </span>
-          </div>
-          {index < visible.length - 1 ? (
-            <span className="ml-[9px] block h-2 w-px bg-border" aria-hidden />
-          ) : null}
-        </div>
+        <span key={member.id} className="flex min-w-0 items-center gap-1.5">
+          {index > 0 ? <span className="text-border">→</span> : null}
+          <span className="truncate">{member.modelName}</span>
+        </span>
       ))}
-      {remaining > 0 ? (
-        <div className="mt-1 flex items-center gap-2.5">
-          <span className="size-5 shrink-0" aria-hidden />
-          <Badge variant="secondary">+{remaining} lainnya</Badge>
-        </div>
-      ) : null}
-    </div>
+      {remaining > 0 ? <Badge variant="secondary">+{remaining}</Badge> : null}
+    </span>
   );
 }
 
@@ -152,20 +124,32 @@ export function CombosPage() {
     setBuilderCombo({ ...combo, memberCount: 0 });
   });
 
+  async function handleBuilderChanged(memberCount: number) {
+    await refreshCombos();
+    setBuilderCombo((current) =>
+      current ? { ...current, memberCount } : current,
+    );
+  }
+
   return (
-    <section className="flex flex-col gap-6" aria-label="Pengelolaan combo">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">Combo routing</h2>
+    <section
+      className="flex min-h-0 flex-1 flex-col gap-4 pb-4"
+      aria-label="Pengelolaan combo"
+    >
+      <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Combo routing
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Susun target model untuk fallback atau distribusi round-robin.
+            Kelola urutan target dan strategi routing.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button
             type="button"
             variant="outline"
+            size="sm"
             onClick={() => void refreshCombos()}
             disabled={isLoading}
           >
@@ -176,12 +160,16 @@ export function CombosPage() {
             )}
             Muat ulang
           </Button>
-          <Button type="button" onClick={() => createCombo.setIsOpen(true)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => createCombo.setIsOpen(true)}
+          >
             <PlusIcon data-icon="inline-start" />
             Buat combo
           </Button>
         </div>
-      </div>
+      </header>
 
       {/* Error */}
       {error ? (
@@ -207,7 +195,7 @@ export function CombosPage() {
       {/* Content */}
       {isLoading && combos.length === 0 ? (
         <div
-          className="grid gap-4 xl:grid-cols-2"
+          className="flex flex-col gap-2"
           role="status"
           aria-label="Memuat combo"
         >
@@ -217,7 +205,7 @@ export function CombosPage() {
           <ComboCardSkeleton />
         </div>
       ) : combos.length === 0 ? (
-        <Empty>
+        <Empty className="border bg-card py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Layers3Icon />
@@ -235,90 +223,121 @@ export function CombosPage() {
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {combos.map((combo) => {
-            const members = membersByCombo[combo.id] ?? [];
-            const meta = getStrategyMeta(
-              combo.strategy,
-              combo.roundRobinCursor,
-            );
+        <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-sm">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-muted/15 px-4 py-3 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Layers3Icon className="size-4 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <CardTitle className="text-sm">Routing combos</CardTitle>
+                <CardDescription className="truncate text-xs">
+                  Urutan target dan strategi yang aktif.
+                </CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+              {combos.length} total
+            </Badge>
+          </div>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
+            <div className="flex flex-col divide-y">
+              {combos.map((combo) => {
+                const members = membersByCombo[combo.id] ?? [];
+                const meta = getStrategyMeta(
+                  combo.strategy,
+                  combo.roundRobinCursor,
+                );
 
-            return (
-              <Card
-                key={combo.id}
-                className="cursor-pointer transition-colors hover:bg-accent/50"
-                onClick={() => setBuilderCombo(combo)}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <meta.Icon className="size-4 text-muted-foreground" />
-                    <span className="truncate">{combo.name}</span>
-                  </CardTitle>
-                  <CardDescription>
-                    {combo.memberCount} target terdaftar
-                  </CardDescription>
-                  <CardAction>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground hover:text-destructive"
-                          disabled={isDeletingId === combo.id}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={`Hapus ${combo.name}`}
-                          title="Hapus combo"
-                        >
-                          {isDeletingId === combo.id ? (
-                            <Spinner className="size-3" />
-                          ) : (
-                            <Trash2Icon className="size-3" />
-                          )}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Hapus combo ini?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Combo {combo.name} beserta seluruh anggotanya akan
-                            dihapus permanen.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel
+                return (
+                  <div
+                    key={combo.id}
+                    className="group flex min-w-0 items-center gap-3 p-3 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30"
+                  >
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() => setBuilderCombo(combo)}
+                      aria-label={`Atur ${combo.name}`}
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/60 text-muted-foreground">
+                        <meta.Icon className="size-4" />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate text-sm font-medium">
+                          {combo.name}
+                        </span>
+                        <MemberSummary members={members} />
+                      </span>
+                    </button>
+                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+                      {combo.memberCount} target
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="hidden shrink-0 gap-1 font-normal md:inline-flex"
+                    >
+                      <meta.Icon className="size-3" />
+                      {meta.label}
+                    </Badge>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setBuilderCombo(combo)}
+                      >
+                        Atur
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="text-muted-foreground hover:text-destructive"
                             disabled={isDeletingId === combo.id}
+                            aria-label={`Hapus ${combo.name}`}
+                            title="Hapus combo"
                           >
-                            Batal
-                          </AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            disabled={isDeletingId === combo.id}
-                            onClick={() => void handleDeleteCombo(combo.id)}
-                          >
-                            Hapus combo
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </CardAction>
-                </CardHeader>
-                <CardContent>
-                  <MemberChain members={members} />
-                </CardContent>
-                <CardFooter className="justify-between gap-3">
-                  <Badge variant="outline" className="gap-1 font-normal">
-                    <meta.Icon className="size-3" />
-                    {meta.label}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {meta.hint}
-                  </span>
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
+                            {isDeletingId === combo.id ? (
+                              <Spinner className="size-3" />
+                            ) : (
+                              <Trash2Icon className="size-3" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Hapus combo ini?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Combo {combo.name} beserta seluruh anggotanya akan
+                              dihapus permanen.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel
+                              disabled={isDeletingId === combo.id}
+                            >
+                              Batal
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              disabled={isDeletingId === combo.id}
+                              onClick={() => void handleDeleteCombo(combo.id)}
+                            >
+                              Hapus combo
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Create Combo Dialog */}
@@ -353,15 +372,32 @@ export function CombosPage() {
           if (!open) setBuilderCombo(null);
         }}
       >
-        <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Combo builder</DialogTitle>
-            <DialogDescription>
-              Tambahkan dan urutkan anggota combo tanpa meninggalkan daftar.
-            </DialogDescription>
+        <DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="shrink-0 border-b bg-muted/15 px-5 py-3 pr-12 sm:px-6">
+            {builderCombo ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <DialogTitle className="truncate text-base">
+                  {builderCombo.name}
+                </DialogTitle>
+                <Badge variant="outline" className="shrink-0 font-normal">
+                  {
+                    getStrategyMeta(
+                      builderCombo.strategy,
+                      builderCombo.roundRobinCursor,
+                    ).label
+                  }
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {builderCombo.memberCount}
+                </span>
+              </div>
+            ) : null}
           </DialogHeader>
           {builderCombo ? (
-            <ComboBuilder combo={builderCombo} onChanged={refreshCombos} />
+            <ComboBuilder
+              combo={builderCombo}
+              onChanged={handleBuilderChanged}
+            />
           ) : null}
         </DialogContent>
       </Dialog>

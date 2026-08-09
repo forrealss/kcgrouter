@@ -182,7 +182,9 @@ export function CLIToolConfigForm({
             <div className="flex flex-col gap-1">
               <Label htmlFor="endpoint">Endpoint</Label>
               <p className="text-sm text-muted-foreground">
-                Base URL of the router. Defaults to{" "}
+                {status?.form?.baseUrlStyle === "root"
+                  ? "This tool appends /v1 itself, so point it at the router root. Defaults to"
+                  : "Base URL of the router. Defaults to"}{" "}
                 <code className="font-mono text-xs">{defaultEndpoint}</code>.
               </p>
             </div>
@@ -296,7 +298,7 @@ export function CLIToolConfigForm({
                   activeValue={activeModel}
                   onActiveChange={setActiveModel}
                   emptyLabel="No models selected"
-                  emptyHint="Pick models from your enabled providers, then star one to make it the default."
+                  emptyHint="Pick models from your enabled providers or combos, then star one to make it the default."
                   searchPlaceholder="Search models..."
                   addLabel="Add model"
                   dialogTitle="Select models"
@@ -306,8 +308,8 @@ export function CLIToolConfigForm({
                 />
                 {modelOptions.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No enabled models found. Enable models in the Providers page
-                    first.
+                    No enabled models or combos found. Enable models in the
+                    Providers page or create a combo first.
                   </p>
                 ) : null}
               </div>

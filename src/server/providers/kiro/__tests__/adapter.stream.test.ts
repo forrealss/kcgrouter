@@ -1,6 +1,18 @@
-import { expect, test } from "bun:test";
-import type { CanonicalRequest, CanonicalStreamChunk } from "../../types";
+import { describe, expect, test } from "bun:test";
+import type {
+  CanonicalContentPart,
+  CanonicalRequest,
+  CanonicalStreamChunk,
+} from "../../types";
 import { kiroAdapter } from "../adapter";
+
+function textPart(parts: CanonicalContentPart[]): string | undefined {
+  const part = parts.find(
+    (p): p is Extract<CanonicalContentPart, { type: "text" }> =>
+      p.type === "text",
+  );
+  return part?.text;
+}
 
 // --- AWS EventStream frame encoder (mirror of eventstream.ts parser) ---
 
@@ -514,13 +526,15 @@ test("terminates when metadataEvent is the only trailer frame", async () => {
 
 test("same-chunk trailer frames are still drained for usage before finishing", async () => {
   // metadata/contextUsage/metering usually arrive in one read. Terminating on
-  // metadataEvent must not discard a meteringEvent already sitting in the queue.
+  // metadataEvent must not discard a contextUsageEvent already sitting in the
+  // queue — the fallback estimate depends on its percentage.
   mockFetchNoClose(
     concat([
       buildFrame("assistantResponseEvent", { content: "hi" }),
       buildFrame("metadataEvent", {}),
       buildFrame("contextUsageEvent", { contextUsagePercentage: 9 }),
-      buildFrame("meteringEvent", { inputTokens: 11, outputTokens: 7 }),
+      // meteringEvent carries credits, not tokens — see usage.ts.
+      buildFrame("meteringEvent", { usage: 1.5, unit: "credit" }),
     ]),
   );
 
@@ -530,5 +544,181 @@ test("same-chunk trailer frames are still drained for usage before finishing", a
 
   const finish = chunks.find((c) => c.finishReason);
   expect(finish?.finishReason).toBe("stop");
-  expect(finish?.usage).toEqual({ inputTokens: 11, outputTokens: 7 });
+  // 9% of claude-sonnet-5's 1M context window; output = chars("hi")/4, min 1.
+  expect(finish?.usage).toEqual({ inputTokens: 90_000, outputTokens: 1 });
+});
+
+test("usageEvent carries real token usage like metricsEvent", async () => {
+  mockFetchNoClose(
+    concat([
+      buildFrame("assistantResponseEvent", { content: "hi" }),
+      buildFrame("usageEvent", { inputTokens: 4, outputTokens: 2 }),
+      buildFrame("metadataEvent", {}),
+    ]),
+  );
+
+  const chunks = await drain(
+    await kiroAdapter.sendStream(req, { apiKey: "k" }, "claude-sonnet-5"),
+  );
+
+  const finish = chunks.find((c) => c.finishReason);
+  expect(finish?.finishReason).toBe("stop");
+  expect(finish?.usage).toEqual({ inputTokens: 4, outputTokens: 2 });
+});
+
+test("fallback estimates usage when no token frames arrive", async () => {
+  // Variant-3 trailer: metadataEvent -> contextUsageEvent, no meteringEvent
+  // and no metricsEvent — Kiro sent no token data at all.
+  mockFetchNoClose(
+    concat([
+      buildFrame("assistantResponseEvent", { content: "Halo" }),
+      buildFrame("metadataEvent", {}),
+      buildFrame("contextUsageEvent", { contextUsagePercentage: 4 }),
+    ]),
+  );
+
+  const chunks = await drain(
+    await kiroAdapter.sendStream(req, { apiKey: "k" }, "claude-sonnet-5"),
+  );
+
+  const finish = chunks.find((c) => c.finishReason);
+  expect(finish?.finishReason).toBe("stop");
+  // 4% of 1M context; output = chars("Halo")/4, min 1.
+  expect(finish?.usage).toEqual({ inputTokens: 40_000, outputTokens: 1 });
+});
+
+describe("non-streaming send() usage", () => {
+  test("accumulates content and reads real tokens from metricsEvent", async () => {
+    mockFetch(
+      concat([
+        buildFrame("assistantResponseEvent", { content: "Hello" }),
+        buildFrame("assistantResponseEvent", { content: " world" }),
+        buildFrame("metricsEvent", { inputTokens: 10, outputTokens: 5 }),
+        buildFrame("messageStopEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    expect(textPart(res.message.content)).toBe("Hello world");
+    expect(res.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+    expect(res.finishReason).toBe("stop");
+  });
+
+  test("estimates usage and stop reason from trailer frames", async () => {
+    mockFetch(
+      concat([
+        buildFrame("assistantResponseEvent", { content: "Hello world" }),
+        buildFrame("metadataEvent", {}),
+        buildFrame("contextUsageEvent", { contextUsagePercentage: 4 }),
+        buildFrame("meteringEvent", { usage: 1.2, unit: "credit" }),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    expect(textPart(res.message.content)).toBe("Hello world");
+    // 4% of 1M context; output = chars("Hello world")/4, min 1.
+    expect(res.usage).toEqual({ inputTokens: 40_000, outputTokens: 2 });
+    expect(res.finishReason).toBe("stop");
+  });
+
+  test("reports tool_call finish when a tool use precedes the terminal frame", async () => {
+    mockFetch(
+      concat([
+        buildFrame("toolUseEvent", {
+          toolUseId: "t1",
+          name: "bash",
+          input: { command: "ls" },
+        }),
+        buildFrame("metadataEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    expect(res.finishReason).toBe("tool_call");
+    expect(res.message.content[0]?.type).toBe("tool_call");
+  });
+});
+
+describe("non-streaming send() completeness", () => {
+  test("codeEvent content is appended to the answer", async () => {
+    mockFetch(
+      concat([
+        buildFrame("assistantResponseEvent", { content: "Here is the fix:\n" }),
+        buildFrame("codeEvent", { content: "const x = 1;" }),
+        buildFrame("messageStopEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    expect(textPart(res.message.content)).toBe(
+      "Here is the fix:\nconst x = 1;",
+    );
+  });
+
+  test("array-form toolUseEvent emits every tool call", async () => {
+    mockFetch(
+      concat([
+        buildFrame("toolUseEvent", [
+          { toolUseId: "a", name: "bash", input: { command: "ls" } },
+          { toolUseId: "b", name: "read", input: { path: "x.ts" } },
+        ]),
+        buildFrame("metadataEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    const calls = res.message.content.filter((p) => p.type === "tool_call");
+    expect(calls).toHaveLength(2);
+    expect(calls.map((c) => (c.type === "tool_call" ? c.name : ""))).toEqual([
+      "bash",
+      "read",
+    ]);
+    expect(res.finishReason).toBe("tool_call");
+  });
+
+  test("string-fragment tool args accumulate into valid JSON", async () => {
+    mockFetch(
+      concat([
+        buildFrame("toolUseEvent", {
+          toolUseId: "t1",
+          name: "bash",
+          input: '{"comm',
+        }),
+        buildFrame("toolUseEvent", {
+          toolUseId: "t1",
+          name: "bash",
+          input: 'and":"ls"}',
+        }),
+        buildFrame("metadataEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    const call = res.message.content.find((p) => p.type === "tool_call");
+    if (call?.type !== "tool_call") {
+      throw new Error("expected a tool_call part");
+    }
+    expect(JSON.parse(call.arguments as string)).toEqual({ command: "ls" });
+    expect(res.finishReason).toBe("tool_call");
+  });
+
+  test("reasoning frames are dropped from the response content", async () => {
+    mockFetch(
+      concat([
+        buildFrame("reasoningContentEvent", { reasoningText: { text: "hmm" } }),
+        buildFrame("assistantResponseEvent", { content: "answer" }),
+        buildFrame("messageStopEvent", {}),
+      ]),
+    );
+
+    const res = await kiroAdapter.send(req, { apiKey: "k" }, "claude-sonnet-5");
+
+    expect(textPart(res.message.content)).toBe("answer");
+  });
 });

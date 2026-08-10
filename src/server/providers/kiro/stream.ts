@@ -7,12 +7,18 @@
  */
 import type { CanonicalStreamChunk } from "../types";
 import { ByteQueue, parseEventFrame } from "./eventstream";
+import { extractReasoningText } from "./reasoning";
 import {
   flushPendingThinking,
   type KiroThinkingState,
   splitInlineThinking,
 } from "./thinking";
 import { KIRO_DEBUG } from "./types";
+import {
+  estimateKiroUsage,
+  parseKiroMetering,
+  parseKiroTokenUsage,
+} from "./usage";
 
 type Ctl = ReadableStreamDefaultController<CanonicalStreamChunk>;
 
@@ -21,6 +27,8 @@ interface StreamState {
   queue: ByteQueue;
   thinkingState: KiroThinkingState;
   usage: { inputTokens: number; outputTokens: number };
+  contextUsagePercentage: number;
+  outputChars: number;
   closed: boolean;
   stopSeen: boolean;
   startedTools: Set<string>;
@@ -64,23 +72,12 @@ function handleFrame(
   }
 
   // Reasoning frames
-  if (eventType === "reasoningContentEvent" && payload) {
-    const rt = payload.reasoningText;
-    let text = "";
-    if (typeof rt === "string") {
-      text = rt;
-    } else if (rt && typeof rt === "object") {
-      const o = rt as { text?: unknown; Text?: unknown };
-      text =
-        typeof o.text === "string"
-          ? o.text
-          : typeof o.Text === "string"
-            ? o.Text
-            : "";
-    } else if (typeof payload.text === "string") {
-      text = payload.text;
+  if (eventType === "reasoningContentEvent") {
+    const text = extractReasoningText(payload);
+    if (text) {
+      state.outputChars += text.length;
+      controller.enqueue({ reasoning: text });
     }
-    if (text) controller.enqueue({ reasoning: text });
     return false;
   }
 
@@ -91,8 +88,14 @@ function handleFrame(
       splitInlineThinking(
         state.thinkingState,
         rawContent,
-        (s) => controller.enqueue({ delta: s }),
-        (s) => controller.enqueue({ reasoning: s }),
+        (s) => {
+          state.outputChars += s.length;
+          controller.enqueue({ delta: s });
+        },
+        (s) => {
+          state.outputChars += s.length;
+          controller.enqueue({ reasoning: s });
+        },
       );
     }
     return false;
@@ -100,7 +103,10 @@ function handleFrame(
 
   // Code events carry plain content
   if (eventType === "codeEvent" && typeof payload?.content === "string") {
-    if (payload.content) controller.enqueue({ delta: payload.content });
+    if (payload.content) {
+      state.outputChars += payload.content.length;
+      controller.enqueue({ delta: payload.content });
+    }
     return false;
   }
 
@@ -139,40 +145,26 @@ function handleFrame(
     return false;
   }
 
-  // Token usage events (multiple frame types carry these)
-  if (eventType === "metricsEvent" && payload) {
-    const m = (payload.metricsEvent ?? payload) as Record<string, unknown>;
-    const inputTokens = typeof m.inputTokens === "number" ? m.inputTokens : 0;
-    const outputTokens =
-      typeof m.outputTokens === "number" ? m.outputTokens : 0;
-    if (inputTokens > 0 || outputTokens > 0) {
-      state.usage = { inputTokens, outputTokens };
-    }
-    return false;
-  }
-
-  if (eventType === "usageEvent" && payload) {
-    const u = (payload.usageEvent ?? payload) as Record<string, unknown>;
-    const inputTokens = typeof u.inputTokens === "number" ? u.inputTokens : 0;
-    const outputTokens =
-      typeof u.outputTokens === "number" ? u.outputTokens : 0;
-    if (inputTokens > 0 || outputTokens > 0) {
-      state.usage = { inputTokens, outputTokens };
+  // Token usage events — `metricsEvent`/`usageEvent` are the only frames that
+  // carry real token counts.
+  if (eventType === "metricsEvent" || eventType === "usageEvent") {
+    const usage = parseKiroTokenUsage(eventType, payload);
+    if (usage) {
+      state.usage = usage;
+      if (KIRO_DEBUG) {
+        console.log("[kiro] token usage", JSON.stringify(usage));
+      }
     }
     return false;
   }
 
   // Terminal frames — these end the turn
   if (eventType === "meteringEvent") {
-    const m = (payload?.meteringEvent ?? payload ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const inputTokens = typeof m.inputTokens === "number" ? m.inputTokens : 0;
-    const outputTokens =
-      typeof m.outputTokens === "number" ? m.outputTokens : 0;
-    if (inputTokens > 0 || outputTokens > 0) {
-      state.usage = { inputTokens, outputTokens };
+    // Kiro meters credits (`usage` + `unit`), not tokens — never read this as
+    // a token count (see usage.ts).
+    const metering = parseKiroMetering(payload);
+    if (metering && KIRO_DEBUG) {
+      console.log("[kiro] meteringEvent", JSON.stringify(metering));
     }
     flushBufferedToolArgs(state, controller);
     state.stopSeen = true;
@@ -196,11 +188,14 @@ function handleFrame(
     return true;
   }
 
+  if (eventType === "contextUsageEvent" && payload) {
+    const pct = Number(payload.contextUsagePercentage);
+    if (Number.isFinite(pct)) state.contextUsagePercentage = pct;
+    return false;
+  }
+
   // Trailer frames with no content — consume silently
-  if (
-    eventType === "contextUsageEvent" ||
-    eventType === "followupPromptEvent"
-  ) {
+  if (eventType === "followupPromptEvent") {
     return false;
   }
 
@@ -242,6 +237,7 @@ function finish(
   state: StreamState,
   reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
   controller: Ctl,
+  contextWindow: number,
 ): void {
   flushPendingThinking(
     state.thinkingState,
@@ -250,10 +246,21 @@ function finish(
   );
   flushBufferedToolArgs(state, controller);
 
+  // Kiro often omits token data entirely; fall back to an estimate from the
+  // context-usage percentage and emitted characters (see usage.ts).
+  const usage =
+    state.usage.inputTokens > 0 || state.usage.outputTokens > 0
+      ? state.usage
+      : estimateKiroUsage(
+          state.contextUsagePercentage,
+          state.outputChars,
+          contextWindow,
+        );
+
   controller.enqueue({
     delta: "",
     finishReason: state.startedTools.size > 0 ? "tool_call" : "stop",
-    usage: state.usage,
+    usage,
   });
 
   state.closed = true;
@@ -261,9 +268,13 @@ function finish(
   reader?.cancel().catch(() => {});
 }
 
-/** Creates a ReadableStream that parses Kiro's binary EventStream frames. */
+/**
+ * Creates a ReadableStream that parses Kiro's binary EventStream frames.
+ * `contextWindow` is used for the token-usage fallback estimate.
+ */
 export function createKiroStream(
   res: Response,
+  contextWindow = 200_000,
 ): ReadableStream<CanonicalStreamChunk> {
   const reader = res.body?.getReader();
 
@@ -271,6 +282,8 @@ export function createKiroStream(
     queue: new ByteQueue(),
     thinkingState: { thinkingMode: false, pendingTag: "" },
     usage: { inputTokens: 0, outputTokens: 0 },
+    contextUsagePercentage: 0,
+    outputChars: 0,
     closed: false,
     stopSeen: false,
     startedTools: new Set(),
@@ -303,7 +316,7 @@ export function createKiroStream(
 
       if (drainQueue(state, controller) || state.stopSeen) {
         if (KIRO_DEBUG) console.log("[kiro] finishing on stop signal");
-        finish(state, reader, controller);
+        finish(state, reader, controller, contextWindow);
         return;
       }
 
@@ -313,7 +326,7 @@ export function createKiroStream(
             `[kiro] finishing on EOF, leftover=${state.queue.length}`,
           );
         }
-        finish(state, reader, controller);
+        finish(state, reader, controller, contextWindow);
       }
     },
 

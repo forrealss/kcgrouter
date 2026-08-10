@@ -6,8 +6,22 @@ import type {
   ProviderAdapter,
 } from "../types";
 import { parseEventFrame } from "./eventstream";
+import { kiroModels } from "./models";
 import { buildKiroPayload } from "./payload";
+import { extractReasoningText } from "./reasoning";
 import { createKiroStream } from "./stream";
+import { KIRO_DEBUG } from "./types";
+import {
+  estimateKiroUsage,
+  parseKiroMetering,
+  parseKiroTokenUsage,
+} from "./usage";
+
+/** Resolves the model context window used for the token-usage fallback. */
+function resolveContextWindow(model: string): number {
+  const id = model.split("/").pop() ?? model;
+  return kiroModels.find((m) => m.id === id)?.contextLength ?? 200_000;
+}
 
 const DEFAULT_BASE_URL = "https://codewhisperer.us-east-1.amazonaws.com";
 
@@ -53,13 +67,14 @@ export const kiroAdapter: ProviderAdapter = {
     const data = new Uint8Array(arrayBuffer);
 
     let content = "";
-    const toolCalls: Array<{
-      id: string;
-      name: string;
-      arguments: unknown;
-    }> = [];
+    let outputChars = 0;
+    let contextUsagePercentage = 0;
+    const toolCallsById = new Map<
+      string,
+      { id: string; name: string; arguments: unknown }
+    >();
+    let anonymousToolCounter = 0;
     let usage = { inputTokens: 0, outputTokens: 0 };
-    let finishReason: CanonicalResponse["finishReason"] = "stop";
 
     let offset = 0;
     while (offset < data.length) {
@@ -80,38 +95,104 @@ export const kiroAdapter: ProviderAdapter = {
 
       const eventType = frame.headers[":event-type"];
 
+      // Kiro splits content across many frames — accumulate, don't overwrite.
       if (eventType === "assistantResponseEvent" && frame.payload) {
-        content = (frame.payload.content as string) ?? "";
+        const text = (frame.payload.content as string) ?? "";
+        content += text;
+        outputChars += text.length;
       }
 
+      // Code blocks are part of the answer — same as the streaming path.
+      if (
+        eventType === "codeEvent" &&
+        typeof frame.payload?.content === "string"
+      ) {
+        content += frame.payload.content;
+        outputChars += frame.payload.content.length;
+      }
+
+      if (eventType === "reasoningContentEvent") {
+        // Deliberately dropped — canonical responses have no reasoning channel.
+        // Chars still count toward the output-token estimate (streaming parity).
+        outputChars += extractReasoningText(frame.payload).length;
+      }
+
+      // A single frame can carry an array of tool uses, and `input` arrives
+      // either as incremental JSON fragments or a growing partial object.
       if (eventType === "toolUseEvent" && frame.payload) {
-        toolCalls.push({
-          id: (frame.payload.toolUseId as string) ?? `tc_${Date.now()}`,
-          name: (frame.payload.name as string) ?? "",
-          arguments: frame.payload.input ?? {},
-        });
+        const uses = Array.isArray(frame.payload)
+          ? frame.payload
+          : [frame.payload];
+
+        for (const use of uses as Array<Record<string, unknown>>) {
+          const toolUseId =
+            (use.toolUseId as string) ??
+            `tc_${Date.now()}_${anonymousToolCounter++}`;
+          const name = (use.name as string) ?? "";
+          const input = use.input;
+
+          let entry = toolCallsById.get(toolUseId);
+          if (!entry) {
+            entry = { id: toolUseId, name, arguments: "" };
+            toolCallsById.set(toolUseId, entry);
+          }
+
+          if (typeof input === "string") {
+            // Incremental JSON fragments — concatenate, don't overwrite.
+            const base =
+              typeof entry.arguments === "string" ? entry.arguments : "";
+            entry.arguments = base + input;
+          } else if (input !== null && typeof input === "object") {
+            // Partial object that grows upstream — keep the latest shape.
+            entry.arguments = input;
+          }
+        }
       }
 
-      if (eventType === "metricsEvent" && frame.payload) {
-        usage = {
-          inputTokens: (frame.payload.inputTokens as number) ?? 0,
-          outputTokens: (frame.payload.outputTokens as number) ?? 0,
-        };
+      // `metricsEvent`/`usageEvent` are the only frames carrying real tokens.
+      if (eventType === "metricsEvent" || eventType === "usageEvent") {
+        const tokens = parseKiroTokenUsage(eventType, frame.payload);
+        if (tokens) usage = tokens;
       }
 
-      if (eventType === "messageStopEvent") {
-        finishReason = toolCalls.length > 0 ? "tool_call" : "stop";
+      if (eventType === "contextUsageEvent" && frame.payload) {
+        const pct = Number(frame.payload.contextUsagePercentage);
+        if (Number.isFinite(pct)) contextUsagePercentage = pct;
+      }
+
+      if (eventType === "meteringEvent" && KIRO_DEBUG) {
+        // Credits, not tokens — logged for diagnostics only (see usage.ts).
+        const metering = parseKiroMetering(frame.payload);
+        if (metering) {
+          console.log("[kiro] meteringEvent", JSON.stringify(metering));
+        }
       }
     }
 
+    // Kiro often sends no token data — estimate from context usage + chars.
+    if (usage.inputTokens === 0 && usage.outputTokens === 0) {
+      usage = estimateKiroUsage(
+        contextUsagePercentage,
+        outputChars,
+        resolveContextWindow(model),
+      );
+    }
+
+    // Derived from tool calls regardless of which terminal marker (if any)
+    // arrived, matching the streaming path.
+    const finishReason: CanonicalResponse["finishReason"] =
+      toolCallsById.size > 0 ? "tool_call" : "stop";
+
     const parts: CanonicalContentPart[] = [];
     if (content) parts.push({ type: "text", text: content });
-    for (const tc of toolCalls) {
+    for (const tc of toolCallsById.values()) {
       parts.push({
         type: "tool_call",
         id: tc.id,
         name: tc.name,
-        arguments: tc.arguments,
+        // Preserve the historical `{}` default for input-less tool calls — an
+        // empty string would be invalid JSON for downstream clients.
+        arguments: tc.arguments === "" ? {} : tc.arguments,
       });
     }
 
@@ -142,6 +223,6 @@ export const kiroAdapter: ProviderAdapter = {
       throw new Error(`Kiro API error ${res.status}: ${text}`);
     }
 
-    return createKiroStream(res);
+    return createKiroStream(res, resolveContextWindow(model));
   },
 };

@@ -65,6 +65,7 @@ function parseGeminiResponse(data: unknown): CanonicalResponse {
       content?: {
         parts?: {
           text?: string;
+          thought?: boolean;
           functionCall?: { name: string; args: unknown };
         }[];
       };
@@ -78,15 +79,21 @@ function parseGeminiResponse(data: unknown): CanonicalResponse {
 
   const parts: CanonicalContentPart[] = [];
   const candidate = res.candidates?.[0];
+  let functionCallCounter = 0;
 
   if (candidate?.content?.parts) {
     for (const p of candidate.content.parts) {
+      if (p.thought) {
+        // Deliberately dropped — canonical responses have no reasoning
+        // channel; matches the streaming path and the project-wide policy.
+        continue;
+      }
       if (p.text) {
         parts.push({ type: "text", text: p.text });
       } else if (p.functionCall) {
         parts.push({
           type: "tool_call",
-          id: `func_${Date.now()}`,
+          id: `fc_${Date.now()}_${functionCallCounter++}`,
           name: p.functionCall.name,
           arguments: p.functionCall.args,
         });
@@ -178,16 +185,48 @@ export const geminiAdapter: ProviderAdapter = {
       throw new Error(`Gemini API error ${res.status}: ${text}`);
     }
 
-    return createSSEStream(res, (parsed, controller) => {
-      const candidate = parsed.candidates?.[0] as
-        | Record<string, unknown>
-        | undefined;
-      const part = candidate?.content?.parts?.[0] as
-        | Record<string, unknown>
-        | undefined;
+    // A Gemini SSE chunk can carry several parts — text, thought, and
+    // functionCall, sometimes all in one chunk — so every part is processed,
+    // not just the first (parts[0]-only dropped function calls entirely).
+    let functionCallCounter = 0;
 
-      if (part?.text) {
-        controller.enqueue({ delta: part.text as string });
+    return createSSEStream(res, (parsed, controller) => {
+      const candidates = parsed.candidates as
+        | Array<Record<string, unknown>>
+        | undefined;
+      const candidate = candidates?.[0];
+      const content = candidate?.content as
+        | { parts?: Array<Record<string, unknown>> }
+        | undefined;
+      const parts = content?.parts ?? [];
+
+      for (const part of parts) {
+        if (part.thought === true && typeof part.text === "string") {
+          // Thought parts are reasoning, never user-visible content.
+          if (part.text) controller.enqueue({ reasoning: part.text });
+          continue;
+        }
+
+        if (typeof part.text === "string" && part.text) {
+          controller.enqueue({ delta: part.text });
+        }
+
+        const fc = part.functionCall as
+          | { name?: string; args?: unknown }
+          | undefined;
+        if (fc && typeof fc.name === "string" && fc.name) {
+          // Gemini function calls carry no id — synthesize a stable one.
+          const toolCallId = `fc_${Date.now()}_${functionCallCounter++}`;
+          controller.enqueue({
+            toolCallStart: { toolCallId, toolName: fc.name },
+          });
+          controller.enqueue({
+            toolCallDelta: {
+              toolCallId,
+              arguments: JSON.stringify(fc.args ?? {}),
+            },
+          });
+        }
       }
 
       if (candidate?.finishReason) {

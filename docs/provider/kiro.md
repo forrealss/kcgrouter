@@ -158,15 +158,32 @@ Satu frame juga bisa membawa **array** tool use, bukan hanya satu objek.
 | `reasoningContentEvent` | reasoning → channel `reasoning` (4 bentuk payload) |
 | `codeEvent` | konten teks |
 | `toolUseEvent` | tool call (objek atau array) |
-| `metricsEvent` | token usage (bisa bersarang di `payload.metricsEvent`) |
-| `usageEvent` | token usage (alternatif) |
-| `meteringEvent` | token usage + terminal |
+| `metricsEvent` | **token usage asli** (`inputTokens`/`outputTokens`, bisa bersarang di `payload.metricsEvent`) |
+| `usageEvent` | token usage asli (alternatif) |
+| `meteringEvent` | **credits** (`usage` + `unit`) + terminal — BUKAN token |
 | `metadataEvent` | terminal |
-| `contextUsageEvent` | dikonsumsi, tanpa aksi |
+| `contextUsageEvent` | `contextUsagePercentage` (dipakai fallback estimasi usage) |
 | `followupPromptEvent` | dikonsumsi, tanpa aksi |
 
 Reasoning dikirim ke field `reasoning`, bukan `delta`. Kalau salah channel, teks
 thinking bocor sebagai konten biasa ke pengguna.
+
+## Deteksi token usage
+
+Kiro **tidak mengirim token count secara konsisten**. Yang terverifikasi dari
+OmniRouter/9router (`open-sse/executors/kiro.js`) dan log live:
+
+- **`metricsEvent`/`usageEvent`** — satu-satunya frame yang membawa token asli
+  (`inputTokens`/`outputTokens`, camelCase). Jarang muncul di log live.
+- **`meteringEvent`** — membawa **credits** (`usage` + `unit`), bukan token.
+  Membacanya sebagai `inputTokens`/`outputTokens` (asumsi lama) menghasilkan
+  usage 0 permanen. Credits hanya dicatat di log `KIRO_DEBUG`.
+- **Fallback estimasi** — saat tidak ada token asli (sering terjadi), usage
+  diestimasi ala OmniRouter: input dari `contextUsagePercentage` × context
+  window model, output dari panjang karakter yang dikirim ÷ 4.
+
+Implementasi di `src/server/providers/kiro/usage.ts`, dipakai bersama oleh jalur
+streaming (`stream.ts`) dan non-streaming (`adapter.ts`).
 
 ## Debugging
 
@@ -234,28 +251,23 @@ Dash pertama ikut jadi titik. OmniRoute membatasi grup minor ke 1-2 digit justru
 menghindari kasus kedua. Belum terasa karena `claude-sonnet-5` tidak punya pola itu,
 tapi akan menggigit saat pakai model bertanggal atau versi dua segmen.
 
-### Jalur non-streaming (`send()`) jauh di belakang
+### Jalur non-streaming (`send()`) — kini sejajar dengan streaming
 
-`send()` (adapter.ts:433) belum menerima perbaikan yang sama dengan `sendStream()`:
+`send()` (adapter.ts) menyamai `sendStream()` untuk konten, tool call, dan usage:
 
-- **Konten ditimpa, bukan digabung** (adapter.ts:494): `content = frame.payload.content`.
-  Kiro mengirim konten dalam banyak frame `assistantResponseEvent`, jadi hanya fragmen
-  **terakhir** yang tersisa. Respons non-streaming kemungkinan besar terpotong.
-- `finishReason` hanya diset saat `messageStopEvent` — yang sering tidak dikirim. Turn
-  dengan tool call bisa salah lapor `"stop"` alih-alih `"tool_call"`.
-- Tidak menangani `metadataEvent`, `meteringEvent`, `usageEvent` → usage token 0.
-- Tidak menangani `reasoningContentEvent`, `codeEvent`, `toolUseEvent` bentuk array.
-- Tool args bentuk string tidak diakumulasi.
-
-Dampaknya terbatas karena opencode memakai streaming. Perlu diperbaiki sebelum ada
-klien yang mengandalkan `stream: false`.
-
-### Nama field token di `meteringEvent` belum terkonfirmasi
-
-`meteringEvent` dibaca dengan asumsi field `inputTokens`/`outputTokens`, tapi log yang
-tersedia hanya menampilkan header, bukan payload. Log live juga tidak pernah memuat
-`metricsEvent`. Kalau usage token tercatat 0 di dashboard, ini penyebabnya — perlu dump
-payload `meteringEvent` untuk memastikan nama fieldnya.
+- **Konten diakumulasi** (`content += ...`), bukan ditimpa — respons non-streaming
+  tidak terpotong lagi.
+- `codeEvent` digabung ke jawaban; `toolUseEvent` bentuk **array** diproses
+  per-elemen; tool args bentuk **string-fragmen** diakumulasi (bukan hanya fragmen
+  terakhir); bentuk **object** memakai shape terakhir.
+- `reasoningContentEvent` **sengaja dibuang** dari respons — canonical
+  non-streaming tidak punya channel reasoning — tapi karakternya tetap dihitung
+  dalam estimasi output token.
+- Memproses `metricsEvent`/`usageEvent` (token asli), `meteringEvent` (credits,
+  log `KIRO_DEBUG`), `contextUsageEvent` (persentase untuk fallback).
+- `finishReason` diturunkan dari ada/tidaknya tool call, konsisten dengan
+  streaming.
+- Fallback estimasi usage identik dengan jalur streaming.
 
 ## Test
 

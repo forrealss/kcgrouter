@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
 import { get, query, run } from "../../db/client";
 import type {
@@ -112,7 +113,7 @@ export function getHistory(opts: {
   limit?: number;
 }): RequestLogRecord[] {
   const conditions: string[] = [];
-  const params: unknown[] = [];
+  const params: SQLQueryBindings[] = [];
 
   if (opts.type) {
     conditions.push("rl.type = ?");

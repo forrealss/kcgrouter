@@ -41,6 +41,7 @@ interface AnthropicMessage {
     | string
     | {
         type: string;
+        id?: string;
         text?: string;
         tool_use_id?: string;
         name?: string;

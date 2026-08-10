@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { CanonicalRequest, CanonicalStreamChunk } from "../../types";
+import type {
+  CanonicalContentPart,
+  CanonicalRequest,
+  CanonicalStreamChunk,
+} from "../../types";
 import { commandCodeAdapter } from "../adapter";
 
 const realFetch = globalThis.fetch;
@@ -458,7 +462,7 @@ describe("commandCodeAdapter sendStream() parsing", () => {
 describe("image handling", () => {
   test("sends image parts for vision model mimo-v2.5", async () => {
     let capturedBody: unknown = null;
-    globalThis.fetch = async (_url: string, init: RequestInit) => {
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
       capturedBody = JSON.parse(init.body as string);
       const stream = new ReadableStream({
         start(c) {
@@ -474,7 +478,7 @@ describe("image handling", () => {
         },
       });
       return new Response(stream, { status: 200 });
-    };
+    }) as unknown as typeof fetch;
 
     await commandCodeAdapter.send(
       {
@@ -488,7 +492,7 @@ describe("image handling", () => {
                 type: "image_url",
                 image_url: { url: "data:image/png;base64,abc123" },
               },
-            ],
+            ] as unknown as CanonicalContentPart[],
           },
         ],
       },
@@ -499,7 +503,7 @@ describe("image handling", () => {
     const body = capturedBody as ForwardedBody;
     const userMsg = body.params.messages.find(
       (m: ForwardedMessage) => m.role === "user",
-    );
+    ) as ForwardedMessage;
     expect(Array.isArray(userMsg.content)).toBe(true);
     expect(userMsg.content).toEqual([
       { type: "text", text: "describe this image" },
@@ -509,7 +513,7 @@ describe("image handling", () => {
 
   test("sends plain string for non-vision model", async () => {
     let capturedBody: unknown = null;
-    globalThis.fetch = async (_url: string, init: RequestInit) => {
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
       capturedBody = JSON.parse(init.body as string);
       const stream = new ReadableStream({
         start(c) {
@@ -525,7 +529,7 @@ describe("image handling", () => {
         },
       });
       return new Response(stream, { status: 200 });
-    };
+    }) as unknown as typeof fetch;
 
     await commandCodeAdapter.send(
       {
@@ -539,7 +543,7 @@ describe("image handling", () => {
                 type: "image_url",
                 image_url: { url: "data:image/png;base64,abc" },
               },
-            ],
+            ] as unknown as CanonicalContentPart[],
           },
         ],
       },
@@ -550,14 +554,14 @@ describe("image handling", () => {
     const body = capturedBody as ForwardedBody;
     const userMsg = body.params.messages.find(
       (m: ForwardedMessage) => m.role === "user",
-    );
+    ) as ForwardedMessage;
     expect(typeof userMsg.content).toBe("string");
     expect(userMsg.content).toBe("hello");
   });
 
   test("excludes mimo-v2.5-pro from vision", async () => {
     let capturedBody: unknown = null;
-    globalThis.fetch = async (_url: string, init: RequestInit) => {
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
       capturedBody = JSON.parse(init.body as string);
       const stream = new ReadableStream({
         start(c) {
@@ -573,7 +577,7 @@ describe("image handling", () => {
         },
       });
       return new Response(stream, { status: 200 });
-    };
+    }) as unknown as typeof fetch;
 
     await commandCodeAdapter.send(
       {
@@ -587,7 +591,7 @@ describe("image handling", () => {
                 type: "image_url",
                 image_url: { url: "data:image/png;base64,abc" },
               },
-            ],
+            ] as unknown as CanonicalContentPart[],
           },
         ],
       },
@@ -598,7 +602,7 @@ describe("image handling", () => {
     const body = capturedBody as ForwardedBody;
     const userMsg = body.params.messages.find(
       (m: ForwardedMessage) => m.role === "user",
-    );
+    ) as ForwardedMessage;
     expect(typeof userMsg.content).toBe("string");
     expect(userMsg.content).toBe("hello");
   });

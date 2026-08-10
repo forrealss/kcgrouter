@@ -189,14 +189,14 @@ export function reorderMembers(
   const combo = getCombo(comboId);
   if (!combo) throw new Error("Combo not found");
 
-  for (let i = 0; i < orderedMemberIds.length; i++) {
+  orderedMemberIds.forEach((id, i) => {
     run(
       "UPDATE combo_members SET priority = ? WHERE id = ? AND combo_id = ?",
       i,
-      orderedMemberIds[i],
+      id,
       comboId,
     );
-  }
+  });
 }
 
 export function removeMember(memberId: string): void {
@@ -231,6 +231,7 @@ export function resolveTarget(comboId: string): ComboMember | null {
   for (let offset = 1; offset <= n; offset++) {
     const idx = (combo.roundRobinCursor + offset) % n;
     const candidate = members[idx];
+    if (!candidate) continue;
     if (QuotaTracker.isAvailable(candidate.providerAccountId)) {
       run(
         "UPDATE combos SET round_robin_cursor = ? WHERE id = ?",
@@ -268,6 +269,7 @@ export function nextFallback(
   for (let offset = 1; offset <= n; offset++) {
     const idx = (combo.roundRobinCursor + offset) % n;
     const candidate = members[idx];
+    if (!candidate) continue;
     if (excludedMemberIds.includes(candidate.id)) continue;
     if (QuotaTracker.isAvailable(candidate.providerAccountId)) {
       run(

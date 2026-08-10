@@ -117,7 +117,7 @@ const server = serve({
       const method = req.method;
 
       // V1 routes — API key auth
-      const auth = authenticateApiKey(req);
+      const auth = await authenticateApiKey(req);
       if (!auth.ok) return auth.response;
 
       const matched = matchRoute(method, pathname);
@@ -178,8 +178,9 @@ const server = serve({
     },
 
     // Prebuilt frontend assets (dist/) — hashed chunks, favicon, sourcemaps.
-    // Registered only in production so /_bun/* dev assets stay uncaught.
-    ...(serveDist ? { "/*": serveDistAsset } : {}),
+    // Registered only in production so /_bun/* dev assets stay uncaught
+    // (`false` disables the route in dev, keeping /_bun/* assets free).
+    "/*": serveDist ? serveDistAsset : false,
 
     // SPA routes — list explicitly to avoid /* catching /_bun/* dev assets
     "/": index,

@@ -111,7 +111,7 @@ function mockFetch(body: Uint8Array, chunkSize = 1024) {
         },
       }),
       { status: 200 },
-    )) as typeof fetch;
+    )) as unknown as typeof fetch;
 }
 
 /**
@@ -129,7 +129,7 @@ function mockFetchNoClose(body: Uint8Array) {
         },
       }),
       { status: 200 },
-    )) as typeof fetch;
+    )) as unknown as typeof fetch;
 }
 
 const req: CanonicalRequest = {

@@ -376,7 +376,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
         fx.className = "ug-impact ug-impact-play";
         fx.style.left = `${x}px`;
         fx.style.top = `${y}px`;
-        wrap.appendChild(fx);
+        wrap?.appendChild(fx);
         const cleanup = () => fx.remove();
         fx.addEventListener("animationend", cleanup, { once: true });
         setTimeout(cleanup, 600);
@@ -418,9 +418,9 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       function vanish(x: number, y: number, fromScale: number, fromOp: number) {
         cat.classList.remove("ug-walking");
         laserImpact(x, y);
-        info.el.classList.remove("ug-ping");
-        void info.el.offsetWidth;
-        info.el.classList.add("ug-ping");
+        info?.el.classList.remove("ug-ping");
+        void info?.el.offsetWidth;
+        info?.el.classList.add("ug-ping");
 
         const vdur = 280;
         const v0 = performance.now();

@@ -118,23 +118,19 @@ export function UsagePage() {
           latencyMs: number;
           timestamp: number;
         };
-        setRecords((prev) =>
-          [
-            {
-              id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-              timestamp: new Date(data.timestamp).toISOString(),
-              providerAccountId: data.providerAccountId,
-              comboId: data.comboId,
-              model: data.model,
-              inputTokens: 0,
-              outputTokens: 0,
-              status: "success",
-              latencyMs: data.latencyMs,
-              estimatedCost: 0,
-            },
-            ...prev,
-          ].slice(0, 50),
-        );
+        const newRecord: UsageRecord = {
+          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: new Date(data.timestamp).toISOString(),
+          providerAccountId: data.providerAccountId,
+          comboId: data.comboId,
+          model: data.model,
+          inputTokens: 0,
+          outputTokens: 0,
+          status: "success",
+          latencyMs: data.latencyMs,
+          estimatedCost: 0,
+        };
+        setRecords((prev) => [newRecord, ...prev].slice(0, 50));
       } catch {}
     });
     return () => es.close();
@@ -350,8 +346,8 @@ export function UsagePage() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number) => [
-                      numFmt.format(value),
+                    formatter={(value) => [
+                      numFmt.format(Number(value)),
                       "Token",
                     ]}
                   />
@@ -407,7 +403,7 @@ export function UsagePage() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number) => [`${value}ms`, "Latensi"]}
+                    formatter={(value) => [`${Number(value)}ms`, "Latensi"]}
                   />
                   <Bar
                     dataKey="avgLatency"

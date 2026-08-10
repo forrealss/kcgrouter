@@ -34,8 +34,9 @@ interface CatFace {
 }
 
 /** Cat faces: open, blink, happy, sleepy. */
+const OPEN_FACE: CatFace = { eyes: `${EYE}o${RESET}${ORANGE}.${EYE}o${RESET}` };
 const CAT_FACES: CatFace[] = [
-  { eyes: `${EYE}o${RESET}${ORANGE}.${EYE}o${RESET}` },
+  OPEN_FACE,
   { eyes: `${PINK}-${RESET}${ORANGE}.${PINK}-${RESET}` },
   { eyes: `${EYE}^${RESET}${ORANGE}.${EYE}^${RESET}` },
   { eyes: `${PINK}u${RESET}${ORANGE}.${PINK}u${RESET}` },
@@ -69,7 +70,8 @@ function renderCentered(lines: string[]): void {
 
 /** Ginger cat art (3 lines, equal visible width, colors baked in). */
 function catLines(faceIdx: number, tailIdx: number): string[] {
-  const face = CAT_FACES[faceIdx % CAT_FACES.length];
+  // Modulo index is always in-bounds; fall back to the open face for types.
+  const face = CAT_FACES[faceIdx % CAT_FACES.length] ?? OPEN_FACE;
   const tail = TAILS[tailIdx % TAILS.length];
   const raw = [
     `${ORANGE}/\\${PINK}_${ORANGE}/\\${RESET}`,

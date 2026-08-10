@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { getHome } from "../config";
@@ -24,25 +24,34 @@ export function getDb(): Database {
   return _db;
 }
 
-export function query<T = unknown>(sql: string, ...params: unknown[]): T[] {
-  return getDb()
-    .query(sql)
-    .all(...params) as T[];
+export function query<T = unknown>(
+  sql: string,
+  ...params: SQLQueryBindings[]
+): T[] {
+  return getDb().query(sql).all(...params) as T[];
 }
 
-export function get<T = unknown>(sql: string, ...params: unknown[]): T | null {
+export function get<T = unknown>(
+  sql: string,
+  ...params: SQLQueryBindings[]
+): T | null {
   return getDb()
     .query(sql)
     .get(...params) as T | null;
 }
 
-export function run(sql: string, ...params: unknown[]): void {
-  getDb().run(sql, ...params);
+export function run(sql: string, ...params: SQLQueryBindings[]): void {
+  // bun's Database.run types the bindings as a single array argument (unlike
+  // Statement.all/get which take a spread) — verified against runtime.
+  getDb().run(sql, params);
 }
 
-export function runAndReturnId(sql: string, ...params: unknown[]): number {
-  const result = getDb().run(sql, ...params);
-  return result.lastInsertRowid;
+export function runAndReturnId(
+  sql: string,
+  ...params: SQLQueryBindings[]
+): number {
+  const result = getDb().run(sql, params);
+  return Number(result.lastInsertRowid);
 }
 
 export function closeDb(): void {

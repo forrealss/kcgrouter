@@ -1,8 +1,8 @@
 import { verifyApiKey } from "../services/settings.service";
 
-export function authenticateApiKey(
+export async function authenticateApiKey(
   req: Request,
-): { ok: true; keyId: string } | { ok: false; response: Response } {
+): Promise<{ ok: true; keyId: string } | { ok: false; response: Response }> {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return {
@@ -18,7 +18,7 @@ export function authenticateApiKey(
   }
 
   const token = authHeader.slice(7);
-  const keyRow = verifyApiKey(token);
+  const keyRow = await verifyApiKey(token);
 
   if (!keyRow) {
     return {

@@ -245,7 +245,6 @@ export function UsageDashboard() {
         const w = entry.contentRect.width;
         if (w > 200) {
           const mobile = w < 768;
-          setIsMobile(mobile);
           setGraphHeight(
             mobile
               ? Math.floor(window.innerHeight * 0.65)

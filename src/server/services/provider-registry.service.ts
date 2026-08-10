@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
 import { get, query, run } from "../../db/client";
 import type {
@@ -274,7 +275,7 @@ export function updateAccount(
   if (!existing) throw new Error("Provider account not found");
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] = [];
 
   if (patch.label !== undefined) {
     if (!patch.label || patch.label.trim().length === 0)

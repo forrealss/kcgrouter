@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
 import { query, run } from "../../db/client";
 import type { UsageRecordRow } from "../../db/schema";
@@ -80,7 +81,7 @@ export function getHistory(opts: {
   limit?: number;
 }): UsageRecord[] {
   const conditions: string[] = [];
-  const params: unknown[] = [];
+  const params: SQLQueryBindings[] = [];
 
   if (opts.providerAccountId) {
     conditions.push("provider_account_id = ?");

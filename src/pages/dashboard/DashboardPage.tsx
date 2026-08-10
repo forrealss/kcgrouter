@@ -188,23 +188,19 @@ export function DashboardPage() {
           latencyMs: number;
           timestamp: number;
         };
-        setRecords((prev) =>
-          [
-            {
-              id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-              timestamp: new Date(data.timestamp).toISOString(),
-              providerAccountId: data.providerAccountId,
-              comboId: null,
-              model: data.model,
-              inputTokens: 0,
-              outputTokens: 0,
-              status: "success",
-              latencyMs: data.latencyMs,
-              estimatedCost: 0,
-            },
-            ...prev,
-          ].slice(0, 20),
-        );
+        const newRecord: UsageRecord = {
+          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: new Date(data.timestamp).toISOString(),
+          providerAccountId: data.providerAccountId,
+          comboId: null,
+          model: data.model,
+          inputTokens: 0,
+          outputTokens: 0,
+          status: "success",
+          latencyMs: data.latencyMs,
+          estimatedCost: 0,
+        };
+        setRecords((prev) => [newRecord, ...prev].slice(0, 20));
       } catch {}
     });
     return () => es.close();

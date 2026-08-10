@@ -168,7 +168,7 @@ function createUpstreamSSEParseTransform(): TransformStream<
       type?: string;
       function?: { name?: string; arguments?: string };
     }>,
-    controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+    controller: TransformStreamDefaultController<CanonicalStreamChunk>,
   ) {
     for (const tc of toolCalls) {
       const idx = tc.index ?? 0;
@@ -196,13 +196,14 @@ function createUpstreamSSEParseTransform(): TransformStream<
 
   function parseLine(
     data: string,
-    controller: ReadableStreamDefaultController<CanonicalStreamChunk>,
+    controller: TransformStreamDefaultController<CanonicalStreamChunk>,
   ) {
     const parsed = JSON.parse(data) as Record<string, unknown>;
-    const delta = parsed.choices?.[0]?.delta as
-      | Record<string, unknown>
+    const choices = parsed.choices as
+      | Array<Record<string, unknown>>
       | undefined;
-    const finish = parsed.choices?.[0]?.finish_reason as string | undefined;
+    const delta = choices?.[0]?.delta as Record<string, unknown> | undefined;
+    const finish = choices?.[0]?.finish_reason as string | undefined;
 
     if (delta?.content) {
       // Forward streamed content verbatim. Trimming/normalizing per-chunk

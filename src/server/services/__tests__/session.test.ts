@@ -69,7 +69,7 @@ describe("SessionService", () => {
     expect(session).not.toBeNull();
 
     const cookie = session?.cookie ?? "";
-    const [id, sig] = cookie.split(".");
+    const [id, sig] = cookie.split(".") as [string, string];
     // Flip one character in the signature
     const flippedSig = sig[0] === "a" ? `b${sig.slice(1)}` : `a${sig.slice(1)}`;
     expect(verify(`${id}.${flippedSig}`)).toBe(false);

@@ -88,7 +88,7 @@ describe("ComboEngine — CRUD", () => {
     expect(m.comboId).toBe(c.id);
     const members = getMembersSortedByPriority(c.id);
     expect(members.length).toBe(1);
-    expect(members[0].id).toBe(m.id);
+    expect(members[0]?.id).toBe(m.id);
     deleteCombo(c.id);
   });
 
@@ -115,10 +115,10 @@ describe("ComboEngine — CRUD", () => {
     });
     reorderMembers(c.id, [m2.id, m1.id]);
     const members = getMembersSortedByPriority(c.id);
-    expect(members[0].id).toBe(m2.id);
-    expect(members[0].priority).toBe(0);
-    expect(members[1].id).toBe(m1.id);
-    expect(members[1].priority).toBe(1);
+    expect(members[0]?.id).toBe(m2.id);
+    expect(members[0]?.priority).toBe(0);
+    expect(members[1]?.id).toBe(m1.id);
+    expect(members[1]?.priority).toBe(1);
     deleteCombo(c.id);
   });
 

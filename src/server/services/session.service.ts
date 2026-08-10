@@ -30,7 +30,8 @@ export interface SessionCookie {
 function parseCookie(cookie: string): SessionCookie | null {
   const parts = cookie.split(".");
   if (parts.length !== 2) return null;
-  return { sessionId: parts[0], signature: parts[1] };
+  const [sessionId, signature] = parts as [string, string];
+  return { sessionId, signature };
 }
 
 export async function login(
@@ -70,7 +71,7 @@ export function getCookieFromRequest(req: Request): string | null {
   if (!cookieHeader) return null;
 
   const match = cookieHeader.match(/session=([^;]+)/);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 export function setSessionCookieHeaders(

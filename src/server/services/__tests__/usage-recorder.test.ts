@@ -31,6 +31,7 @@ describe("UsageRecorder", () => {
 
     record({
       providerAccountId: a.id,
+      comboId: null,
       model: "gpt-4o",
       inputTokens: 100,
       outputTokens: 50,
@@ -57,6 +58,7 @@ describe("UsageRecorder", () => {
     for (let i = 0; i < 60; i++) {
       record({
         providerAccountId: a.id,
+        comboId: null,
         model: "m",
         inputTokens: 1,
         outputTokens: 0,
@@ -81,6 +83,7 @@ describe("UsageRecorder", () => {
 
     record({
       providerAccountId: a.id,
+      comboId: null,
       model: "target-model",
       inputTokens: 1,
       outputTokens: 0,
@@ -90,6 +93,7 @@ describe("UsageRecorder", () => {
     });
     record({
       providerAccountId: a.id,
+      comboId: null,
       model: "other-model",
       inputTokens: 1,
       outputTokens: 0,
@@ -113,6 +117,7 @@ describe("UsageRecorder", () => {
 
     record({
       providerAccountId: a.id,
+      comboId: null,
       model: "m",
       inputTokens: 100,
       outputTokens: 50,
@@ -122,6 +127,7 @@ describe("UsageRecorder", () => {
     });
     record({
       providerAccountId: a.id,
+      comboId: null,
       model: "m",
       inputTokens: 200,
       outputTokens: 100,

@@ -77,7 +77,7 @@ function extractImageUrl(part: {
  * only and returns a plain string (the API rejects arrays for text-only turns).
  */
 function convertUserContent(
-  content: unknown[],
+  content: CanonicalContentPart[],
   vision: boolean,
 ): string | unknown[] {
   if (!vision) {

@@ -42,6 +42,9 @@ type KiroUserMessage = {
       }>;
     };
   };
+  assistantResponseMessage?: {
+    toolUses?: Array<Record<string, unknown>>;
+  };
 };
 
 function conversationState(payload: Record<string, unknown>) {
@@ -403,7 +406,7 @@ test("tool results are placed before the next assistant turn, not at the end", a
   // Find the assistant with toolUses — its immediate successor must have toolResults
   for (let i = 0; i < all.length; i++) {
     const item = all[i];
-    if (!item.assistantResponseMessage?.toolUses?.length) continue;
+    if (!item?.assistantResponseMessage?.toolUses?.length) continue;
 
     const next = all[i + 1];
     expect(next?.userInputMessage).toBeDefined();

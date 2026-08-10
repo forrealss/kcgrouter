@@ -178,6 +178,13 @@ export const anthropicAdapter: ProviderAdapter = {
 
     if (system) body.system = system;
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (req.tools && req.tools.length > 0) {
+      body.tools = req.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.parameters ?? { type: "object", properties: {} },
+      }));
+    }
 
     const res = await fetch(url, {
       method: "POST",
@@ -190,28 +197,86 @@ export const anthropicAdapter: ProviderAdapter = {
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }
 
+    // Anthropic's stream carries input_tokens only in message_start and
+    // output_tokens only in message_delta, so merge the two across events.
+    // content_block events are correlated by index: tool_use blocks start
+    // with an id/name, while input_json_delta fragments reference the index.
+    let inputTokens = 0;
+    const toolCallIdsByBlockIndex = new Map<number, string>();
+
     return createSSEStream(res, (parsed, controller) => {
-      if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-        controller.enqueue({ delta: parsed.delta.text as string });
+      if (parsed.type === "message_start") {
+        const message = parsed.message as { usage?: { input_tokens?: number } };
+        const reported = message?.usage?.input_tokens;
+        if (typeof reported === "number") inputTokens = reported;
       }
 
-      if (parsed.type === "message_delta" && parsed.delta?.stop_reason) {
-        controller.enqueue({
-          delta: "",
-          finishReason:
-            STREAM_FINISH_MAP[parsed.delta.stop_reason as string] ?? "stop",
-        });
+      if (parsed.type === "content_block_start") {
+        const block = parsed.content_block as {
+          type: string;
+          id?: string;
+          name?: string;
+        };
+        const index = parsed.index as number;
+
+        if (block?.type === "tool_use" && block.id && block.name) {
+          toolCallIdsByBlockIndex.set(index, block.id);
+          controller.enqueue({
+            toolCallStart: { toolCallId: block.id, toolName: block.name },
+          });
+        } else if (block?.type === "thinking") {
+          // Empty reasoning chunk opens a thinking block downstream.
+          controller.enqueue({ reasoning: "" });
+        }
+        return;
       }
 
-      if (parsed.type === "message_delta" && parsed.usage) {
-        const usage = parsed.usage as { output_tokens: number };
-        controller.enqueue({
-          delta: "",
-          usage: {
-            inputTokens: 0,
-            outputTokens: usage.output_tokens,
-          },
-        });
+      if (parsed.type === "content_block_delta") {
+        const delta = parsed.delta as {
+          type?: string;
+          text?: string;
+          thinking?: string;
+          partial_json?: string;
+        };
+        const index = parsed.index as number;
+
+        if (delta?.type === "text_delta" && delta.text) {
+          controller.enqueue({ delta: delta.text });
+        } else if (delta?.type === "thinking_delta" && delta.thinking) {
+          controller.enqueue({ reasoning: delta.thinking });
+        } else if (delta?.type === "input_json_delta" && delta.partial_json) {
+          const toolCallId = toolCallIdsByBlockIndex.get(index);
+          if (toolCallId) {
+            controller.enqueue({
+              toolCallDelta: {
+                toolCallId,
+                arguments: delta.partial_json,
+              },
+            });
+          }
+        }
+        return;
+      }
+
+      if (parsed.type === "message_delta") {
+        const delta = parsed.delta as { stop_reason?: string } | undefined;
+        if (delta?.stop_reason) {
+          controller.enqueue({
+            delta: "",
+            finishReason: STREAM_FINISH_MAP[delta.stop_reason] ?? "stop",
+          });
+        }
+
+        const usage = parsed.usage as { output_tokens?: number } | undefined;
+        if (usage) {
+          controller.enqueue({
+            delta: "",
+            usage: {
+              inputTokens,
+              outputTokens: usage.output_tokens ?? 0,
+            },
+          });
+        }
       }
     });
   },

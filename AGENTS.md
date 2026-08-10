@@ -91,6 +91,7 @@ Upstream AI Providers (OpenAI, Anthropic, Gemini, Kiro, etc.)
 | ------ | ----------------------------- | --------- | ------------------------ |
 | POST   | `/v1/chat/completions`        | API Key   | OpenAI-compatible proxy  |
 | POST   | `/v1/messages`                | API Key   | Anthropic-compatible proxy |
+| POST   | `/v1/messages/count_tokens`   | API Key   | Local token estimate (Anthropic) |
 | GET/POST/PUT/DELETE | `/api/auth/*`        | Session\* | Auth endpoints           |
 | GET/POST/PUT/DELETE | `/api/providers/*`   | Session   | Provider CRUD            |
 | GET/POST/PUT/DELETE | `/api/combos/*`      | Session   | Combo CRUD               |

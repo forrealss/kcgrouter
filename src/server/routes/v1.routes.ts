@@ -1,6 +1,12 @@
+import {
+  ANTHROPIC_ERROR_FRAME,
+  ANTHROPIC_KEEPALIVE_FRAME,
+  ANTHROPIC_SSE_HEADERS,
+} from "../services/anthropic-sse-encoder.service";
 import { withEarlyStreamKeepalive } from "../services/early-stream-keepalive";
 import { listAllEnabledModels } from "../services/model-registry.service";
 import { handleChatRequest } from "../services/router.service";
+import { estimateAnthropicInputTokens } from "../services/token-estimator.service";
 import type { RouteHandler } from "./types";
 
 function toResponse(result: {
@@ -69,6 +75,29 @@ export const v1Routes: Record<string, RouteHandler> = {
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
     const caveman = req.headers.get("x-caveman") as "on" | "off" | null;
     const ponytail = req.headers.get("x-ponytail") as "on" | "off" | null;
+    const stream = body.stream ?? false;
+
+    if (stream) {
+      const handlerPromise = handleChatRequest({
+        rawBody: body,
+        sourceFormat: "anthropic",
+        targetSelector: body.model ?? "default",
+        tokenSaverOverride: tokenSaver ?? undefined,
+        cavemanOverride: caveman ?? undefined,
+        ponytailOverride: ponytail ?? undefined,
+        stream: true,
+      }).then((result) => toResponse(result));
+
+      // Anthropic frames terminate with their own message_stop, so the
+      // keepalive wrapper must not append OpenAI's [DONE] sentinel.
+      return withEarlyStreamKeepalive(handlerPromise, {
+        signal: req.signal,
+        keepaliveFrame: ANTHROPIC_KEEPALIVE_FRAME,
+        errorFrame: ANTHROPIC_ERROR_FRAME,
+        doneFrame: null,
+        headers: ANTHROPIC_SSE_HEADERS,
+      });
+    }
 
     const result = await handleChatRequest({
       rawBody: body,
@@ -77,10 +106,33 @@ export const v1Routes: Record<string, RouteHandler> = {
       tokenSaverOverride: tokenSaver ?? undefined,
       cavemanOverride: caveman ?? undefined,
       ponytailOverride: ponytail ?? undefined,
-      stream: body.stream ?? false,
+      stream: false,
     });
 
     return toResponse(result);
+  },
+
+  "POST /v1/messages/count_tokens": async (req) => {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    // Accept any object shape (string system, block arrays, tools); reject
+    // primitives/null so the estimator never dereferences a non-object body.
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    // Local character-based estimate — never forwarded upstream, so it works
+    // regardless of which provider transport would actually serve the request.
+    return Response.json({
+      input_tokens: estimateAnthropicInputTokens(
+        body as Record<string, unknown>,
+      ),
+    });
   },
 
   "GET /v1/models": () => {

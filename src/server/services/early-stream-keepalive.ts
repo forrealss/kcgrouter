@@ -14,6 +14,22 @@ interface EarlyStreamKeepaliveOptions {
   thresholdMs?: number;
   intervalMs?: number;
   signal?: AbortSignal | null;
+  /**
+   * Frame emitted while waiting for the upstream's first byte. Defaults to
+   * an OpenAI-compatible chunk; pass Anthropic-compatible frames for
+   * `/v1/messages` responses.
+   */
+  keepaliveFrame?: Uint8Array;
+  /** In-band error frame emitted when the upstream never produced a stream. */
+  errorFrame?: Uint8Array;
+  /**
+   * Final frame appended when the wrapped stream ends. Defaults to OpenAI's
+   * `[DONE]` sentinel. Set to `null` for Anthropic responses, which terminate
+   * with their own `message_stop` event.
+   */
+  doneFrame?: Uint8Array | null;
+  /** SSE headers for the wrapper response. Defaults to OpenAI SSE headers. */
+  headers?: Record<string, string>;
 }
 
 export async function withEarlyStreamKeepalive(
@@ -23,6 +39,11 @@ export async function withEarlyStreamKeepalive(
   const thresholdMs = Math.max(0, options.thresholdMs ?? 2_000);
   const intervalMs = Math.max(250, options.intervalMs ?? 2_500);
   const signal = options.signal ?? null;
+  const keepaliveFrame = options.keepaliveFrame ?? OPENAI_KEEPALIVE_FRAME;
+  const errorFrame = options.errorFrame ?? OPENAI_ERROR_FRAME;
+  const doneFrame =
+    options.doneFrame === undefined ? doneBytes() : options.doneFrame;
+  const headers = options.headers ?? OPENAI_SSE_HEADERS;
 
   const settled: Promise<
     | { status: "fulfilled"; response: Response }
@@ -57,7 +78,7 @@ export async function withEarlyStreamKeepalive(
       const interval = setInterval(() => {
         if (stopped) return;
         try {
-          controller.enqueue(OPENAI_KEEPALIVE_FRAME);
+          controller.enqueue(keepaliveFrame);
         } catch {
           stopped = true;
           clearInterval(interval);
@@ -68,7 +89,7 @@ export async function withEarlyStreamKeepalive(
       }
 
       try {
-        controller.enqueue(OPENAI_KEEPALIVE_FRAME);
+        controller.enqueue(keepaliveFrame);
       } catch {
         /* consumer already gone */
       }
@@ -103,7 +124,7 @@ export async function withEarlyStreamKeepalive(
         }
 
         if (result.status === "rejected") {
-          controller.enqueue(OPENAI_ERROR_FRAME);
+          controller.enqueue(errorFrame);
         } else {
           const response = result.response;
           const contentType = (
@@ -125,17 +146,17 @@ export async function withEarlyStreamKeepalive(
               }
             } catch {
               if (bytesForwarded === 0) {
-                controller.enqueue(OPENAI_ERROR_FRAME);
+                controller.enqueue(errorFrame);
               }
             }
           } else {
-            controller.enqueue(OPENAI_ERROR_FRAME);
+            controller.enqueue(errorFrame);
           }
         }
       } catch {
         if (!aborted) {
           try {
-            controller.enqueue(OPENAI_ERROR_FRAME);
+            controller.enqueue(errorFrame);
           } catch {
             /* consumer gone */
           }
@@ -144,7 +165,9 @@ export async function withEarlyStreamKeepalive(
         stopKeepalive();
         signal?.removeEventListener("abort", onAbort);
         try {
-          controller.enqueue(doneBytes());
+          if (doneFrame !== null) {
+            controller.enqueue(doneFrame);
+          }
           controller.close();
         } catch {
           /* already closed */
@@ -160,6 +183,6 @@ export async function withEarlyStreamKeepalive(
 
   return new Response(stream, {
     status: 200,
-    headers: OPENAI_SSE_HEADERS,
+    headers,
   });
 }

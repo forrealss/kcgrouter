@@ -4,6 +4,10 @@ import type {
   CanonicalRequest,
   CanonicalStreamChunk,
 } from "../providers/types";
+import {
+  ANTHROPIC_SSE_HEADERS,
+  encodeAnthropicStream,
+} from "./anthropic-sse-encoder.service";
 import * as ComboEngine from "./combo-engine.service";
 import * as EventBus from "./event-bus";
 import {
@@ -70,18 +74,38 @@ interface StreamHandoff {
 function buildStreamResult(
   source: ReadableStream<CanonicalStreamChunk>,
   handoff: StreamHandoff,
+  sourceFormat: SourceFormat,
 ): RouterResult {
   const collectedChunks: CanonicalStreamChunk[] = [];
+
+  const onComplete = (usage: { inputTokens: number; outputTokens: number }) =>
+    handoff.onComplete(usage, Date.now() - handoff.startedAt, collectedChunks);
+
+  if (sourceFormat === "anthropic") {
+    // Anthropic clients need the stateful Messages event sequence
+    // (message_start / content_block_* / message_delta / message_stop);
+    // OpenAI SSE frames would look like a silent hang to them.
+    const body = encodeAnthropicStream(
+      source,
+      { model: handoff.modelName },
+      onComplete,
+      collectedChunks,
+    );
+
+    return {
+      status: 200,
+      body,
+      headers: {
+        ...ANTHROPIC_SSE_HEADERS,
+        "x-router-tokens-saved": String(handoff.tokenSaverEstimate),
+      },
+    };
+  }
 
   const body = encodeOpenAIStream(
     source,
     { model: handoff.modelName, includeUsage: handoff.includeUsage },
-    (usage) =>
-      handoff.onComplete(
-        usage,
-        Date.now() - handoff.startedAt,
-        collectedChunks,
-      ),
+    onComplete,
     collectedChunks,
   );
 
@@ -220,69 +244,73 @@ async function handlePrefixRoute(
         provider.baseUrl,
       );
 
-      return buildStreamResult(streamResult, {
-        modelName,
-        includeUsage,
-        tokenSaverEstimate,
-        startedAt,
-        rawBody,
-        providerAccountId: activeAccount.id,
-        comboId: null,
-        onComplete: (usage, latencyMs, collectedChunks) => {
-          const responseBody = collectedChunks.map((c) => ({
-            role: "assistant" as const,
-            content: c.delta ?? "",
-            reasoning: c.reasoning,
-            toolCalls: c.toolCallStart
-              ? [
-                  {
-                    id: c.toolCallStart.toolCallId,
-                    name: c.toolCallStart.toolName,
-                    arguments: "",
-                  },
-                ]
-              : undefined,
-          }));
-          UsageRecorder.record({
-            requestId,
-            providerAccountId: activeAccount.id,
-            comboId: null,
-            model: modelName,
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            status: "success",
-            latencyMs,
-            estimatedCost: 0,
-            requestBody: JSON.stringify(rawBody),
-            responseBody: JSON.stringify(responseBody),
-          });
-          EventBus.publish("request:complete", {
-            providerAccountId: activeAccount.id,
-            comboId: null,
-            model: modelName,
-            transport: provider.transport,
-            latencyMs,
-            timestamp: Date.now(),
-          });
-          QuotaTracker.recordUsage(
-            activeAccount.id,
-            usage.inputTokens + usage.outputTokens,
-          );
-          ProviderRegistry.recordAccountSuccess(activeAccount.id);
-          RequestLog.record({
-            requestId,
-            type: "success",
-            source: "router",
-            providerAccountId: activeAccount.id,
-            comboId: null,
-            model: modelName,
-            sourceFormat,
-            stream: true,
-            message: null,
-            latencyMs,
-          });
+      return buildStreamResult(
+        streamResult,
+        {
+          modelName,
+          includeUsage,
+          tokenSaverEstimate,
+          startedAt,
+          rawBody,
+          providerAccountId: activeAccount.id,
+          comboId: null,
+          onComplete: (usage, latencyMs, collectedChunks) => {
+            const responseBody = collectedChunks.map((c) => ({
+              role: "assistant" as const,
+              content: c.delta ?? "",
+              reasoning: c.reasoning,
+              toolCalls: c.toolCallStart
+                ? [
+                    {
+                      id: c.toolCallStart.toolCallId,
+                      name: c.toolCallStart.toolName,
+                      arguments: "",
+                    },
+                  ]
+                : undefined,
+            }));
+            UsageRecorder.record({
+              requestId,
+              providerAccountId: activeAccount.id,
+              comboId: null,
+              model: modelName,
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              status: "success",
+              latencyMs,
+              estimatedCost: 0,
+              requestBody: JSON.stringify(rawBody),
+              responseBody: JSON.stringify(responseBody),
+            });
+            EventBus.publish("request:complete", {
+              providerAccountId: activeAccount.id,
+              comboId: null,
+              model: modelName,
+              transport: provider.transport,
+              latencyMs,
+              timestamp: Date.now(),
+            });
+            QuotaTracker.recordUsage(
+              activeAccount.id,
+              usage.inputTokens + usage.outputTokens,
+            );
+            ProviderRegistry.recordAccountSuccess(activeAccount.id);
+            RequestLog.record({
+              requestId,
+              type: "success",
+              source: "router",
+              providerAccountId: activeAccount.id,
+              comboId: null,
+              model: modelName,
+              sourceFormat,
+              stream: true,
+              message: null,
+              latencyMs,
+            });
+          },
         },
-      });
+        sourceFormat,
+      );
     }
 
     // Non-streaming
@@ -449,69 +477,73 @@ async function handleComboRoute(
           provider.baseUrl,
         );
 
-        return buildStreamResult(streamResult, {
-          modelName: member.modelName,
-          includeUsage,
-          tokenSaverEstimate,
-          startedAt,
-          rawBody,
-          providerAccountId: account.id,
-          comboId: combo.id,
-          onComplete: (usage, latencyMs, collectedChunks) => {
-            const responseBody = collectedChunks.map((c) => ({
-              role: "assistant" as const,
-              content: c.delta ?? "",
-              reasoning: c.reasoning,
-              toolCalls: c.toolCallStart
-                ? [
-                    {
-                      id: c.toolCallStart.toolCallId,
-                      name: c.toolCallStart.toolName,
-                      arguments: "",
-                    },
-                  ]
-                : undefined,
-            }));
-            UsageRecorder.record({
-              requestId,
-              providerAccountId: account.id,
-              comboId: combo.id,
-              model: member.modelName,
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              status: "success",
-              latencyMs,
-              estimatedCost: estimateCost(member, usage),
-              requestBody: JSON.stringify(rawBody),
-              responseBody: JSON.stringify(responseBody),
-            });
-            EventBus.publish("request:complete", {
-              providerAccountId: account.id,
-              comboId: combo.id,
-              model: member.modelName,
-              transport: provider.transport,
-              latencyMs,
-              timestamp: Date.now(),
-            });
-            QuotaTracker.recordUsage(
-              account.id,
-              usage.inputTokens + usage.outputTokens,
-            );
-            ProviderRegistry.recordAccountSuccess(account.id);
-            RequestLog.record({
-              requestId,
-              type: "success",
-              source: "router",
-              providerAccountId: account.id,
-              comboId: combo.id,
-              model: member.modelName,
-              sourceFormat,
-              stream: true,
-              message: null,
-              latencyMs,
-            });
+        return buildStreamResult(
+          streamResult,
+          {
+            modelName: member.modelName,
+            includeUsage,
+            tokenSaverEstimate,
+            startedAt,
+            rawBody,
+            providerAccountId: account.id,
+            comboId: combo.id,
+            onComplete: (usage, latencyMs, collectedChunks) => {
+              const responseBody = collectedChunks.map((c) => ({
+                role: "assistant" as const,
+                content: c.delta ?? "",
+                reasoning: c.reasoning,
+                toolCalls: c.toolCallStart
+                  ? [
+                      {
+                        id: c.toolCallStart.toolCallId,
+                        name: c.toolCallStart.toolName,
+                        arguments: "",
+                      },
+                    ]
+                  : undefined,
+              }));
+              UsageRecorder.record({
+                requestId,
+                providerAccountId: account.id,
+                comboId: combo.id,
+                model: member.modelName,
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                status: "success",
+                latencyMs,
+                estimatedCost: estimateCost(member, usage),
+                requestBody: JSON.stringify(rawBody),
+                responseBody: JSON.stringify(responseBody),
+              });
+              EventBus.publish("request:complete", {
+                providerAccountId: account.id,
+                comboId: combo.id,
+                model: member.modelName,
+                transport: provider.transport,
+                latencyMs,
+                timestamp: Date.now(),
+              });
+              QuotaTracker.recordUsage(
+                account.id,
+                usage.inputTokens + usage.outputTokens,
+              );
+              ProviderRegistry.recordAccountSuccess(account.id);
+              RequestLog.record({
+                requestId,
+                type: "success",
+                source: "router",
+                providerAccountId: account.id,
+                comboId: combo.id,
+                model: member.modelName,
+                sourceFormat,
+                stream: true,
+                message: null,
+                latencyMs,
+              });
+            },
           },
-        });
+          sourceFormat,
+        );
       }
 
       // Non-streaming
@@ -608,32 +640,6 @@ export async function handleChatRequest(
   input: RouterInput,
 ): Promise<RouterResult> {
   const requestId = randomUUID();
-
-  // Streaming is only implemented for the OpenAI SSE dialect so far. Anthropic
-  // clients need a different, stateful event sequence (message_start /
-  // content_block_* / message_stop); emitting OpenAI frames there would look
-  // like a silent hang, so fail loudly instead.
-  if (input.stream && input.sourceFormat === "anthropic") {
-    const message =
-      "Streaming is not yet supported on /v1/messages. Use stream:false, or call /v1/chat/completions.";
-    RequestLog.record({
-      requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: null,
-      comboId: null,
-      model: input.targetSelector,
-      sourceFormat: input.sourceFormat,
-      stream: true,
-      message,
-      latencyMs: null,
-    });
-    return {
-      status: 501,
-      body: formatErrorResponse(new Error(message), input.sourceFormat),
-      headers: { "Content-Type": "application/json" },
-    };
-  }
 
   // 1. Parse + validate
   let canonical: CanonicalRequest;

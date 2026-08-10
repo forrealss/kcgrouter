@@ -24,10 +24,6 @@ interface AnthropicMessageBody {
   content: Array<{ type: string; text?: string }>;
 }
 
-interface ErrorBody {
-  error: { message: string };
-}
-
 // Stub the adapter registry before the route module pulls it in, so these
 // tests exercise the HTTP + encoding layers without credentials or network.
 const scripted: CanonicalStreamChunk[] = [
@@ -201,45 +197,175 @@ describe("POST /v1/chat/completions (non-streaming)", () => {
   });
 });
 
-describe("POST /v1/messages (streaming not yet supported)", () => {
-  test("fails loudly instead of hanging the client", async () => {
+interface AnthropicStreamEvent {
+  type: string;
+  message?: { role?: string; id?: string };
+  index?: number;
+  content_block?: { type: string; text?: string };
+  delta?: { type?: string; text?: string; stop_reason?: string };
+  usage?: { input_tokens: number; output_tokens: number };
+}
+
+/** Parses `event:` + `data:` SSE frames into {event, payload} objects. */
+function parseAnthropicEvents(raw: string): Array<{
+  event: string;
+  data: AnthropicStreamEvent;
+}> {
+  return raw
+    .split("\n\n")
+    .map((b) => b.trim())
+    .filter((b) => b.length > 0)
+    .map((b) => {
+      const eventLine = b.split("\n").find((l) => l.startsWith("event: "));
+      const dataLine = b.split("\n").find((l) => l.startsWith("data: "));
+      return {
+        event: eventLine?.slice(7) ?? "",
+        data: JSON.parse(
+          (dataLine ?? "data: {}").slice(6),
+        ) as AnthropicStreamEvent,
+      };
+    });
+}
+
+describe("POST /v1/messages/count_tokens", () => {
+  function postCountTokens(body: unknown): Promise<Response> {
+    const handler = v1Routes["POST /v1/messages/count_tokens"];
+    if (!handler) throw new Error("route not registered");
+    const payload = typeof body === "string" ? body : JSON.stringify(body);
+    return Promise.resolve(
+      handler(
+        new Request("http://localhost/v1/messages/count_tokens", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        }),
+      ),
+    );
+  }
+
+  test("returns a local input_tokens estimate", async () => {
+    const res = await postCountTokens({
+      model: modelRef,
+      system: "hello world",
+      messages: [{ role: "user", content: "hi there" }],
+    });
+
+    expect(res.status).toBe(200);
+    // Response.json() appends the charset parameter in Bun.
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    const body = (await res.json()) as { input_tokens: number };
+    expect(body.input_tokens).toBe(5);
+  });
+
+  test("counts structured blocks like tool_use, tool_result and thinking", async () => {
+    const res = await postCountTokens({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "ok" },
+            { type: "tool_use", name: "get_weather", input: { city: "NYC" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", content: "it is sunny" }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "let me think" }],
+        },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { input_tokens: number };
+    // 20 + 12 + 12 chars → ceil(44 / 4) = 11
+    expect(body.input_tokens).toBe(11);
+  });
+
+  test("rejects invalid JSON with 400", async () => {
+    const res = await postCountTokens("not json");
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("Invalid JSON body");
+  });
+
+  test("rejects valid JSON primitives like null with 400", async () => {
+    const res = await postCountTokens(null);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("Invalid JSON body");
+  });
+});
+
+describe("POST /v1/messages (streaming)", () => {
+  function postMessages(body: unknown): Promise<Response> {
     const handler = v1Routes["POST /v1/messages"];
     if (!handler) throw new Error("route not registered");
-
-    const res = await handler(
-      new Request("http://localhost/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: modelRef,
-          stream: true,
-          max_tokens: 16,
-          messages: [{ role: "user", content: "hi" }],
+    return Promise.resolve(
+      handler(
+        new Request("http://localhost/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         }),
-      }),
+      ),
     );
+  }
 
-    expect(res.status).toBe(501);
-    const body = (await res.json()) as ErrorBody;
-    expect(body.error.message).toContain("not yet supported");
+  test("returns Anthropic SSE bytes rather than a stringified stream", async () => {
+    const res = await postMessages({
+      model: modelRef,
+      stream: true,
+      max_tokens: 16,
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+
+    const raw = await res.text();
+    expect(raw).not.toBe("{}");
+    expect(raw).toContain("event: message_start");
+  });
+
+  test("streams message_start → text deltas → message_delta → message_stop", async () => {
+    const res = await postMessages({
+      model: modelRef,
+      stream: true,
+      max_tokens: 16,
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    const events = parseAnthropicEvents(await res.text());
+
+    // message_start announces the assistant message.
+    expect(events[0]?.event).toBe("message_start");
+    expect(events[0]?.data.message?.role).toBe("assistant");
+
+    // Text deltas assemble the full answer.
+    const text = events
+      .filter((e) => e.data.delta?.type === "text_delta")
+      .map((e) => e.data.delta?.text ?? "")
+      .join("");
+    expect(text).toBe("Hello world");
+
+    // Stream terminates with stop_reason + usage, then message_stop.
+    const deltaEvent = events.find((e) => e.event === "message_delta");
+    expect(deltaEvent?.data.delta?.stop_reason).toBe("end_turn");
+    expect(deltaEvent?.data.usage?.input_tokens).toBe(11);
+    expect(deltaEvent?.data.usage?.output_tokens).toBe(2);
+    expect(events[events.length - 1]?.event).toBe("message_stop");
   });
 
   test("non-streaming anthropic still works", async () => {
-    const handler = v1Routes["POST /v1/messages"];
-    if (!handler) throw new Error("route not registered");
-
-    const res = await handler(
-      new Request("http://localhost/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: modelRef,
-          stream: false,
-          max_tokens: 16,
-          messages: [{ role: "user", content: "hi" }],
-        }),
-      }),
-    );
+    const res = await postMessages({
+      model: modelRef,
+      stream: false,
+      max_tokens: 16,
+      messages: [{ role: "user", content: "hi" }],
+    });
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as AnthropicMessageBody;

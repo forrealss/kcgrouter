@@ -5,6 +5,7 @@ import {
   SlidersHorizontalIcon,
 } from "lucide-react";
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
+import { EncryptionMismatchAlert } from "@/components/settings/EncryptionMismatchAlert";
 import { PreferencesCard } from "@/components/settings/PreferencesCard";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,8 @@ export function SettingsPage() {
         </div>
         <StatusLed label="configuration surface" />
       </header>
+
+      <EncryptionMismatchAlert />
 
       <Card className="!py-0 overflow-hidden">
         <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4 [&>*]:bg-card">

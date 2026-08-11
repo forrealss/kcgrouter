@@ -44,14 +44,12 @@ export function App() {
       return null;
     }
     return (
-      <div className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
-        <LoginPage
-          onLogin={async (password) => {
-            await session.login(password);
-            navigate(defaultPath);
-          }}
-        />
-      </div>
+      <LoginPage
+        onLogin={async (password) => {
+          await session.login(password);
+          navigate(defaultPath);
+        }}
+      />
     );
   }
 

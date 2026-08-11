@@ -450,7 +450,31 @@ export const providersRoutes: Record<string, RouteHandler> = {
 
   "POST /api/providers/accounts/:id/test": async (_req, params) => {
     const accountId = params?.id ?? "";
-    const result = await TestConnection.testConnection(accountId);
+    let result: TestConnection.TestConnectionResult;
+    try {
+      result = await TestConnection.testConnection(accountId);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Test connection failed";
+      if (ProviderRegistry.getAccount(accountId)) {
+        ProviderRegistry.recordAccountError(accountId, message);
+      }
+      RequestLog.record({
+        type: "error",
+        source: "test",
+        providerAccountId: accountId,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message,
+        latencyMs: null,
+      });
+      return Response.json(
+        { status: "error", latencyMs: 0, error: message },
+        { status: 500 },
+      );
+    }
     const account = ProviderRegistry.getAccount(accountId);
     if (account) {
       if (result.status === "ok") {
@@ -496,7 +520,30 @@ export const providersRoutes: Record<string, RouteHandler> = {
       });
       return Response.json({ error: "accountId is required" }, { status: 400 });
     }
-    const result = await TestConnection.testModel(body.accountId, modelId);
+    let result: TestConnection.TestModelResult;
+    try {
+      result = await TestConnection.testModel(body.accountId, modelId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Test model failed";
+      if (ProviderRegistry.getAccount(body.accountId)) {
+        ProviderRegistry.recordAccountError(body.accountId, message);
+      }
+      RequestLog.record({
+        type: "error",
+        source: "test",
+        providerAccountId: body.accountId,
+        comboId: null,
+        model: modelId,
+        sourceFormat: null,
+        stream: false,
+        message,
+        latencyMs: null,
+      });
+      return Response.json(
+        { status: "error", latencyMs: 0, error: message },
+        { status: 500 },
+      );
+    }
     const account = ProviderRegistry.getAccount(body.accountId);
     if (account) {
       if (result.status === "ok") {

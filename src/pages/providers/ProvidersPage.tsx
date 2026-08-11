@@ -12,6 +12,7 @@ import {
   ProviderCardSkeleton,
 } from "@/components/providers/ProviderCard";
 import { ProviderFormDialog } from "@/components/providers/ProviderFormDialog";
+import { EncryptionMismatchAlert } from "@/components/settings/EncryptionMismatchAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,8 @@ export function ProvidersPage() {
           </Button>
         </div>
       </header>
+
+      <EncryptionMismatchAlert />
 
       <Card className="!py-0 overflow-hidden">
         <div className="grid gap-px bg-border/60 sm:grid-cols-3 [&>*]:bg-card">

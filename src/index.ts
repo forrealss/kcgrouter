@@ -18,6 +18,7 @@ import { settingsRoutes } from "./server/routes/settings.routes";
 import type { RouteHandler } from "./server/routes/types";
 import { usageRoutes } from "./server/routes/usage.routes";
 import { v1Routes } from "./server/routes/v1.routes";
+import { checkEncryptionHealth } from "./server/services/encryption-health.service";
 
 const MIME_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
@@ -84,6 +85,19 @@ ensureSecrets();
 
 // Run migrations on startup
 runMigrations();
+
+// Detect a persisted ENCRYPTION_KEY mismatch (e.g. dev vs production) early,
+// so the failure mode is a clear startup warning instead of cryptic 500s.
+try {
+  const health = checkEncryptionHealth();
+  if (health.mismatch) {
+    console.warn(
+      `[encryption] ENCRYPTION_KEY mismatch: ${health.undecryptable}/${health.checked} stored credential(s) cannot be decrypted with the current key. Accounts/API keys created under a different key will fail to work.`,
+    );
+  }
+} catch {
+  // DB not ready yet — the mismatch will surface on the first probe.
+}
 
 // All API routes (session-auth protected)
 const apiRoutes: Record<string, RouteHandler> = {

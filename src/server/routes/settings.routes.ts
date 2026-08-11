@@ -1,3 +1,4 @@
+import * as EncryptionHealth from "../services/encryption-health.service";
 import * as SettingsService from "../services/settings.service";
 import { getSupportedFilters } from "../services/token-saver.service";
 import type { RouteHandler } from "./types";
@@ -6,6 +7,27 @@ export const settingsRoutes: Record<string, RouteHandler> = {
   "GET /api/settings/theme": async () => {
     const theme = await SettingsService.getTheme();
     return Response.json({ theme });
+  },
+
+  "GET /api/settings/encryption-health": () => {
+    try {
+      return Response.json(EncryptionHealth.checkEncryptionHealth());
+    } catch (err) {
+      // A diagnostics endpoint should never 500 — degrade to a neutral report.
+      const message =
+        err instanceof Error ? err.message : "Health check failed";
+      return Response.json(
+        {
+          mismatch: false,
+          checked: 0,
+          undecryptable: 0,
+          accounts: { checked: 0, undecryptable: 0 },
+          apiKeys: { checked: 0, undecryptable: 0 },
+          error: message,
+        },
+        { status: 500 },
+      );
+    }
   },
 
   "PATCH /api/settings/theme": async (req) => {

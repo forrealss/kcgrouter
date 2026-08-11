@@ -122,7 +122,20 @@ export async function testConnection(
     return { status: "error", latencyMs: 0, error: "Provider not found" };
   }
 
-  const credential = ProviderRegistry.getDecryptedCredential(accountId);
+  let credential: { apiKey: string };
+  try {
+    credential = ProviderRegistry.getDecryptedCredential(accountId);
+  } catch (err) {
+    // Decryption can fail when the ENCRYPTION_KEY used at creation time
+    // differs from the one in effect now (e.g. dev vs production secrets).
+    // Surface that as a normal error result instead of crashing the request.
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    return {
+      status: "error",
+      latencyMs: 0,
+      error: `Failed to decrypt API key (the ENCRYPTION_KEY may differ from when this account was created): ${detail}`,
+    };
+  }
 
   // Command Code uses a special validation approach
   if (provider.transport === "command-code") {
@@ -253,7 +266,17 @@ export async function testModel(
     return { status: "error", latencyMs: 0, error: "Provider not found" };
   }
 
-  const credential = ProviderRegistry.getDecryptedCredential(accountId);
+  let credential: { apiKey: string };
+  try {
+    credential = ProviderRegistry.getDecryptedCredential(accountId);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    return {
+      status: "error",
+      latencyMs: 0,
+      error: `Failed to decrypt API key (the ENCRYPTION_KEY may differ from when this account was created): ${detail}`,
+    };
+  }
   const adapter = getAdapter(provider.transport);
 
   const start = Date.now();

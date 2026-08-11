@@ -89,10 +89,10 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
       <CardContent className="flex items-center justify-between gap-2 px-4 text-xs text-muted-foreground">
         <span className="truncate">
           {tool.configured
-            ? "Terhubung ke KCG Router"
+            ? "Connected to KCG Router"
             : tool.installed
-              ? "Klik untuk menghubungkan ke KCG Router"
-              : "Install CLI-nya, lalu konfigurasi di sini"}
+              ? "Click to connect to KCG Router"
+              : "Install the CLI, then configure it here"}
         </span>
         <ArrowRightIcon className="size-3.5 shrink-0 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
       </CardContent>

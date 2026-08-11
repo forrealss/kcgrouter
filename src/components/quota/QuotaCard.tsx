@@ -28,16 +28,16 @@ interface QuotaCardProps {
   plan?: string;
 }
 
-const numberFormatter = new Intl.NumberFormat("id-ID");
-const dateFormatter = new Intl.DateTimeFormat("id-ID", {
+const numberFormatter = new Intl.NumberFormat("en-US");
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
 const statusLabels: Record<QuotaAccount["status"], string> = {
-  active: "Aktif",
+  active: "Active",
   error: "Error",
-  expired: "Kedaluwarsa",
+  expired: "Expired",
 };
 
 function getStatusBadgeVariant(
@@ -74,7 +74,7 @@ function getProgressValue(
 }
 
 function formatCountdown(remainingMs: number): string {
-  if (remainingMs <= 0) return "Segera reset";
+  if (remainingMs <= 0) return "Reset soon";
 
   const totalSeconds = Math.ceil(remainingMs / 1_000);
   const days = Math.floor(totalSeconds / 86_400);
@@ -149,7 +149,7 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
           <span
             className={remaining > 0 ? "text-emerald-500" : "text-destructive"}
           >
-            {remaining > 0 ? "aktif" : "habis"}
+            {remaining > 0 ? "active" : "depleted"}
           </span>
         ) : (
           <span>
@@ -204,7 +204,7 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
         {hasProviderQuotas ? (
           <div className="flex flex-col gap-3">
             <span className="text-sm font-medium text-muted-foreground">
-              {providerQuotas.length} kuota
+              {providerQuotas.length} quota
             </span>
             {providerQuotas.map((quota) => (
               <ProviderQuotaBar key={quota.name} quota={quota} />
@@ -215,9 +215,9 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
         {/* Internal token quota */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-muted-foreground">Kuota token</span>
+            <span className="text-muted-foreground">Token quota</span>
             {quotaLimitTokens === null ? (
-              <Badge variant="secondary">Tidak terbatas</Badge>
+              <Badge variant="secondary">Unlimited</Badge>
             ) : (
               <span className="font-medium">
                 {Math.round(progressValue ?? 0)}%
@@ -226,17 +226,17 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
           </div>
           {quotaLimitTokens === null ? (
             <p className="text-sm text-muted-foreground">
-              {formatTokens(quotaState.tokensUsed)} token terpakai
+              {formatTokens(quotaState.tokensUsed)} tokens used
             </p>
           ) : (
             <>
               <Progress
                 value={progressValue ?? 0}
-                aria-label={`${formatTokens(quotaState.tokensUsed)} dari ${formatTokens(quotaLimitTokens)} token terpakai`}
+                aria-label={`${formatTokens(quotaState.tokensUsed)} of ${formatTokens(quotaLimitTokens)} tokens used`}
               />
               <p className="text-sm text-muted-foreground">
-                {formatTokens(quotaState.tokensUsed)} dari{" "}
-                {formatTokens(quotaLimitTokens)} token terpakai
+                {formatTokens(quotaState.tokensUsed)} of{" "}
+                {formatTokens(quotaLimitTokens)} tokens used
               </p>
             </>
           )}
@@ -244,13 +244,13 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
 
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Permintaan</dt>
+            <dt className="text-muted-foreground">Requests</dt>
             <dd className="font-medium">
               {formatTokens(quotaState.requestCount)}
             </dd>
           </div>
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Terakhir dipakai</dt>
+            <dt className="text-muted-foreground">Last used</dt>
             <dd className="font-medium">
               {formatTimestamp(account.lastUsedAt)}
             </dd>

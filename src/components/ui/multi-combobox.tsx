@@ -62,14 +62,14 @@ export function MultiCombobox({
   onValueChange,
   activeValue,
   onActiveChange,
-  emptyLabel = "Belum ada yang dipilih",
+  emptyLabel = "Nothing selected",
   emptyHint,
   activeLabel = "Active",
-  searchPlaceholder = "Cari...",
-  addLabel = "Tambah",
+  searchPlaceholder = "Search...",
+  addLabel = "Add",
   dialogTitle,
-  doneLabel = "Selesai",
-  noResultsLabel = "Tidak ada opsi ditemukan",
+  doneLabel = "Done",
+  noResultsLabel = "No options found",
   groupMeta,
   disabled = false,
   className,
@@ -224,7 +224,7 @@ export function MultiCombobox({
                       disabled={disabled}
                       className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => handleRemove(val)}
-                      aria-label={`Hapus ${val}`}
+                      aria-label={`Delete ${val}`}
                     >
                       <XIcon className="size-3.5" />
                     </Button>

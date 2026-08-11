@@ -2,100 +2,239 @@ import {
   ActivityIcon,
   ArrowDownIcon,
   ArrowUpIcon,
-  ClockIcon,
+  Clock3Icon,
   CoinsIcon,
   GaugeIcon,
+  RefreshCwIcon,
+  ServerIcon,
   ZapIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useProviders } from "@/hooks/useProviders";
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { UsageTable } from "@/components/usage/UsageTable";
 import { useUsage } from "@/hooks/useUsage";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import type { UsageRecord } from "@/types/usage";
 
-// ─── formatters ──────────────────────────────────────────────────────────────
-const numFmt = new Intl.NumberFormat("id-ID");
-const costFmt = new Intl.NumberFormat("id-ID", {
+const numFmt = new Intl.NumberFormat("en-US");
+const costFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 4,
 });
-const timeFmt = new Intl.DateTimeFormat("id-ID", {
+const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
 });
 
-// ─── stats strip metric ──────────────────────────────────────────────────────
-function StatMetric({
+const metricTone = {
+  primary: {
+    icon: "border-primary/30 bg-primary/10 text-primary",
+    value: "glow-primary",
+  },
+  cyan: {
+    icon: "border-chart-3/30 bg-chart-3/10 text-chart-3",
+    value: "",
+  },
+  violet: {
+    icon: "border-chart-2/30 bg-chart-2/10 text-chart-2",
+    value: "",
+  },
+  amber: {
+    icon: "border-chart-4/30 bg-chart-4/10 text-chart-4",
+    value: "",
+  },
+  ok: {
+    icon: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+    value: "",
+  },
+} as const;
+
+type MetricTone = keyof typeof metricTone;
+
+function MetricCell({
   label,
   value,
   icon: Icon,
   loading,
+  tone = "primary",
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   loading?: boolean;
+  tone?: MetricTone;
 }) {
+  const colors = metricTone[tone];
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 text-muted-foreground">
+    <div className="flex min-w-0 items-center gap-3 px-3 py-3.5 sm:px-4">
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-md border",
+          colors.icon,
+        )}
+      >
         <Icon className="size-4" />
       </span>
-      <div className="flex flex-col min-w-0">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">
+      <div className="min-w-0">
+        <p className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
           {label}
-        </span>
+        </p>
         {loading ? (
-          <Skeleton className="h-5 w-16 mt-0.5" />
+          <Skeleton className="mt-1 h-5 w-20" />
         ) : (
-          <span className="text-base font-mono font-semibold tracking-tight tabular-nums">
+          <p
+            className={cn(
+              "font-mono text-base font-semibold tracking-tight tabular-nums",
+              colors.value,
+            )}
+          >
             {value}
-          </span>
+          </p>
         )}
       </div>
     </div>
   );
 }
 
-// ─── main component ──────────────────────────────────────────────────────────
-export function UsagePage() {
-  const { summary, isSummaryLoading } = useUsage();
-  const { providers, accounts } = useProviders();
+function SectionHeading({
+  icon: Icon,
+  title,
+  action,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <CardHeader className="flex-row items-center gap-2 px-4 pb-3 pt-4 sm:px-5">
+      <Icon className="size-4 text-muted-foreground" />
+      <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      {action ? <CardAction>{action}</CardAction> : null}
+    </CardHeader>
+  );
+}
 
+function ActivityRow({ record }: { record: UsageRecord }) {
+  const isSuccess = record.status === "success";
+
+  return (
+    <div className="motion-safe:animate-trace-in flex items-center gap-2 border-b border-border/50 py-2 font-mono text-[11px] last:border-0">
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          isSuccess
+            ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
+            : "bg-destructive shadow-[0_0_6px] shadow-destructive/70",
+        )}
+      />
+      <span className="shrink-0 text-muted-foreground/70">
+        {timeFmt.format(new Date(record.timestamp))}
+      </span>
+      <span
+        className={cn(
+          "shrink-0 font-semibold",
+          isSuccess ? "text-emerald-500" : "text-destructive",
+        )}
+      >
+        {isSuccess ? "OK" : "ERR"}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-foreground/90">
+        {record.model}
+      </span>
+      <span className="shrink-0 tabular-nums text-muted-foreground/70">
+        {record.latencyMs}ms
+      </span>
+    </div>
+  );
+}
+
+function RankingRow({
+  label,
+  value,
+  detail,
+  percentage,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  percentage: number;
+  tone: "primary" | "cyan" | "amber";
+}) {
+  const barClass = {
+    primary: "bg-primary",
+    cyan: "bg-chart-3",
+    amber: "bg-chart-4",
+  }[tone];
+
+  return (
+    <div className="flex flex-col gap-1.5 border-b border-border/40 py-2.5 first:pt-0 last:border-0 last:pb-0">
+      <div className="flex min-w-0 items-center justify-between gap-4">
+        <span className="min-w-0 truncate font-mono text-xs text-foreground/90">
+          {label}
+        </span>
+        <span className="shrink-0 font-mono text-xs font-medium tabular-nums text-foreground/80">
+          {value}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width] duration-500",
+            barClass,
+          )}
+          style={{
+            width: `${Math.max(percentage, percentage > 0 ? 2 : 0)}%`,
+          }}
+        />
+      </div>
+      <span className="truncate font-mono text-[10px] text-muted-foreground">
+        {detail}
+      </span>
+    </div>
+  );
+}
+
+export function UsagePage() {
+  const {
+    summary,
+    summaryError,
+    isSummaryLoading,
+    accounts,
+    accountsError,
+    isAccountsLoading,
+    accountLabels,
+    loadSummary,
+    loadAccounts,
+  } = useUsage();
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
 
   const loadRecords = useCallback(async () => {
     setRecordsLoading(true);
+    setRecordsError(null);
     try {
       const data = await apiClient.get<UsageRecord[]>(
         "/api/usage/history?limit=50",
       );
       setRecords(data);
-    } catch {
-      // ignore
+    } catch (error) {
+      setRecordsError(getApiErrorMessage(error));
     } finally {
       setRecordsLoading(false);
     }
@@ -105,20 +244,18 @@ export function UsagePage() {
     void loadRecords();
   }, [loadRecords]);
 
-  // realtime SSE
   useEffect(() => {
-    const es = new EventSource("/api/events");
-    es.addEventListener("request:complete", (e: MessageEvent) => {
+    const eventSource = new EventSource("/api/events");
+    eventSource.addEventListener("request:complete", (event: MessageEvent) => {
       try {
-        const data = JSON.parse(e.data) as {
+        const data = JSON.parse(event.data) as {
           providerAccountId: string;
           comboId: string | null;
           model: string;
-          transport: string;
           latencyMs: number;
           timestamp: number;
         };
-        const newRecord: UsageRecord = {
+        const realtimeRecord: UsageRecord = {
           id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
           timestamp: new Date(data.timestamp).toISOString(),
           providerAccountId: data.providerAccountId,
@@ -130,464 +267,311 @@ export function UsagePage() {
           latencyMs: data.latencyMs,
           estimatedCost: 0,
         };
-        setRecords((prev) => [newRecord, ...prev].slice(0, 50));
-      } catch {}
+        setRecords((current) => [realtimeRecord, ...current].slice(0, 50));
+      } catch {
+        // Ignore malformed realtime events.
+      }
     });
-    return () => es.close();
+    return () => eventSource.close();
   }, []);
 
-  // ── computed stats ────────────────────────────────────────────────────────
-  const totalReqs = useMemo(() => {
-    if (!summary) return 0;
-    return summary.byProvider.reduce((a, p) => a + p.requestCount, 0);
-  }, [summary]);
-
-  const avgLatency = useMemo(() => {
+  const totalRequests = useMemo(
+    () =>
+      summary?.byProvider.reduce(
+        (total, provider) => total + provider.requestCount,
+        0,
+      ) ?? 0,
+    [summary],
+  );
+  const totalTokens =
+    (summary?.totalInputTokens ?? 0) + (summary?.totalOutputTokens ?? 0);
+  const averageLatency = useMemo(() => {
     if (records.length === 0) return 0;
-    const sum = records.reduce((a, r) => a + r.latencyMs, 0);
-    return Math.round(sum / records.length);
+    return Math.round(
+      records.reduce((total, record) => total + record.latencyMs, 0) /
+        records.length,
+    );
+  }, [records]);
+  const successRate = useMemo(() => {
+    if (records.length === 0) return 0;
+    return Math.round(
+      (records.filter((record) => record.status === "success").length /
+        records.length) *
+        100,
+    );
   }, [records]);
 
-  // ── accountId → providerId reverse map ────────────────────────────────────
-  const accountToProvider = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [providerId, state] of Object.entries(accounts)) {
-      for (const acct of state.accounts ?? []) {
-        map.set(acct.id, providerId);
-      }
-    }
-    return map;
-  }, [accounts]);
-
-  // ── token chart: aggregated per provider ──────────────────────────────────
-  const providerTokenChartData = useMemo(() => {
-    const tokenMap = new Map<string, number>();
-    if (summary) {
-      for (const p of summary.byProvider) {
-        const pid = accountToProvider.get(p.providerAccountId);
-        if (!pid) continue;
-        tokenMap.set(
-          pid,
-          (tokenMap.get(pid) ?? 0) + p.inputTokens + p.outputTokens,
-        );
-      }
-    }
-    if (!providers) return [];
-    return providers
-      .map((p) => ({
-        name: p.name,
-        tokens: tokenMap.get(p.id) ?? 0,
+  const providerRanking = useMemo(() => {
+    const rows = (summary?.byProvider ?? [])
+      .map((provider) => ({
+        label:
+          accountLabels.get(provider.providerAccountId) ??
+          provider.providerAccountId,
+        tokens: provider.inputTokens + provider.outputTokens,
+        requests: provider.requestCount,
+        cost: provider.cost,
       }))
-      .sort((a, b) => b.tokens - a.tokens);
-  }, [providers, summary, accountToProvider]);
+      .sort((left, right) => right.tokens - left.tokens);
+    const maxTokens = Math.max(...rows.map((row) => row.tokens), 1);
+    return rows.slice(0, 6).map((row) => ({
+      ...row,
+      percentage: Math.round((row.tokens / maxTokens) * 100),
+    }));
+  }, [accountLabels, summary]);
 
-  // ── latency chart from records ────────────────────────────────────────────
-  const modelLatencyChartData = useMemo(() => {
-    const map = new Map<string, { total: number; count: number }>();
-    for (const r of records) {
-      const existing = map.get(r.model);
-      if (existing) {
-        existing.total += r.latencyMs;
-        existing.count += 1;
-      } else {
-        map.set(r.model, { total: r.latencyMs, count: 1 });
-      }
+  const modelRanking = useMemo(() => {
+    const modelMap = new Map<string, { total: number; count: number }>();
+    for (const record of records) {
+      const current = modelMap.get(record.model) ?? { total: 0, count: 0 };
+      current.total += record.latencyMs;
+      current.count += 1;
+      modelMap.set(record.model, current);
     }
-    return Array.from(map.entries())
+    const rows = [...modelMap.entries()]
       .map(([model, data]) => ({
-        model: model.length > 28 ? `${model.slice(0, 25)}...` : model,
-        avgLatency: Math.round(data.total / data.count),
+        model,
+        latency: Math.round(data.total / data.count),
+        count: data.count,
       }))
-      .sort((a, b) => a.avgLatency - b.avgLatency)
-      .slice(0, 10);
+      .sort((left, right) => left.latency - right.latency)
+      .slice(0, 6);
+    const maxLatency = Math.max(...rows.map((row) => row.latency), 1);
+    return rows.map((row) => ({
+      ...row,
+      percentage: Math.round((row.latency / maxLatency) * 100),
+    }));
   }, [records]);
-
-  // ── provider table: tokens ────────────────────────────────────────────────
-  const providerTokenRanking = useMemo(() => {
-    const tokenMap = new Map<string, number>();
-    const reqMap = new Map<string, number>();
-    if (summary) {
-      for (const p of summary.byProvider) {
-        const pid = accountToProvider.get(p.providerAccountId);
-        if (!pid) continue;
-        tokenMap.set(
-          pid,
-          (tokenMap.get(pid) ?? 0) + p.inputTokens + p.outputTokens,
-        );
-        reqMap.set(pid, (reqMap.get(pid) ?? 0) + p.requestCount);
-      }
-    }
-    if (!providers) return [];
-    const maxTokens = Math.max(...tokenMap.values(), 1);
-    return providers
-      .map((p) => ({
-        id: p.id,
-        label: p.name,
-        tokens: tokenMap.get(p.id) ?? 0,
-        pct: Math.round(((tokenMap.get(p.id) ?? 0) / maxTokens) * 100),
-        requests: reqMap.get(p.id) ?? 0,
-      }))
-      .sort((a, b) => b.tokens - a.tokens);
-  }, [providers, summary, accountToProvider]);
-
-  // ── provider table: cost ──────────────────────────────────────────────────
-  const providerCostRanking = useMemo(() => {
-    const costMap = new Map<string, number>();
-    if (summary) {
-      for (const p of summary.byProvider) {
-        const pid = accountToProvider.get(p.providerAccountId);
-        if (!pid) continue;
-        costMap.set(pid, (costMap.get(pid) ?? 0) + p.cost);
-      }
-    }
-    if (!providers) return [];
-    const maxCost = Math.max(...costMap.values(), 0.0001);
-    return providers
-      .map((p) => ({
-        id: p.id,
-        label: p.name,
-        cost: costMap.get(p.id) ?? 0,
-        pct: Math.round(((costMap.get(p.id) ?? 0) / maxCost) * 100),
-      }))
-      .sort((a, b) => b.cost - a.cost);
-  }, [providers, summary, accountToProvider]);
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">Analitik Penggunaan</h2>
-          <p className="text-sm text-muted-foreground">
-            Peringkat penggunaan token, biaya, dan performa model.
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+            Telemetry / usage
+          </p>{" "}
+          <h2 className="text-xl font-semibold tracking-tight">Usage</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {" "}
+            Monitor request flow, token throughput, latency, and provider costs
+            from a single control surface.
           </p>
         </div>
-        <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
-          <span className="block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          LIVE
-        </Badge>
-      </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
+            LIVE
+          </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void loadSummary();
+              void loadAccounts();
+              void loadRecords();
+            }}
+            disabled={isSummaryLoading || isAccountsLoading || recordsLoading}
+            aria-busy={isSummaryLoading || isAccountsLoading || recordsLoading}
+          >
+            <RefreshCwIcon
+              className={cn(
+                "size-3.5",
+                (isSummaryLoading || isAccountsLoading || recordsLoading) &&
+                  "animate-spin",
+              )}
+            />
+            {isSummaryLoading || isAccountsLoading || recordsLoading
+              ? "Refreshing"
+              : "Refresh"}
+          </Button>
+        </div>
+      </header>
 
-      {/* ── Stats Strip ─────────────────────────────────────────────── */}
-      <Card className="!py-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-border/60 [&>*]:bg-card">
-          <StatMetric
-            label="Total Request"
-            value={numFmt.format(totalReqs)}
+      {summaryError || recordsError || accountsError ? (
+        <Alert variant="destructive">
+          <GaugeIcon />
+          <AlertTitle>Telemetry data is incomplete</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{summaryError ?? recordsError ?? accountsError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void loadSummary();
+                void loadAccounts();
+                void loadRecords();
+              }}
+            >
+              Retry all
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card className="!py-0 overflow-hidden">
+        <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-6 [&>*]:bg-card">
+          <MetricCell
+            label="Requests"
+            value={numFmt.format(totalRequests)}
             icon={ActivityIcon}
             loading={isSummaryLoading}
+            tone="primary"
           />
-          <StatMetric
-            label="Token Masuk"
+          <MetricCell
+            label="Total tokens"
+            value={numFmt.format(totalTokens)}
+            icon={ZapIcon}
+            loading={isSummaryLoading}
+            tone="violet"
+          />
+          <MetricCell
+            label="Input tokens"
             value={numFmt.format(summary?.totalInputTokens ?? 0)}
             icon={ArrowDownIcon}
             loading={isSummaryLoading}
+            tone="cyan"
           />
-          <StatMetric
-            label="Token Keluar"
+          <MetricCell
+            label="Output tokens"
             value={numFmt.format(summary?.totalOutputTokens ?? 0)}
             icon={ArrowUpIcon}
             loading={isSummaryLoading}
+            tone="violet"
           />
-          <StatMetric
-            label="Estimasi Biaya"
+          <MetricCell
+            label="Est. cost"
             value={costFmt.format(summary?.totalCost ?? 0)}
             icon={CoinsIcon}
             loading={isSummaryLoading}
+            tone="amber"
           />
-          <StatMetric
-            label="Rata-rata Latensi"
-            value={`${avgLatency}ms`}
-            icon={ClockIcon}
+          <MetricCell
+            label="Avg latency"
+            value={`${averageLatency}ms`}
+            icon={Clock3Icon}
             loading={recordsLoading}
+            tone="ok"
           />
         </div>
       </Card>
 
-      {/* ── Charts: Token + Latency ──────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Token Chart */}
-        <Card className="!py-0 overflow-hidden">
-          <CardHeader className="px-5 pt-4 pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ZapIcon className="size-4 text-muted-foreground" />
-              Peringkat Provider berdasarkan Token
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            {providerTokenChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Belum ada akun provider
-              </p>
-            ) : (
-              <ResponsiveContainer
-                width="100%"
-                height={Math.max(200, providerTokenChartData.length * 36)}
-              >
-                <BarChart
-                  data={providerTokenChartData}
-                  layout="vertical"
-                  margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={180}
-                  />
-                  <Tooltip
-                    cursor={false}
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value) => [
-                      numFmt.format(Number(value)),
-                      "Token",
-                    ]}
-                  />
-                  <Bar
-                    dataKey="tokens"
-                    fill="var(--chart-1)"
-                    radius={[0, 4, 4, 0]}
-                    barSize={24}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Latency Chart */}
-        <Card className="!py-0 overflow-hidden">
-          <CardHeader className="px-5 pt-4 pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <GaugeIcon className="size-4 text-muted-foreground" />
-              Peringkat Model berdasarkan Latensi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            {modelLatencyChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Belum ada data latensi — muncul setelah ada request
-              </p>
-            ) : (
-              <ResponsiveContainer
-                width="100%"
-                height={Math.max(200, modelLatencyChartData.length * 36)}
-              >
-                <BarChart
-                  data={modelLatencyChartData}
-                  layout="vertical"
-                  margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="model"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={180}
-                  />
-                  <Tooltip
-                    cursor={false}
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value) => [`${Number(value)}ms`, "Latensi"]}
-                  />
-                  <Bar
-                    dataKey="avgLatency"
-                    fill="var(--chart-3)"
-                    radius={[0, 4, 4, 0]}
-                    barSize={24}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Tabel: Penggunaan Token Provider ─────────────────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ArrowUpIcon className="size-4 text-muted-foreground" />
-            Penggunaan Token per Provider
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          {providerTokenRanking.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Belum ada data penggunaan provider
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[8%] text-center">#</TableHead>
-                  <TableHead className="w-[32%]">Provider</TableHead>
-                  <TableHead className="w-[30%]">Penggunaan</TableHead>
-                  <TableHead className="w-[15%] text-right">Token</TableHead>
-                  <TableHead className="w-[15%] text-right">Request</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {providerTokenRanking.map((p, i) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-center font-mono text-sm text-muted-foreground">
-                      {i + 1}
-                    </TableCell>
-                    <TableCell className="font-medium truncate">
-                      {p.label}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Progress value={p.pct} className="h-1.5 flex-1" />
-                        <span className="text-xs font-mono text-muted-foreground w-9 text-right shrink-0">
-                          {p.pct}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-sm">
-                      {numFmt.format(p.tokens)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-sm">
-                      {numFmt.format(p.requests)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Tabel: Biaya per Provider ────────────────────────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CoinsIcon className="size-4 text-muted-foreground" />
-            Biaya per Provider
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          {providerCostRanking.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Belum ada data biaya
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[8%] text-center">#</TableHead>
-                  <TableHead className="w-[40%]">Provider</TableHead>
-                  <TableHead className="w-[32%]">Porsi Biaya</TableHead>
-                  <TableHead className="w-[20%] text-right">
-                    Biaya (USD)
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {providerCostRanking.map((p, i) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-center font-mono text-sm text-muted-foreground">
-                      {i + 1}
-                    </TableCell>
-                    <TableCell className="font-medium truncate">
-                      {p.label}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Progress value={p.pct} className="h-1.5 flex-1" />
-                        <span className="text-xs font-mono text-muted-foreground w-9 text-right shrink-0">
-                          {p.pct}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-sm">
-                      {costFmt.format(p.cost)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Log Request ─────────────────────────────────────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2 flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ActivityIcon className="size-4 text-muted-foreground" />
-            Log Request
-          </CardTitle>
-          <Badge variant="outline" className="text-[10px] font-mono">
-            tail -f
-          </Badge>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
+      <Card className="min-h-0 !py-0 overflow-hidden">
+        <SectionHeading
+          icon={ActivityIcon}
+          title="Live request stream"
+          action={
+            <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-500">
+              {successRate}% OK
+            </span>
+          }
+        />
+        <CardContent className="min-h-0 p-0">
           <div
-            className="max-h-[320px] overflow-y-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
-            style={{
-              scrollbarWidth: "thin",
-              scrollbarColor: "var(--border) transparent",
-            }}
+            className="scrollbar-subtle max-h-[360px] overflow-y-auto bg-muted/20 px-4 pb-3 dark:bg-black/25 sm:px-5"
+            role="log"
+            aria-live="off"
+            aria-label="Live request stream"
           >
             {recordsLoading ? (
-              <div className="flex flex-col gap-2 py-1">
-                {Array.from({ length: 6 }).map((_v, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                  <Skeleton key={`log-${i}`} className="h-3.5 w-full" />
+              <div className="flex flex-col gap-2 py-2">
+                {Array.from({ length: 8 }).map((_value, index) => (
+                  <Skeleton
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                    key={`stream-${index}`}
+                    className="h-5 w-full"
+                  />
                 ))}
               </div>
             ) : records.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Belum ada aktivitas
-              </p>
+              <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center">
+                <ActivityIcon className="size-5 text-muted-foreground/60" />{" "}
+                <p className="text-sm text-muted-foreground">
+                  No request traffic yet.
+                </p>
+              </div>
             ) : (
-              records.map((r) => {
-                const ok = r.status === "success";
-                return (
-                  <div
-                    key={r.id}
-                    className="flex items-center gap-2 py-1 font-mono text-[11px] leading-relaxed"
-                  >
-                    <span className="text-muted-foreground/70 shrink-0">
-                      {timeFmt.format(new Date(r.timestamp))}
-                    </span>
-                    <span
-                      className={`shrink-0 font-semibold ${ok ? "text-emerald-500" : "text-destructive"}`}
-                    >
-                      {ok ? "OK " : "ERR"}
-                    </span>
-                    <span className="truncate flex-1 text-foreground/90">
-                      {r.model}
-                    </span>
-                    <span className="text-muted-foreground/70 shrink-0 tabular-nums">
-                      {numFmt.format(r.inputTokens + r.outputTokens)}tok
-                    </span>
-                    <span className="text-muted-foreground/70 shrink-0 tabular-nums w-14 text-right">
-                      {r.latencyMs}ms
-                    </span>
-                  </div>
-                );
-              })
+              records
+                .slice(0, 30)
+                .map((record) => (
+                  <ActivityRow key={record.id} record={record} />
+                ))
             )}
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <Card className="h-fit !py-0 overflow-hidden">
+          <SectionHeading icon={ServerIcon} title="Provider throughput" />
+          <CardContent className="px-4 pb-4 sm:px-5">
+            {isSummaryLoading ? (
+              <div className="flex flex-col gap-3">
+                {Array.from({ length: 3 }).map((_value, index) => (
+                  <Skeleton
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                    key={`provider-${index}`}
+                    className="h-10 w-full"
+                  />
+                ))}
+              </div>
+            ) : providerRanking.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No provider usage recorded yet.
+              </p>
+            ) : (
+              providerRanking.map((row) => (
+                <RankingRow
+                  key={row.label}
+                  label={row.label}
+                  value={numFmt.format(row.tokens)}
+                  detail={`${numFmt.format(row.requests)} req · ${costFmt.format(row.cost)}`}
+                  percentage={row.percentage}
+                  tone="primary"
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="h-fit !py-0 overflow-hidden">
+          <SectionHeading icon={Clock3Icon} title="Model latency" />
+          <CardContent className="px-4 pb-4 sm:px-5">
+            {recordsLoading ? (
+              <div className="flex flex-col gap-3">
+                {Array.from({ length: 3 }).map((_value, index) => (
+                  <Skeleton
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                    key={`latency-${index}`}
+                    className="h-10 w-full"
+                  />
+                ))}
+              </div>
+            ) : modelRanking.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Latency data appears after the first request.
+              </p>
+            ) : (
+              modelRanking.map((row) => (
+                <RankingRow
+                  key={row.model}
+                  label={row.model}
+                  value={`${row.latency}ms`}
+                  detail={`${numFmt.format(row.count)} sample${row.count === 1 ? "" : "s"}`}
+                  percentage={row.percentage}
+                  tone="cyan"
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <UsageTable
+        accounts={accounts}
+        accountsLoading={isAccountsLoading}
+        accountsError={accountsError}
+        onRetryAccounts={() => void loadAccounts()}
+      />
     </div>
   );
 }

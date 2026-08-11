@@ -122,6 +122,38 @@ export const combosRoutes: Record<string, RouteHandler> = {
     }
   },
 
+  "DELETE /api/combos/:id/members/:memberId": (_req, params) => {
+    const comboId = params?.id ?? "";
+    const memberId = params?.memberId ?? "";
+    try {
+      const combo = ComboEngine.getCombo(comboId);
+      if (!combo) throw new Error("Combo not found");
+      const member = ComboEngine.getMembersSortedByPriority(comboId).find(
+        (candidate) => candidate.id === memberId,
+      );
+      if (!member) throw new Error("Combo member not found");
+
+      ComboEngine.removeMember(memberId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: member.providerAccountId,
+        comboId: combo.id,
+        model: member.modelName,
+        sourceFormat: null,
+        stream: false,
+        message: `Member "${member.modelName}" removed from combo "${combo.name}"`,
+        latencyMs: null,
+      });
+      return Response.json({ ok: true });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 404 },
+      );
+    }
+  },
+
   "PATCH /api/combos/:id/members/reorder": async (req, params) => {
     const body = (await req.json()) as { orderedMemberIds?: string[] };
     if (!body.orderedMemberIds) {

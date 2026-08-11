@@ -18,11 +18,11 @@ type ThemeResponse = { theme: Theme };
 function themeDescription(theme: Theme): string {
   switch (theme) {
     case "dark":
-      return "Tema gelap sedang digunakan.";
+      return "Dark theme is currently active.";
     case "system":
-      return "Mengikuti preferensi tema perangkat.";
+      return "Following your device theme preference.";
     default:
-      return "Tema terang sedang digunakan.";
+      return "Light theme is currently active.";
   }
 }
 
@@ -86,7 +86,7 @@ function ThemeToggle() {
         },
       );
       if (result.ok !== true) {
-        throw new Error("Tema tidak dapat disimpan.");
+        throw new Error("Theme could not be saved.");
       }
     } catch (saveError) {
       setTheme(previousTheme);
@@ -102,7 +102,7 @@ function ThemeToggle() {
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner />
-          Memuat preferensi tema...
+          Loading theme preference...
         </div>
       ) : theme ? (
         <Field orientation="horizontal" data-disabled={isSaving || undefined}>
@@ -115,10 +115,10 @@ function ThemeToggle() {
               ) : (
                 <SunIcon className="size-4 text-muted-foreground" />
               )}
-              Tema
+              Theme
             </FieldLabel>
             <FieldDescription>
-              {themeDescription(theme)} Preferensi disimpan pada perangkat ini.
+              {themeDescription(theme)} Preferences are saved on this device.
             </FieldDescription>
           </FieldContent>
           <ThemePicker
@@ -130,7 +130,7 @@ function ThemeToggle() {
       ) : null}
       {error ? (
         <Alert variant="destructive">
-          <AlertTitle>Preferensi tema tidak dapat diperbarui</AlertTitle>
+          <AlertTitle>Theme preferences could not be updated</AlertTitle>
           <AlertDescription className="flex flex-col gap-3">
             <p>{error}</p>
             <Button
@@ -140,7 +140,7 @@ function ThemeToggle() {
               onClick={() => void loadTheme()}
               disabled={isSaving}
             >
-              Coba lagi
+              Retry
             </Button>
           </AlertDescription>
         </Alert>

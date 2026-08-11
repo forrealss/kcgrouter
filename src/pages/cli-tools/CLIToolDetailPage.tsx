@@ -35,7 +35,7 @@ export function CLIToolDetailPage({ toolId }: CLIToolDetailPageProps) {
       />
 
       {isLoading ? (
-        <div role="status" aria-label="Memuat konfigurasi CLI tool">
+        <div role="status" aria-label="Loading CLI tool configuration">
           <CLIToolConfigFormSkeleton />
         </div>
       ) : error ? (

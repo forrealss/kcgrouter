@@ -98,13 +98,13 @@ export function TokenSaverPage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">Token Saver</h2>
           <p className="text-sm text-muted-foreground">
-            Kurangi jumlah output tool yang masuk ke konteks.
+            Reduce the amount of tool output included in your context.
           </p>
         </div>
         <Card>
           <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Spinner />
-            Memuat pengaturan token saver...
+            Loading token saver settings...
           </CardContent>
         </Card>
       </section>
@@ -117,13 +117,13 @@ export function TokenSaverPage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">Token Saver</h2>
           <p className="text-sm text-muted-foreground">
-            Kurangi jumlah output tool yang masuk ke konteks.
+            Reduce the amount of tool output included in your context.
           </p>
         </div>
         <Card>
           <CardContent className="py-6">
             <Alert variant="destructive">
-              <AlertTitle>Gagal memuat token saver</AlertTitle>
+              <AlertTitle>Token saver could not be loaded</AlertTitle>
               <AlertDescription className="gap-3">
                 <p>{loadError}</p>
                 <Button
@@ -131,7 +131,7 @@ export function TokenSaverPage() {
                   size="sm"
                   onClick={() => void loadSettings()}
                 >
-                  Coba lagi
+                  Retry
                 </Button>
               </AlertDescription>
             </Alert>
@@ -146,7 +146,7 @@ export function TokenSaverPage() {
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold">Token Saver</h2>
         <p className="text-sm text-muted-foreground">
-          Kurangi jumlah output tool yang masuk ke konteks.
+          Reduce the amount of tool output included in your context.
         </p>
       </div>
       <Card>

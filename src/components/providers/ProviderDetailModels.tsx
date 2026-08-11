@@ -165,13 +165,22 @@ export function ProviderDetailModels({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Available Models</CardTitle>
-          <CardDescription>
-            Enable models for use via{" "}
-            <code className="text-xs">{provider.prefix}/model-id</code>.
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-col gap-3 border-b border-border/60 bg-muted/15 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="size-1.5 rounded-full bg-primary shadow-[0_0_6px] shadow-primary/70" />
+            <CardTitle className="text-base">Available models</CardTitle>
+            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+              {models.length.toString().padStart(2, "0")}
+            </span>
+          </div>
+          <CardDescription className="mt-1">
+            Enable models via{" "}
+            <code className="font-mono text-xs">
+              {provider.prefix}/model-id
+            </code>
+            .
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
@@ -203,10 +212,10 @@ export function ProviderDetailModels({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-5 p-4 md:p-5">
         {isAddModelOpen ? (
-          <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3">
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 placeholder="Model ID (e.g. gpt-4o)"
                 value={newModelId}
@@ -235,15 +244,20 @@ export function ProviderDetailModels({
 
         {enabledModels.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Enabled ({enabledModels.length})
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                Enabled
+              </p>
+              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                {enabledModels.length.toString().padStart(2, "0")}
+              </span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {enabledModels.map((model) => {
                 return (
                   <div
                     key={model.id}
-                    className="flex flex-col gap-2 rounded-lg border border-green-500/20 bg-background p-3 shadow-sm"
+                    className="flex flex-col gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-3 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/[0.07]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -300,15 +314,20 @@ export function ProviderDetailModels({
 
         {disabledModels.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Disabled ({disabledModels.length})
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                Disabled
+              </p>
+              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                {disabledModels.length.toString().padStart(2, "0")}
+              </span>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {disabledModels.map((model) => {
                 return (
                   <div
                     key={model.id}
-                    className="flex items-center justify-between gap-3 rounded-md border border-transparent bg-background px-3 py-2 opacity-70"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/15 px-3 py-2.5 opacity-70 transition-colors hover:bg-muted/30"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-muted-foreground">
@@ -339,7 +358,7 @@ export function ProviderDetailModels({
                         </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex shrink-0 items-center gap-0.5">
                       {renderModelActions(model, false)}
                     </div>
                   </div>
@@ -350,9 +369,19 @@ export function ProviderDetailModels({
         ) : null}
 
         {models.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No models configured. Click "Add Model" to add one.
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/15 px-4 py-10 text-center">
+            <span className="flex size-10 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+              <PowerIcon className="size-5" />
+            </span>
+            <div>
+              <p className="font-mono text-sm text-foreground">
+                NO MODELS REGISTERED
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Add a model manually or fetch the upstream catalog.
+              </p>
+            </div>
+          </div>
         ) : null}
       </CardContent>
 

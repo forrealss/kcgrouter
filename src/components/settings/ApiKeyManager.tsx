@@ -70,12 +70,12 @@ type CreatedApiKey = {
 };
 
 function formatDate(value: string | null): string {
-  if (!value) return "Belum pernah";
+  if (!value) return "Never";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Tidak diketahui";
+  if (Number.isNaN(date.getTime())) return "Unknown";
 
-  return new Intl.DateTimeFormat("id-ID", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -140,7 +140,7 @@ function ApiKeyManager() {
     const normalizedLabel = label.trim();
 
     if (!normalizedLabel) {
-      setLabelError("Masukkan label untuk API key ini.");
+      setLabelError("Enter a label for this API key.");
       return;
     }
 
@@ -190,7 +190,7 @@ function ApiKeyManager() {
       );
       await navigator.clipboard.writeText(res.key);
       setCopiedKeyId(key.id);
-      toast.success(`API key "${key.label}" disalin ke clipboard`);
+      toast.success(`API key "${key.label}" copied to the clipboard`);
       setTimeout(() => {
         setCopiedKeyId((current) => (current === key.id ? null : current));
       }, 2000);
@@ -229,9 +229,9 @@ function ApiKeyManager() {
               <KeyRoundIcon className="size-4 text-muted-foreground" />
             </span>
             <div className="flex min-w-0 flex-col gap-1">
-              <CardTitle>Akses API</CardTitle>
+              <CardTitle>API access</CardTitle>
               <CardDescription className="truncate">
-                API key untuk CLI dan aplikasi Anda.
+                API keys for your CLI tools and applications.
               </CardDescription>
             </div>
           </div>
@@ -242,14 +242,14 @@ function ApiKeyManager() {
               onClick={() => setIsCreateDialogOpen(true)}
             >
               <PlusIcon data-icon="inline-start" />
-              Buat key
+              Create key
             </Button>
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {loadError || actionError ? (
             <Alert variant="destructive">
-              <AlertTitle>API key tidak dapat diperbarui</AlertTitle>
+              <AlertTitle>API key could not be updated</AlertTitle>
               <AlertDescription className="flex flex-col gap-3">
                 <p>{actionError ?? loadError}</p>
                 <Button
@@ -259,7 +259,7 @@ function ApiKeyManager() {
                   onClick={() => void loadKeys()}
                 >
                   <RefreshCwIcon data-icon="inline-start" />
-                  Coba lagi
+                  Retry
                 </Button>
               </AlertDescription>
             </Alert>
@@ -268,7 +268,7 @@ function ApiKeyManager() {
           {isLoading ? (
             <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
               <Spinner />
-              Memuat API key...
+              Loading API keys...
             </div>
           ) : keys?.length ? (
             <div className="flex flex-col divide-y rounded-lg border">
@@ -292,10 +292,10 @@ function ApiKeyManager() {
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
                           {!key.has_key
-                            ? "Key lama — salin tidak tersedia"
+                            ? "Legacy key — copying unavailable"
                             : key.last_used_at
-                              ? `Terakhir digunakan ${formatDate(key.last_used_at)}`
-                              : `Dibuat ${formatDate(key.created_at)}`}
+                              ? `Last used ${formatDate(key.last_used_at)}`
+                              : `Created ${formatDate(key.created_at)}`}
                         </span>
                       </div>
                     </div>
@@ -306,11 +306,11 @@ function ApiKeyManager() {
                         size="sm"
                         onClick={() => void handleCopyKey(key)}
                         disabled={isCopying || !key.has_key}
-                        aria-label={`Salin API key ${key.label}`}
+                        aria-label={`Copy API key ${key.label}`}
                         title={
                           key.has_key
-                            ? "Salin key"
-                            : "Key ini dibuat sebelum enkripsi diaktifkan"
+                            ? "Copy key"
+                            : "This key was created before encryption was enabled"
                         }
                       >
                         {isCopying ? (
@@ -323,7 +323,7 @@ function ApiKeyManager() {
                         ) : (
                           <CopyIcon data-icon="inline-start" />
                         )}
-                        {isCopied ? "Tersalin" : "Salin"}
+                        {isCopied ? "Copied" : "Copy"}
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -332,8 +332,8 @@ function ApiKeyManager() {
                             variant="ghost"
                             size="icon-sm"
                             disabled={isRevoking}
-                            aria-label={`Cabut API key ${key.label}`}
-                            title="Cabut key"
+                            aria-label={`Revoke API key ${key.label}`}
+                            title="Revoke key"
                           >
                             {isRevoking ? (
                               <Spinner />
@@ -345,16 +345,16 @@ function ApiKeyManager() {
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
-                              Cabut API key {key.label}?
+                              Revoke API key {key.label}?
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              Key akan dihapus permanen dan tidak bisa digunakan
-                              lagi.
+                              The key will be permanently deleted and can no
+                              longer be used.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel disabled={isRevoking}>
-                              Batal
+                              Cancel
                             </AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
@@ -364,7 +364,7 @@ function ApiKeyManager() {
                               {isRevoking ? (
                                 <Spinner data-icon="inline-start" />
                               ) : null}
-                              Cabut key
+                              Revoke key
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -380,9 +380,9 @@ function ApiKeyManager() {
                 <EmptyMedia variant="icon">
                   <KeyRoundIcon />
                 </EmptyMedia>
-                <EmptyTitle>Belum ada API key</EmptyTitle>
+                <EmptyTitle>No API keys yet</EmptyTitle>
                 <EmptyDescription>
-                  Buat key pertama Anda untuk mulai menggunakan CLI.
+                  Create your first key to start using the CLI.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -390,16 +390,16 @@ function ApiKeyManager() {
         </CardContent>
         <CardFooter className="gap-2 border-t text-xs text-muted-foreground">
           <CircleAlertIcon className="size-3.5 shrink-0" />
-          Key dapat dicabut kapan saja.
+          Keys can be revoked at any time.
         </CardFooter>
       </Card>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Buat API key</DialogTitle>
+            <DialogTitle>Create API key</DialogTitle>
             <DialogDescription>
-              Beri label agar key ini mudah dikenali pada konfigurasi CLI.
+              Add a label so this key is easy to identify in CLI configuration.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate}>
@@ -416,7 +416,7 @@ function ApiKeyManager() {
                   disabled={isCreating}
                   aria-invalid={Boolean(labelError)}
                   autoFocus
-                  placeholder="Claude Code di laptop"
+                  placeholder="Claude Code on laptop"
                   required
                 />
                 <FieldError>{labelError}</FieldError>
@@ -428,7 +428,7 @@ function ApiKeyManager() {
                   onClick={() => handleCreateDialogChange(false)}
                   disabled={isCreating}
                 >
-                  Batal
+                  Cancel
                 </Button>
                 <Button type="submit" disabled={isCreating}>
                   {isCreating ? (
@@ -436,7 +436,7 @@ function ApiKeyManager() {
                   ) : (
                     <KeyRoundIcon data-icon="inline-start" />
                   )}
-                  Buat API key
+                  Create API key
                 </Button>
               </DialogFooter>
             </FieldGroup>
@@ -452,10 +452,10 @@ function ApiKeyManager() {
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Simpan API key Anda</DialogTitle>
+            <DialogTitle>Save your API key</DialogTitle>
             <DialogDescription>
-              Salin key ini sekarang. Setelah dialog ditutup, key tetap dapat
-              disalin dari daftar.
+              Copy this key now. After closing this dialog, it can still be
+              copied from the list.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -470,19 +470,19 @@ function ApiKeyManager() {
             </Field>
             {copyStatus === "error" ? (
               <Alert variant="destructive">
-                <AlertTitle>Key tidak dapat disalin otomatis</AlertTitle>
+                <AlertTitle>Key could not be copied automatically</AlertTitle>
                 <AlertDescription>
-                  Salin nilai API key secara manual sebelum melanjutkan.
+                  Copy the API key value manually before continuing.
                 </AlertDescription>
               </Alert>
             ) : null}
             <Alert>
               <AlertTitle id="new-api-key-warning">
-                Jangan bagikan API key ini
+                Do not share this API key
               </AlertTitle>
               <AlertDescription>
-                Key ini dapat digunakan untuk mengakses endpoint router atas
-                nama Anda.
+                This key can be used to access the router endpoint on your
+                behalf.
               </AlertDescription>
             </Alert>
           </FieldGroup>
@@ -492,7 +492,7 @@ function ApiKeyManager() {
               variant="outline"
               onClick={closePlaintextDialog}
             >
-              Saya sudah menyimpan key
+              I have saved the key
             </Button>
             <Button type="button" onClick={() => void copyPlaintextKey()}>
               {copyStatus === "copied" ? (
@@ -500,7 +500,7 @@ function ApiKeyManager() {
               ) : (
                 <CopyIcon data-icon="inline-start" />
               )}
-              {copyStatus === "copied" ? "Tersalin" : "Salin key"}
+              {copyStatus === "copied" ? "Copied" : "Copy key"}
             </Button>
           </DialogFooter>
         </DialogContent>

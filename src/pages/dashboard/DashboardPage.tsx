@@ -90,7 +90,7 @@ function SysMetric({
   tone?: "ok" | "warn" | "bad";
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 min-w-0">
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
       <span
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-md border",
@@ -112,7 +112,7 @@ function SysMetric({
         {loading ? (
           <Skeleton className="h-5 w-16 mt-0.5" />
         ) : (
-          <span className="text-base font-mono font-semibold tracking-tight tabular-nums">
+          <span className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
             {value}
           </span>
         )}
@@ -276,7 +276,7 @@ export function DashboardPage() {
   }, [quotaAccounts]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-5">
       {/* ── Page Header ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex flex-col gap-1">
@@ -295,8 +295,8 @@ export function DashboardPage() {
       </div>
 
       {/* ── System Status Strip ────────────────────────────────────── */}
-      <Card className="!py-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-border/60 [&>*]:bg-card">
+      <Card className="!py-0 overflow-hidden">
+        <div className="grid min-w-0 grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-6 [&>*]:bg-card">
           <SysMetric
             label="Providers Connected"
             value={numFmt.format(providers?.length ?? 0)}
@@ -340,9 +340,9 @@ export function DashboardPage() {
       </Card>
 
       {/* ── Main: Router Graph + Packet Log ──────────────────────────── */}
-      <div ref={mainRowRef} className="grid gap-4 lg:grid-cols-12">
+      <div ref={mainRowRef} className="grid min-w-0 gap-4 lg:grid-cols-5">
         <Card
-          className="lg:col-span-8 !py-0 overflow-hidden"
+          className="min-w-0 !py-0 overflow-hidden lg:col-span-3"
           style={{ height: graphH }}
         >
           <CardContent className="p-0 h-full">
@@ -351,7 +351,7 @@ export function DashboardPage() {
         </Card>
 
         <Card
-          className="lg:col-span-4 !py-0 overflow-hidden flex flex-col"
+          className="min-w-0 !py-0 gap-0 overflow-hidden lg:col-span-2"
           style={{ height: graphH }}
         >
           <CardHeader className="px-4 pt-4 pb-2 flex-row items-center justify-between shrink-0">
@@ -359,17 +359,11 @@ export function DashboardPage() {
               <ActivityIcon className="size-4" />
               Packet Log
             </CardTitle>
-            <Badge variant="outline" className="text-[10px] font-mono">
-              tail -f
-            </Badge>
           </CardHeader>
-          <CardContent className="px-4 pb-4 flex-1 min-h-0">
-            <div
-              className="h-full overflow-y-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
-              style={{
-                scrollbarWidth: "thin",
-                scrollbarColor: "var(--border) transparent",
-              }}
+          <CardContent className="min-h-0 flex-1 p-0">
+            <section
+              aria-label="Packet log"
+              className="scrollbar-subtle h-full overflow-y-auto bg-muted/30 px-4 pb-4 pt-2 font-mono dark:bg-black/80"
             >
               {recordsLoading ? (
                 <div className="flex flex-col gap-2 py-1">
@@ -383,16 +377,20 @@ export function DashboardPage() {
                   No activity yet
                 </p>
               ) : (
-                records.map((r) => <LogRow key={r.id} record={r} />)
+                records.map((r) => (
+                  <div key={r.id} className="motion-safe:animate-trace-in">
+                    <LogRow record={r} />
+                  </div>
+                ))
               )}
-            </div>
+            </section>
           </CardContent>
         </Card>
       </div>
 
       {/* ── Port Table: provider account status/load/quota ────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2">
+      <Card className="!py-0 gap-0 overflow-hidden">
+        <CardHeader className="px-5 pt-4 pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <BoxesIcon className="size-4 text-muted-foreground" />
             Provider Connection Status
@@ -407,9 +405,9 @@ export function DashboardPage() {
             </button>
           </CardAction>
         </CardHeader>
-        <CardContent className="px-5 pb-5">
+        <CardContent className="p-0">
           {allAccounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
               No provider accounts configured yet
             </p>
           ) : (
@@ -426,14 +424,14 @@ export function DashboardPage() {
                   <TableHead className="w-[15%]">Quota</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="font-mono">
                 {allAccounts.map(({ account, provider }) => {
                   const meta = transportMeta[provider.transport];
                   const usage = usageByAccount.get(account.id);
                   const quotaPct = quotaByAccount.get(account.id);
                   return (
                     <TableRow key={account.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-mono text-[13px]">
                         <div className="flex flex-col">
                           <span className="truncate">{account.label}</span>
                           <span className="text-xs text-muted-foreground font-mono truncate">
@@ -485,8 +483,8 @@ export function DashboardPage() {
       </Card>
 
       {/* ── Combo Routing Table ─────────────────────────────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-2">
+      <Card className="!py-0 gap-0 overflow-hidden">
+        <CardHeader className="px-5 pt-4 pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Layers3Icon className="size-4 text-muted-foreground" />
             Combo Routes
@@ -501,9 +499,9 @@ export function DashboardPage() {
             </button>
           </CardAction>
         </CardHeader>
-        <CardContent className="px-5 pb-5">
+        <CardContent className="p-0">
           {!combos || combos.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
+            <p className="px-5 py-6 text-center text-sm text-muted-foreground">
               No combos configured yet
             </p>
           ) : (
@@ -515,10 +513,12 @@ export function DashboardPage() {
                   <TableHead className="w-[20%]">Strategy</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="font-mono">
                 {combos.map((combo) => (
                   <TableRow key={combo.id}>
-                    <TableCell className="font-medium">{combo.name}</TableCell>
+                    <TableCell className="font-mono text-[13px]">
+                      {combo.name}
+                    </TableCell>
                     <TableCell className="font-mono text-sm tabular-nums">
                       {combo.memberCount}
                     </TableCell>

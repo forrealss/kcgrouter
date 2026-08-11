@@ -82,12 +82,12 @@ export function AccountFormDialog({
       : null;
 
     if (!label) {
-      setError("Label akun wajib diisi.");
+      setError("Account label is required.");
       return;
     }
 
     if (!isEditing && !normalizedApiKey) {
-      setError("API key wajib diisi saat menambahkan akun.");
+      setError("An API key is required when adding an account.");
       return;
     }
 
@@ -95,7 +95,7 @@ export function AccountFormDialog({
       parsedQuotaLimit !== null &&
       (!Number.isSafeInteger(parsedQuotaLimit) || parsedQuotaLimit <= 0)
     ) {
-      setError("Batas kuota harus berupa bilangan bulat positif.");
+      setError("Batas quota harus berupa bilangan bulat positif.");
       return;
     }
 
@@ -134,17 +134,19 @@ export function AccountFormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Ubah akun" : "Tambah akun"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Edit account" : "Add account"}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Perbarui konfigurasi akun upstream ini."
-              : "Simpan kredensial untuk akun upstream baru."}
+              ? "Update this upstream account configuration."
+              : "Save credentials for a new upstream account."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="account-label">Label akun</FieldLabel>
+              <FieldLabel htmlFor="account-label">Account label</FieldLabel>
               <Input
                 id="account-label"
                 value={values.label}
@@ -157,7 +159,7 @@ export function AccountFormDialog({
                 disabled={isSubmitting}
                 required
                 autoFocus
-                placeholder="Akun utama"
+                placeholder="Primary account"
               />
             </Field>
             <Field>
@@ -172,19 +174,19 @@ export function AccountFormDialog({
                 required={!isEditing}
                 placeholder={
                   isEditing
-                    ? "Biarkan kosong untuk tetap memakai key saat ini"
-                    : "Masukkan API key"
+                    ? "Leave blank to keep the current key"
+                    : "Enter API key"
                 }
               />
               <FieldDescription>
                 {isEditing
-                  ? "Key yang tersimpan tidak ditampilkan. Isi hanya untuk menggantinya."
-                  : "API key disimpan secara aman dan tidak akan ditampilkan kembali."}
+                  ? "The saved key is not displayed. Fill this in only to replace it."
+                  : "The API key is stored securely and will not be shown again."}
               </FieldDescription>
             </Field>
             <Field>
               <FieldLabel htmlFor="account-quota-limit">
-                Batas kuota token
+                Token quota limit
               </FieldLabel>
               <Input
                 id="account-quota-limit"
@@ -195,16 +197,16 @@ export function AccountFormDialog({
                 value={quotaLimit}
                 onChange={(event) => setQuotaLimit(event.target.value)}
                 disabled={isSubmitting}
-                placeholder="Tidak dibatasi"
+                placeholder="Unlimited"
               />
               <FieldDescription>
-                Kosongkan untuk tidak menetapkan batas kuota token.
+                Leave blank for no token quota limit.
               </FieldDescription>
             </Field>
             {error ? (
               <Alert variant="destructive">
                 <AlertCircleIcon />
-                <AlertTitle>Akun tidak dapat disimpan</AlertTitle>
+                <AlertTitle>Account could not be saved</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
@@ -215,7 +217,7 @@ export function AccountFormDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Batal
+                Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -225,7 +227,7 @@ export function AccountFormDialog({
                 ) : (
                   <KeyRoundIcon data-icon="inline-start" />
                 )}
-                {isEditing ? "Simpan perubahan" : "Tambah akun"}
+                {isEditing ? "Save changes" : "Add account"}
               </Button>
             </DialogFooter>
           </FieldGroup>

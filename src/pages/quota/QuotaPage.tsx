@@ -41,8 +41,8 @@ export function QuotaPage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">Quota Tracker</h2>
           <p className="text-sm text-muted-foreground">
-            Pantau penggunaan token untuk akun provider yang mendukung pelacakan
-            kuota (Kiro, Command Code, Qoder).
+            Monitor token usage for provider accounts that support quota
+            tracking (Kiro, Command Code, Qoder).
           </p>
         </div>
         <Button
@@ -59,21 +59,21 @@ export function QuotaPage() {
           ) : (
             <RefreshCwIcon data-icon="inline-start" />
           )}
-          Muat ulang
+          Refresh
         </Button>
       </div>
 
       {isInitialLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner />
-          Memuat quota…
+          Loading quota…
         </div>
       ) : null}
 
       {!isInitialLoading && error ? (
         <Alert variant="destructive">
           <GaugeIcon />
-          <AlertTitle>Quota tidak dapat dimuat</AlertTitle>
+          <AlertTitle>Quota could not be loaded</AlertTitle>
           <AlertDescription className="gap-3">
             <p>{error}</p>
             <Button
@@ -88,7 +88,7 @@ export function QuotaPage() {
               ) : (
                 <RefreshCwIcon data-icon="inline-start" />
               )}
-              Coba lagi
+              Retry
             </Button>
           </AlertDescription>
         </Alert>
@@ -100,9 +100,9 @@ export function QuotaPage() {
             <EmptyMedia variant="icon">
               <GaugeIcon />
             </EmptyMedia>
-            <EmptyTitle>Belum ada akun quota</EmptyTitle>
+            <EmptyTitle>No quota accounts yet</EmptyTitle>
             <EmptyDescription>
-              Detail quota akan muncul setelah akun penyedia dikonfigurasi.
+              Quota details will appear after a provider account is configured.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -112,7 +112,7 @@ export function QuotaPage() {
               onClick={() => void loadQuota()}
             >
               <RefreshCwIcon data-icon="inline-start" />
-              Muat ulang quota
+              Refresh quota
             </Button>
           </EmptyContent>
         </Empty>

@@ -44,6 +44,24 @@ interface ProviderDetailConnectionsProps {
   onTestConnection: (account: ProviderAccount) => void;
 }
 
+const statusMeta = {
+  active: {
+    label: "ACTIVE",
+    dot: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  error: {
+    label: "ERROR",
+    dot: "bg-destructive shadow-[0_0_6px] shadow-destructive/70",
+    text: "text-destructive",
+  },
+  expired: {
+    label: "EXPIRED",
+    dot: "bg-muted-foreground/50",
+    text: "text-muted-foreground",
+  },
+} as const;
+
 export function ProviderDetailConnections({
   provider,
   accounts,
@@ -81,24 +99,48 @@ export function ProviderDetailConnections({
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Connections</CardTitle>
-            <CardDescription>
-              Manage API keys and credentials for {provider.name}.
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-col gap-3 border-b border-border/60 bg-muted/15 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  accounts.some((account) => account.status === "error")
+                    ? "bg-destructive shadow-[0_0_6px] shadow-destructive/70"
+                    : accounts.some((account) => account.status === "active")
+                      ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
+                      : "bg-muted-foreground/50",
+                )}
+              />
+              <CardTitle className="text-base">Connections</CardTitle>
+              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                {accounts.length.toString().padStart(2, "0")}
+              </span>
+            </div>
+            <CardDescription className="mt-1">
+              API keys and credentials for {provider.name}.
             </CardDescription>
           </div>
           <Button type="button" size="sm" onClick={handleAdd}>
             <PlusIcon data-icon="inline-start" />
-            Add
+            Add connection
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-5">
           {accounts.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              <KeyRoundIcon className="size-8 opacity-50" />
-              <p>No connections yet.</p>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/15 px-4 py-10 text-center">
+              <span className="flex size-10 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+                <KeyRoundIcon className="size-5" />
+              </span>
+              <div>
+                <p className="font-mono text-sm text-foreground">
+                  NO CONNECTIONS CONFIGURED
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add credentials to make this upstream available to the router.
+                </p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -115,40 +157,56 @@ export function ProviderDetailConnections({
                 const isDeleting = deletingAccountId === account.id;
                 const isTesting = testingAccountId === account.id;
                 const testStatus = accountTestStatus[account.id];
+                const status = statusMeta[account.status];
                 return (
                   <div
                     key={account.id}
-                    className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3"
+                    className="group flex flex-col gap-3 rounded-lg border bg-muted/15 p-3 transition-colors hover:border-primary/30 hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-3">
-                      <div
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
                         className={cn(
-                          "size-2 rounded-full",
-                          account.status === "active"
-                            ? "bg-green-500"
-                            : account.status === "error"
-                              ? "bg-red-500"
-                              : "bg-yellow-500",
+                          "mt-1.5 size-2 shrink-0 rounded-full",
+                          status.dot,
                         )}
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">{account.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {account.quotaLimitTokens
-                            ? `Quota limit: ${account.quotaLimitTokens.toLocaleString()} tokens`
-                            : "No quota limit"}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium">
+                            {account.label}
+                          </p>
+                          <span
+                            className={cn(
+                              "font-mono text-[10px] tracking-wide",
+                              status.text,
+                            )}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+                          <span>
+                            {account.quotaLimitTokens
+                              ? `QUOTA ${account.quotaLimitTokens.toLocaleString()} TOKENS`
+                              : "QUOTA UNLIMITED"}
+                          </span>
+                          <span className="text-muted-foreground/60">
+                            {account.lastUsedAt
+                              ? `LAST USED ${new Date(account.lastUsedAt).toLocaleDateString()}`
+                              : "NOT USED YET"}
+                          </span>
+                        </div>
                         {account.lastError ? (
                           <p
-                            className="mt-1 max-w-80 truncate text-xs font-medium text-red-600 dark:text-red-400"
+                            className="mt-1 max-w-full truncate text-xs font-medium text-destructive sm:max-w-[32rem]"
                             title={account.lastError}
                           >
-                            ⚠ {account.lastError}
+                            {account.lastError}
                           </p>
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                       <Button
                         type="button"
                         variant="ghost"
@@ -166,18 +224,20 @@ export function ProviderDetailConnections({
                         {isTesting ? (
                           <Spinner className="size-4" />
                         ) : testStatus?.status === "ok" ? (
-                          <CheckCircleIcon className="size-4 text-green-500" />
+                          <CheckCircleIcon className="size-4 text-emerald-500" />
                         ) : testStatus?.status === "error" ? (
-                          <XCircleIcon className="size-4 text-red-500" />
+                          <XCircleIcon className="size-4 text-destructive" />
                         ) : (
                           <FlaskConicalIcon className="size-4" />
                         )}
+                        <span className="sr-only">Test connection</span>
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => handleEdit(account)}
+                        title="Edit connection"
                       >
                         <span className="sr-only">Edit</span>
                         <PencilIcon className="size-4" />
@@ -188,14 +248,16 @@ export function ProviderDetailConnections({
                             type="button"
                             variant="ghost"
                             size="icon-xs"
-                            className="text-muted-foreground hover:text-destructive"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             disabled={isDeleting}
+                            title="Delete connection"
                           >
                             {isDeleting ? (
                               <Spinner className="size-4" />
                             ) : (
                               <TrashIcon className="size-4" />
                             )}
+                            <span className="sr-only">Delete connection</span>
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>

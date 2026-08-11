@@ -77,19 +77,33 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
         onLogout={handleLogout}
       />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
-          <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-md md:px-6">
+          <SidebarTrigger className="text-muted-foreground hover:bg-accent hover:text-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+              KCG / control room
+            </p>
+            <h1 className="truncate text-base font-semibold leading-tight">
               {currentModule.label}
             </h1>
           </div>
+          <div className="hidden items-center gap-2 text-muted-foreground sm:flex">
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide">
+              <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
+              Control room
+            </span>
+            <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              Ctrl B
+            </kbd>
+          </div>
         </header>
-        <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden p-4 md:p-6 mx-auto w-full max-w-[1700px]">
+        <main
+          className={`flex min-h-0 flex-1 flex-col gap-6 p-4 md:p-6 mx-auto w-full max-w-[1700px] ${activeModule === "dashboard" ? "overflow-x-hidden overflow-y-auto bg-grid" : "overflow-hidden"}`}
+        >
           {logoutError ? (
             <Alert variant="destructive">
               <AlertCircleIcon />
-              <AlertTitle>Gagal keluar</AlertTitle>
+              <AlertTitle>Logout failed</AlertTitle>
               <AlertDescription>{logoutError}</AlertDescription>
             </Alert>
           ) : null}
@@ -124,7 +138,8 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
                 <CardDescription>{currentModule.description}</CardDescription>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                Modul ini siap dihubungkan dengan antarmuka pengelolaannya.
+                This module is ready to be connected to its management
+                interface.
               </CardContent>
             </Card>
           )}

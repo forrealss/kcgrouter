@@ -61,15 +61,16 @@ function ChangePasswordDialog({
     const nextErrors: Partial<Record<PasswordField, string>> = {};
 
     if (!values.currentPassword) {
-      nextErrors.currentPassword = "Masukkan password saat ini.";
+      nextErrors.currentPassword = "Enter your current password.";
     }
 
     if (values.newPassword.length < 8) {
-      nextErrors.newPassword = "Password baru minimal 8 karakter.";
+      nextErrors.newPassword =
+        "The new password must be at least 8 characters.";
     }
 
     if (values.newPassword !== values.confirmPassword) {
-      nextErrors.confirmPassword = "Konfirmasi password tidak sama.";
+      nextErrors.confirmPassword = "Password confirmation does not match.";
     }
 
     return nextErrors;
@@ -105,7 +106,7 @@ function ChangePasswordDialog({
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       });
-      toast.success("Password diperbarui");
+      toast.success("Password updated");
       onOpenChange(false);
       resetState();
     } catch (error) {
@@ -119,16 +120,16 @@ function ChangePasswordDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ganti password</DialogTitle>
+          <DialogTitle>Change password</DialogTitle>
           <DialogDescription>
-            Perbarui password yang digunakan untuk masuk ke dashboard.
+            Update the password used to sign in to the dashboard.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={Boolean(fieldErrors.currentPassword)}>
               <FieldLabel htmlFor="current-password">
-                Password saat ini
+                Current password
               </FieldLabel>
               <Input
                 id="current-password"
@@ -146,7 +147,7 @@ function ChangePasswordDialog({
               <FieldError>{fieldErrors.currentPassword}</FieldError>
             </Field>
             <Field data-invalid={Boolean(fieldErrors.newPassword)}>
-              <FieldLabel htmlFor="new-password">Password baru</FieldLabel>
+              <FieldLabel htmlFor="new-password">New password</FieldLabel>
               <Input
                 id="new-password"
                 type="password"
@@ -164,7 +165,7 @@ function ChangePasswordDialog({
             </Field>
             <Field data-invalid={Boolean(fieldErrors.confirmPassword)}>
               <FieldLabel htmlFor="confirm-password">
-                Konfirmasi password baru
+                Confirm new password
               </FieldLabel>
               <Input
                 id="confirm-password"
@@ -183,7 +184,7 @@ function ChangePasswordDialog({
             </Field>
             {requestError ? (
               <Alert variant="destructive">
-                <AlertTitle>Password tidak dapat diperbarui</AlertTitle>
+                <AlertTitle>Password could not be updated</AlertTitle>
                 <AlertDescription>{requestError}</AlertDescription>
               </Alert>
             ) : null}
@@ -194,7 +195,7 @@ function ChangePasswordDialog({
                 onClick={() => handleOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Batal
+                Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -202,7 +203,7 @@ function ChangePasswordDialog({
                 ) : (
                   <SaveIcon data-icon="inline-start" />
                 )}
-                Simpan password
+                Save password
               </Button>
             </DialogFooter>
           </FieldGroup>

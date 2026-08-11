@@ -82,14 +82,14 @@ export function ProviderFormDialog({
     const prefix = values.prefix.trim().toLowerCase();
 
     if (!name || !baseUrl || !prefix) {
-      setError("Nama provider, base URL, dan prefix wajib diisi.");
+      setError("Provider name, base URL, and prefix are required.");
       return;
     }
 
     // Validate prefix format
     if (!/^[a-z0-9][a-z0-9.-]*$/.test(prefix)) {
       setError(
-        "Prefix harus diawali huruf/angka dan hanya boleh huruf kecil, angka, hyphen, atau titik.",
+        "Prefix must start with a letter or number and may only contain lowercase letters, numbers, hyphens, or periods.",
       );
       return;
     }
@@ -97,13 +97,13 @@ export function ProviderFormDialog({
     try {
       const url = new URL(baseUrl);
       if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw new Error("Base URL harus menggunakan HTTP atau HTTPS.");
+        throw new Error("Base URL must use HTTP or HTTPS.");
       }
     } catch (urlError) {
       setError(
         urlError instanceof Error && urlError.message.startsWith("Base URL")
           ? urlError.message
-          : "Masukkan base URL yang valid.",
+          : "Enter a valid base URL.",
       );
       return;
     }
@@ -131,15 +131,15 @@ export function ProviderFormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Tambah provider</DialogTitle>
+          <DialogTitle>Add provider</DialogTitle>
           <DialogDescription>
-            Tambahkan endpoint upstream yang akan digunakan oleh router.
+            Add an upstream endpoint for the router to use.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={Boolean(error && !values.name.trim())}>
-              <FieldLabel htmlFor="provider-name">Nama provider</FieldLabel>
+              <FieldLabel htmlFor="provider-name">Provider name</FieldLabel>
               <Input
                 id="provider-name"
                 value={values.name}
@@ -152,7 +152,7 @@ export function ProviderFormDialog({
                 disabled={isSubmitting}
                 required
                 autoFocus
-                placeholder="OpenAI utama"
+                placeholder="Primary OpenAI"
               />
             </Field>
             <Field>
@@ -165,7 +165,7 @@ export function ProviderFormDialog({
                 disabled={isSubmitting}
               >
                 <SelectTrigger id="provider-transport" className="w-full">
-                  <SelectValue placeholder="Pilih transport" />
+                  <SelectValue placeholder="Select transport" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -191,12 +191,13 @@ export function ProviderFormDialog({
                 }
                 disabled={isSubmitting}
                 required
-                placeholder="mis. my-openai"
+                placeholder="e.g. my-openai"
               />
               <FieldDescription>
-                Unique prefix untuk routing. Gunakan format{" "}
-                <code className="text-xs">prefix/model</code> saat request
-                (misal <code className="text-xs">my-openai/gpt-4o</code>).
+                A unique prefix for routing. Use the{" "}
+                <code className="text-xs">prefix/model</code> format for
+                requests (for example{" "}
+                <code className="text-xs">my-openai/gpt-4o</code>).
               </FieldDescription>
             </Field>
             <Field data-invalid={Boolean(error && !values.baseUrl.trim())}>
@@ -224,7 +225,7 @@ export function ProviderFormDialog({
             {error ? (
               <Alert variant="destructive">
                 <AlertCircleIcon />
-                <AlertTitle>Provider tidak dapat disimpan</AlertTitle>
+                <AlertTitle>Provider could not be saved</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
@@ -235,7 +236,7 @@ export function ProviderFormDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Batal
+                Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -243,7 +244,7 @@ export function ProviderFormDialog({
                 ) : (
                   <PlusIcon data-icon="inline-start" />
                 )}
-                Tambah provider
+                Add provider
               </Button>
             </DialogFooter>
           </FieldGroup>

@@ -31,10 +31,10 @@ function PreferencesCard() {
           >
             <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
           </span>
-          Preferensi
+          Preferences
         </CardTitle>
         <CardDescription>
-          Kelola keamanan akun dan tampilan dashboard.
+          Manage account security and dashboard appearance.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,7 +46,7 @@ function PreferencesCard() {
                 Password
               </FieldLabel>
               <FieldDescription>
-                Perbarui password yang digunakan untuk masuk ke dashboard.
+                Update the password used to sign in to the dashboard.
               </FieldDescription>
             </FieldContent>
             <Button
@@ -55,7 +55,7 @@ function PreferencesCard() {
               size="sm"
               onClick={() => setIsPasswordDialogOpen(true)}
             >
-              Ganti password
+              Change password
             </Button>
           </Field>
           <ThemeToggle />

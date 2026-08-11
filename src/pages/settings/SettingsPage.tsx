@@ -5,9 +5,9 @@ export function SettingsPage() {
   return (
     <section className="flex flex-col gap-5 pb-4">
       <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold tracking-tight">Pengaturan</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
         <p className="text-sm text-muted-foreground">
-          Kelola preferensi dashboard dan akses API.
+          Manage dashboard preferences and API access.
         </p>
       </header>
 

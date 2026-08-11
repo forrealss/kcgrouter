@@ -59,39 +59,46 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
   }
 
   return (
-    <section className="flex flex-col gap-6">
+    <section className="flex min-w-0 flex-col gap-5">
       <ProviderDetailHeader
         provider={provider}
+        accounts={accounts}
         lastError={latestAccountError}
       />
-      <ProviderDetailConnections
-        provider={provider}
-        accounts={accounts}
-        deletingAccountId={deletingAccountId}
-        testingAccountId={testingAccountId}
-        accountTestStatus={accountTestStatus}
-        onDeleteAccount={handleDeleteAccount}
-        onAccountSaved={handleAccountSaved}
-        onTestConnection={handleTestConnection}
-      />
-      <ProviderDetailModels
-        provider={provider}
-        models={models}
-        accounts={accounts}
-        testingModelId={testingModelId}
-        modelTestStatus={modelTestStatus}
-        onToggleModel={handleToggleModel}
-        onAddModel={handleAddModel}
-        onDeleteModel={handleDeleteModel}
-        onTestModel={handleTestModel}
-        onFetchModels={handleFetchModels}
-        fetchingModels={fetchingModels}
-        modelCandidates={modelCandidates}
-        fetchDialogOpen={fetchDialogOpen}
-        importingModels={importingModels}
-        onImportModels={handleImportModels}
-        onCloseFetchDialog={handleCloseFetchDialog}
-      />
+      <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
+        <div className="min-w-0 xl:col-span-2">
+          <ProviderDetailConnections
+            provider={provider}
+            accounts={accounts}
+            deletingAccountId={deletingAccountId}
+            testingAccountId={testingAccountId}
+            accountTestStatus={accountTestStatus}
+            onDeleteAccount={handleDeleteAccount}
+            onAccountSaved={handleAccountSaved}
+            onTestConnection={handleTestConnection}
+          />
+        </div>
+        <div className="min-w-0 xl:col-span-3">
+          <ProviderDetailModels
+            provider={provider}
+            models={models}
+            accounts={accounts}
+            testingModelId={testingModelId}
+            modelTestStatus={modelTestStatus}
+            onToggleModel={handleToggleModel}
+            onAddModel={handleAddModel}
+            onDeleteModel={handleDeleteModel}
+            onTestModel={handleTestModel}
+            onFetchModels={handleFetchModels}
+            fetchingModels={fetchingModels}
+            modelCandidates={modelCandidates}
+            fetchDialogOpen={fetchDialogOpen}
+            importingModels={importingModels}
+            onImportModels={handleImportModels}
+            onCloseFetchDialog={handleCloseFetchDialog}
+          />
+        </div>
+      </div>
     </section>
   );
 }

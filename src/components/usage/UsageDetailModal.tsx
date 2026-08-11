@@ -43,7 +43,8 @@ function CopyButton({ text }: { text: string }) {
       variant="ghost"
       size="icon-xs"
       onClick={() => void handleCopy()}
-      title="Copy"
+      aria-label="Copy payload"
+      title="Copy payload"
     >
       {copied ? (
         <CheckIcon className="size-3.5 text-green-500" />
@@ -64,7 +65,7 @@ export function UsageDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="flex max-h-[min(80svh,52rem)] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>Request Detail</span>
@@ -76,7 +77,7 @@ export function UsageDetailModal({
               {record.status === "success" ? 200 : 500}
             </Badge>
           </DialogTitle>
-          <DialogDescription className="flex items-center gap-2 text-xs">
+          <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 break-all text-xs">
             <span className="font-mono">POST</span>
             <span>/v1/chat/completions</span>
             <span className="text-muted-foreground">·</span>
@@ -84,7 +85,7 @@ export function UsageDetailModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto flex flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
           {/* Response Payload */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -93,7 +94,7 @@ export function UsageDetailModal({
               </span>
               <CopyButton text={tryFormatJson(record.responseBody)} />
             </div>
-            <pre className="rounded-md bg-muted p-4 text-xs overflow-auto max-h-64 font-mono whitespace-pre-wrap break-all">
+            <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
               {tryFormatJson(record.responseBody)}
             </pre>
           </div>
@@ -106,7 +107,7 @@ export function UsageDetailModal({
               </span>
               <CopyButton text={tryFormatJson(record.requestBody)} />
             </div>
-            <pre className="rounded-md bg-muted p-4 text-xs overflow-auto max-h-64 font-mono whitespace-pre-wrap break-all">
+            <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
               {tryFormatJson(record.requestBody)}
             </pre>
           </div>

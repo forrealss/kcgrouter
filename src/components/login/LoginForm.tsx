@@ -33,7 +33,7 @@ const trace: TraceLine[] = [
     path: "/v1/chat/completions",
     target: "openai:acct-02",
     outcome: "limited",
-    detail: "429 kuota terlampaui (jendela 5h)",
+    detail: "429 quota exceeded (5h window)",
   },
   {
     at: "14:02:11",
@@ -49,7 +49,7 @@ const trace: TraceLine[] = [
     path: "/v1/chat/completions",
     target: "anthropic:acct-01",
     outcome: "ok",
-    detail: "200 dalam 640ms · 1,204 token",
+    detail: "200 in 640ms · 1,204 tokens",
   },
 ];
 
@@ -64,7 +64,7 @@ function TraceLog() {
     <div
       className="rounded-lg border border-sidebar-border bg-black/30 p-4 font-mono text-[13px] leading-relaxed"
       role="img"
-      aria-label="Contoh log routing: request ke OpenAI kena limit kuota, KCG Router otomatis mengalihkan ke Anthropic, permintaan berhasil."
+      aria-label="Routing log example: a request to OpenAI hits a quota limit, KCG Router automatically reroutes it to Anthropic, and the request succeeds."
     >
       {trace.map((line, i) => (
         <div
@@ -118,19 +118,20 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           </div>
           <div className="flex items-center gap-2 text-xs text-sidebar-foreground/60">
             <span className="size-1.5 rounded-full bg-emerald-400" />
-            <span>3 provider tersambung</span>
+            <span>3 providers connected</span>
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
           <h2 className="max-w-sm text-xl leading-snug font-semibold tracking-tight text-balance">
-            Saat satu provider kena limit, KCG Router mengalihkannya sendiri.
+            When a provider hits a limit, KCG Router reroutes the request
+            automatically.
           </h2>
           <TraceLog />
         </div>
 
         <p className="text-xs text-sidebar-foreground/40">
-          Kredensial provider disimpan terenkripsi (AES-256-GCM).
+          Provider credentials are encrypted at rest (AES-256-GCM).
         </p>
       </div>
 
@@ -140,10 +141,10 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             KCG Router
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Masuk ke dashboard
+            Sign in to the dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
-            Gunakan password aplikasi untuk membuka dashboard.
+            Use your application password to open the dashboard.
           </p>
         </div>
 
@@ -167,9 +168,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             {error ? (
               <Alert variant="destructive">
                 <AlertCircleIcon />
-                <AlertTitle>Login gagal</AlertTitle>
+                <AlertTitle>Sign-in failed</AlertTitle>
                 <AlertDescription>
-                  Periksa password Anda lalu coba lagi.
+                  Check your password and try again.
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -179,13 +180,13 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               ) : (
                 <LockKeyholeIcon data-icon="inline-start" />
               )}
-              Masuk
+              Sign in
             </Button>
           </FieldGroup>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
-          Sesi dashboard dikelola melalui cookie aman.
+          Dashboard sessions are managed through a secure cookie.
         </p>
       </div>
     </div>

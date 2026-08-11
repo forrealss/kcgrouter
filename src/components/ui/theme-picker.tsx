@@ -8,16 +8,16 @@ const THEME_OPTIONS: {
   label: string;
   icon: typeof SunIcon;
 }[] = [
-  { value: "light", label: "Tema terang", icon: SunIcon },
-  { value: "system", label: "Ikuti perangkat", icon: MonitorIcon },
-  { value: "dark", label: "Tema gelap", icon: MoonIcon },
+  { value: "light", label: "Light theme", icon: SunIcon },
+  { value: "system", label: "Follow device", icon: MonitorIcon },
+  { value: "dark", label: "Dark theme", icon: MoonIcon },
 ];
 
 interface ThemePickerProps {
   value: Theme | null;
   onChange: (theme: Theme) => void;
   disabled?: boolean;
-  /** "sm" untuk area sempit seperti sidebar. */
+  /** "sm" for compact areas such as the sidebar. */
   size?: "default" | "sm";
   className?: string;
 }
@@ -32,7 +32,7 @@ export function ThemePicker({
   return (
     <div
       role="radiogroup"
-      aria-label="Pilih tema"
+      aria-label="Select theme"
       className={cn(
         "flex items-center gap-1 rounded-lg border bg-muted/40 p-1",
         className,

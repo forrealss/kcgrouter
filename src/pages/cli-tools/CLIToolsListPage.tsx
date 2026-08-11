@@ -32,7 +32,7 @@ export function CLIToolsListPage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">CLI Tools</h2>
           <p className="text-sm text-muted-foreground">
-            Konfigurasi CLI tools untuk terhubung ke KCG Router.
+            Configure CLI tools to connect to KCG Router.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -47,7 +47,7 @@ export function CLIToolsListPage() {
             ) : (
               <RefreshCwIcon data-icon="inline-start" />
             )}
-            Muat ulang
+            Refresh
           </Button>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function CLIToolsListPage() {
       {error ? (
         <Alert variant="destructive">
           <TerminalIcon />
-          <AlertTitle>CLI tools tidak dapat dimuat</AlertTitle>
+          <AlertTitle>CLI tools could not be loaded</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
@@ -65,7 +65,7 @@ export function CLIToolsListPage() {
           <div
             className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
             role="status"
-            aria-label="Memuat CLI tools"
+            aria-label="Loading CLI tools"
           >
             <CLIToolCardSkeleton />
             <CLIToolCardSkeleton />
@@ -78,9 +78,9 @@ export function CLIToolsListPage() {
             <EmptyMedia variant="icon">
               <TerminalIcon />
             </EmptyMedia>
-            <EmptyTitle>Tidak ada CLI tool</EmptyTitle>
+            <EmptyTitle>No CLI tools</EmptyTitle>
             <EmptyDescription>
-              Belum ada CLI tool yang tersedia untuk dikonfigurasi.
+              No CLI tools are available to configure yet.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

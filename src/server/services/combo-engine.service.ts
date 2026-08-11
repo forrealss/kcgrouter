@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { get, query, run } from "../../db/client";
+import { get, getDb, query, run } from "../../db/client";
 import type { ComboMemberRow, ComboRow, ComboStrategy } from "../../db/schema";
 import * as QuotaTracker from "./quota-tracker.service";
 
@@ -200,12 +200,22 @@ export function reorderMembers(
 }
 
 export function removeMember(memberId: string): void {
-  const existing = get<ComboMemberRow>(
-    "SELECT id FROM combo_members WHERE id = ?",
-    memberId,
-  );
-  if (!existing) throw new Error("Combo member not found");
-  run("DELETE FROM combo_members WHERE id = ?", memberId);
+  const remove = getDb().transaction(() => {
+    const existing = get<ComboMemberRow>(
+      "SELECT * FROM combo_members WHERE id = ?",
+      memberId,
+    );
+    if (!existing) throw new Error("Combo member not found");
+
+    run("DELETE FROM combo_members WHERE id = ?", memberId);
+    run(
+      "UPDATE combo_members SET priority = priority - 1 WHERE combo_id = ? AND priority > ?",
+      existing.combo_id,
+      existing.priority,
+    );
+  });
+
+  remove.immediate();
 }
 
 // --- Resolution ---

@@ -92,8 +92,8 @@ export function FetchModelsDialog({
         <DialogHeader>
           <DialogTitle>Import Models</DialogTitle>
           <DialogDescription>
-            {newCount} model baru ditemukan dari {provider.name}. Centang model
-            yang ingin ditambahkan.
+            {newCount} new models found from {provider.name}. Select the models
+            you want to add.
           </DialogDescription>
         </DialogHeader>
 
@@ -105,7 +105,7 @@ export function FetchModelsDialog({
                 className="pointer-events-none text-muted-foreground"
               />
               <Input
-                placeholder="Cari model..."
+                placeholder="Search models..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-8"
@@ -119,19 +119,19 @@ export function FetchModelsDialog({
               disabled={importing}
             >
               {selectedCount === importable.length && importable.length > 0
-                ? "Batal pilih semua"
-                : "Pilih semua"}
+                ? "Deselect all"
+                : "Select all"}
             </Button>
           </div>
 
           <div className="max-h-80 overflow-y-auto rounded-md border">
             {candidates.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                Provider tidak mengembalikan model apa pun.
+                The provider returned no models.
               </p>
             ) : filtered.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                Tidak ada model yang cocok dengan pencarian.
+                No models match your search.
               </p>
             ) : (
               <ul className="flex flex-col">
@@ -180,7 +180,7 @@ export function FetchModelsDialog({
                             variant="secondary"
                             className="shrink-0 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
                           >
-                            Sudah ada
+                            Already imported
                           </Badge>
                         ) : null}
                       </label>
@@ -199,7 +199,7 @@ export function FetchModelsDialog({
             onClick={() => onOpenChange(false)}
             disabled={importing}
           >
-            Batal
+            Cancel
           </Button>
           <Button
             type="button"
@@ -207,7 +207,7 @@ export function FetchModelsDialog({
             disabled={importing || selectedCount === 0}
           >
             {importing ? <Spinner data-icon="inline-start" /> : null}
-            Import {selectedCount} model
+            Import {selectedCount} models
           </Button>
         </DialogFooter>
       </DialogContent>

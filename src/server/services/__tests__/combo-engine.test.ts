@@ -9,6 +9,7 @@ import {
   getMembersSortedByPriority,
   listCombos,
   nextFallback,
+  removeMember,
   reorderMembers,
   resolveTarget,
 } from "../combo-engine.service";
@@ -119,6 +120,27 @@ describe("ComboEngine — CRUD", () => {
     expect(members[0]?.priority).toBe(0);
     expect(members[1]?.id).toBe(m1.id);
     expect(members[1]?.priority).toBe(1);
+    deleteCombo(c.id);
+  });
+
+  test("removeMember deletes a member and compacts priorities", () => {
+    const c = createCombo(`RM-${Date.now()}`, "fallback");
+    const m1 = addMember(c.id, {
+      providerAccountId: acc1,
+      modelName: "a",
+      priority: 0,
+    });
+    const m2 = addMember(c.id, {
+      providerAccountId: acc2,
+      modelName: "b",
+      priority: 1,
+    });
+
+    removeMember(m1.id);
+    const members = getMembersSortedByPriority(c.id);
+    expect(members).toHaveLength(1);
+    expect(members[0]?.id).toBe(m2.id);
+    expect(members[0]?.priority).toBe(0);
     deleteCombo(c.id);
   });
 

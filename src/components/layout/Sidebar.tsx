@@ -53,49 +53,49 @@ const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     id: "dashboard",
     path: "/dashboard",
     label: "Dashboard",
-    description: "Ringkasan sistem dan analitik.",
+    description: "System summary and analytics.",
     icon: LayoutDashboardIcon,
   },
   {
     id: "providers",
     path: "/providers",
     label: "Providers",
-    description: "Kelola provider dan akun upstream.",
+    description: "Manage providers and upstream accounts.",
     icon: BoxesIcon,
   },
   {
     id: "combos",
     path: "/combos",
     label: "Combos",
-    description: "Atur target fallback dan round-robin.",
+    description: "Configure fallback and round-robin targets.",
     icon: Layers3Icon,
   },
   {
     id: "usage",
     path: "/usage",
     label: "Usage",
-    description: "Pantau penggunaan token dan biaya.",
+    description: "Monitor token usage and costs.",
     icon: ChartNoAxesCombinedIcon,
   },
   {
     id: "quota",
     path: "/quota",
     label: "Quota Tracker",
-    description: "Lihat sisa kuota setiap akun.",
+    description: "View remaining quota per account.",
     icon: GaugeIcon,
   },
   {
     id: "token-saver",
     path: "/token-saver",
     label: "Token Saver",
-    description: "Kelola kompresi output tool.",
+    description: "Manage tool output compression.",
     icon: SlidersHorizontalIcon,
   },
   {
     id: "cli-tools",
     path: "/cli-tools",
     label: "CLI Tools",
-    description: "Konfigurasi CLI tools untuk terhubung ke KCG Router.",
+    description: "Configure CLI tools to connect to KCG Router.",
     icon: TerminalIcon,
   },
 ];
@@ -112,7 +112,7 @@ const secondaryModules: [ModuleDefinition, ...ModuleDefinition[]] = [
     id: "settings",
     path: "/settings",
     label: "Settings",
-    description: "Atur akses dan preferensi aplikasi.",
+    description: "Manage application access and preferences.",
     icon: KeyRoundIcon,
   },
 ];
@@ -232,14 +232,14 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href={defaultPath} onClick={(e) => handleNav(defaultPath, e)}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg ">
-                  <Logo
-                    gradient={false}
-                    className="size-6 text-slate-700 dark:text-white"
-                  />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary dark:shadow-[0_0_18px_-6px] dark:shadow-primary">
+                  <Logo gradient={false} className="size-5" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">KCG Router</span>
+                  <span className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/50">
+                    gateway online
+                  </span>
                 </div>
               </a>
             </SidebarMenuButton>
@@ -259,7 +259,9 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-              <span className="text-sm text-sidebar-foreground/80">Tema</span>
+              <span className="text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
+                Theme
+              </span>
               <ThemePicker
                 size="sm"
                 value={theme}
@@ -269,13 +271,16 @@ export function AppSidebar({
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <div className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
+              session / local
+            </div>
             <SidebarMenuButton
-              tooltip="Keluar"
+              tooltip="Log out"
               disabled={isLoggingOut}
               onClick={handleLogout}
             >
               <LogOutIcon />
-              <span>{isLoggingOut ? "Keluar..." : "Keluar"}</span>
+              <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

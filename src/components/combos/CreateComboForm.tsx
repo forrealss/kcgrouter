@@ -45,7 +45,7 @@ export function CreateComboForm({
       <form id="create-combo-form" onSubmit={onSubmit} className="min-w-0">
         <FieldGroup className="gap-4">
           <Field data-invalid={Boolean(error)}>
-            <FieldLabel htmlFor="combo-name">Nama combo</FieldLabel>
+            <FieldLabel htmlFor="combo-name">Combo name</FieldLabel>
             <Input
               id="combo-name"
               value={name}
@@ -59,7 +59,7 @@ export function CreateComboForm({
             {error ? <FieldError>{error}</FieldError> : null}
           </Field>
           <Field>
-            <FieldLabel htmlFor="combo-strategy">Strategi</FieldLabel>
+            <FieldLabel htmlFor="combo-strategy">Strategy</FieldLabel>
             <Select
               value={strategy}
               onValueChange={(value) =>
@@ -68,7 +68,7 @@ export function CreateComboForm({
               disabled={isCreating}
             >
               <SelectTrigger id="combo-strategy" className="w-full">
-                <SelectValue placeholder="Pilih strategi" />
+                <SelectValue placeholder="Select strategy" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
@@ -88,12 +88,12 @@ export function CreateComboForm({
             disabled={isCreating}
             onClick={onCancel}
           >
-            Batal
+            Cancel
           </Button>
         </DialogClose>
         <Button type="submit" form="create-combo-form" disabled={isCreating}>
           {isCreating ? <Spinner data-icon="inline-start" /> : null}
-          Buat combo
+          Create combo
         </Button>
       </DialogFooter>
     </>

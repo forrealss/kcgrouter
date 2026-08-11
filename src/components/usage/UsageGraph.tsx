@@ -3,10 +3,10 @@
  *
  * - CSS scoped to .ug-* (no global theme pollution)
  * - Animations: CSS keyframes + requestAnimationFrame (zero new deps)
- * - Data real dari useUsageGraph()
- * - Kucing muncul HANYA saat request beneran lewat /v1 (SSE real-time)
- * - Garis wavy kelap-kelip dari hub ke tiap node
- * - Provider yang belum ada request tampil dimuted
+ * - Data real of useUsageGraph()
+ * - Kucing muncul HANYA format for requests beneran lewat /v1 (SSE real-time)
+ * - Garis wavy kelap-kelip of hub ke tiap node
+ * - Providers without requests appear muted
  * - Zoom in/out controls (persisted to localStorage)
  */
 

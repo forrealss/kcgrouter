@@ -292,8 +292,7 @@ export function UsageDashboard() {
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold">Usage</h2>
         <p className="text-sm text-muted-foreground">
-          Pantau penggunaan token, biaya, dan aktivitas request secara
-          real-time.
+          Monitor token usage, costs, and request activity in real time.
         </p>
       </div>
 
@@ -389,7 +388,7 @@ export function UsageDashboard() {
               <p className="text-sm text-destructive">{recordsError}</p>
             ) : records.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
-                Tidak ada request
+                No requests
               </p>
             ) : (
               <div className="flex flex-col">

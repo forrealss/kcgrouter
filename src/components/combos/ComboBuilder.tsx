@@ -8,9 +8,21 @@ import {
   RefreshCwIcon,
   ServerIcon,
   Settings2Icon,
+  Trash2Icon,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -52,7 +64,7 @@ function parseOptionalCost(value: string): number | undefined {
 
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error("Biaya harus berupa angka nol atau lebih.");
+    throw new Error("Cost must be a number greater than or equal to zero.");
   }
 
   return parsed;
@@ -66,12 +78,14 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [providerAccountId, setProviderAccountId] = useState("");
   const [modelName, setModelName] = useState("");
   const [inputCost, setInputCost] = useState("");
   const [outputCost, setOutputCost] = useState("");
   const [modelOptions, setModelOptions] = useState<ComboboxOption[]>([]);
+  const isMutating = isAdding || isReordering || removingMemberId !== null;
 
   const loadMembers = useCallback(async () => {
     const nextMembers = await apiClient.get<ComboMember[]>(
@@ -192,12 +206,12 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
     setError(null);
 
     if (!providerAccountId) {
-      setError("Pilih akun provider terlebih dahulu.");
+      setError("Select a provider account first.");
       return;
     }
 
     if (!modelName.trim()) {
-      setError("Nama model wajib diisi.");
+      setError("Model name is required.");
       return;
     }
 
@@ -237,10 +251,29 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
     }
   }
 
+  async function handleRemoveMember(member: ComboMember) {
+    setError(null);
+    setRemovingMemberId(member.id);
+
+    try {
+      await apiClient.delete(
+        `${comboMembersPath(combo.id)}/${encodeURIComponent(member.id)}`,
+      );
+      const nextMembers = members
+        .filter((candidate) => candidate.id !== member.id)
+        .map((candidate, index) => ({ ...candidate, priority: index }));
+      setMembers(nextMembers);
+      await onChanged(nextMembers.length);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
   async function handleMove(memberIndex: number, direction: -1 | 1) {
     const targetIndex = memberIndex + direction;
-    if (targetIndex < 0 || targetIndex >= members.length || isReordering)
-      return;
+    if (targetIndex < 0 || targetIndex >= members.length || isMutating) return;
 
     const reorderedMembers = [...members];
     const member = reorderedMembers[memberIndex];
@@ -277,11 +310,11 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   const accountById = new Map(accounts.map((account) => [account.id, account]));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:overflow-hidden sm:px-6 sm:py-5">
       {error ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertCircleIcon />
-          <AlertTitle>Perubahan tidak dapat disimpan</AlertTitle>
+          <AlertTitle>Changes could not be saved</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
@@ -289,26 +322,34 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
       {isLoading ? (
         <div className="flex min-h-64 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">
           <Spinner />
-          Memuat anggota dan akun provider…
+          Loading members and provider accounts…
         </div>
       ) : (
-        <div className="grid min-h-0 gap-5 md:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
-          <section className="flex min-w-0 flex-col gap-3">
+        <div className="grid gap-4 md:min-h-0 md:flex-1 md:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+          <section className="flex min-w-0 flex-col gap-3 md:min-h-0">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">Target</p>
-              <Badge variant="outline" className="shrink-0 font-normal">
-                {members.length}
+              <div>
+                <p className="text-sm font-medium">Targets</p>
+                <p className="text-xs text-muted-foreground">
+                  Order determines routing priority.
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className="shrink-0 font-mono text-[11px]"
+              >
+                {members.length.toString().padStart(2, "0")}
               </Badge>
             </div>
 
-            <div className="min-h-0 max-h-[min(55svh,28rem)] overflow-y-auto rounded-lg border bg-muted/20 p-2">
+            <div className="scrollbar-subtle min-h-0 rounded-lg border border-border/70 bg-muted/20 p-2 md:flex-1 md:overflow-y-auto">
               <ol
                 className="flex flex-col gap-2"
-                aria-label="Urutan anggota combo"
+                aria-label="Combo member order"
               >
                 {members.length === 0 ? (
                   <li className="flex min-h-40 items-center justify-center rounded-md border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">
-                    Belum ada target.
+                    No targets yet.
                   </li>
                 ) : (
                   members.map((member, index) => {
@@ -342,14 +383,14 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                             </p>
                           ) : null}
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="flex shrink-0 items-center gap-0.5">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon-xs"
-                            aria-label={`Naikkan ${member.modelName}`}
-                            title="Naikkan prioritas"
-                            disabled={index === 0 || isReordering}
+                            aria-label={`Move ${member.modelName} up`}
+                            title="Move up"
+                            disabled={index === 0 || isMutating}
                             onClick={() => void handleMove(index, -1)}
                           >
                             <ArrowUpIcon />
@@ -358,15 +399,60 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                             type="button"
                             variant="ghost"
                             size="icon-xs"
-                            aria-label={`Turunkan ${member.modelName}`}
-                            title="Turunkan prioritas"
+                            aria-label={`Move ${member.modelName} down`}
+                            title="Move down"
                             disabled={
-                              index === members.length - 1 || isReordering
+                              index === members.length - 1 || isMutating
                             }
                             onClick={() => void handleMove(index, 1)}
                           >
                             <ArrowDownIcon />
                           </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                disabled={isMutating}
+                                aria-label={`Remove ${member.modelName} from combo`}
+                                title="Remove target from combo"
+                              >
+                                {removingMemberId === member.id ? (
+                                  <Spinner className="size-3.5" />
+                                ) : (
+                                  <Trash2Icon className="size-3.5" />
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete target?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {member.modelName} will be removed from the
+                                  combo and the remaining target order will be
+                                  compacted.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isMutating}>
+                                  Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                  variant="destructive"
+                                  disabled={isMutating}
+                                  onClick={() =>
+                                    void handleRemoveMember(member)
+                                  }
+                                >
+                                  Delete target
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </li>
                     );
@@ -376,25 +462,35 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
             </div>
           </section>
 
-          <section className="h-fit rounded-lg border bg-muted/20 p-4">
-            <p className="mb-3 text-sm font-medium">Tambah target</p>
+          <section className="h-fit rounded-lg border border-border/70 bg-muted/20 p-4">
+            <div className="mb-3 flex items-start gap-2">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background/70 text-primary">
+                <PlusIcon className="size-3.5" />
+              </span>
+              <div>
+                <p className="text-sm font-medium">Add target</p>
+                <p className="text-xs text-muted-foreground">
+                  Add a provider model to the routing order.
+                </p>
+              </div>
+            </div>
 
             <form onSubmit={handleAddMember}>
               <FieldGroup className="gap-4">
                 <Field>
                   <FieldLabel htmlFor={`provider-account-${combo.id}`}>
-                    Koneksi provider
+                    Provider connection
                   </FieldLabel>
                   <Select
                     value={providerAccountId || undefined}
                     onValueChange={setProviderAccountId}
-                    disabled={isAdding || accounts.length === 0}
+                    disabled={isMutating || accounts.length === 0}
                   >
                     <SelectTrigger
                       id={`provider-account-${combo.id}`}
                       className="w-full bg-background"
                     >
-                      <SelectValue placeholder="Pilih koneksi" />
+                      <SelectValue placeholder="Select connection" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -408,13 +504,13 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                   </Select>
                   {accounts.length === 0 ? (
                     <FieldDescription>
-                      Buat provider dan akun aktif terlebih dahulu.
+                      Create a provider and an active account first.
                     </FieldDescription>
                   ) : null}
                 </Field>
                 <Field>
                   <FieldLabel htmlFor={`model-name-${combo.id}`}>
-                    Model target
+                    Target model
                   </FieldLabel>
                   <Combobox
                     id={`model-name-${combo.id}`}
@@ -423,12 +519,12 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                     onValueChange={setModelName}
                     placeholder={
                       selectedAccount
-                        ? "Pilih atau ketik model"
-                        : "Pilih koneksi dulu"
+                        ? "Select or type a model"
+                        : "Select a connection first"
                     }
-                    searchPlaceholder="Cari model..."
+                    searchPlaceholder="Search models..."
                     allowCustom
-                    disabled={isAdding || !selectedAccount}
+                    disabled={isMutating || !selectedAccount}
                   />
                 </Field>
                 <div className="rounded-md border bg-background/70">
@@ -440,7 +536,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                   >
                     <span className="flex items-center gap-2">
                       <Settings2Icon className="size-3.5 text-muted-foreground" />
-                      Biaya / 1M (opsional)
+                      Cost / 1M (optional)
                     </span>
                     <ChevronRightIcon
                       className={`size-3.5 text-muted-foreground transition-transform ${isCostsOpen ? "rotate-90" : ""}`}
@@ -460,8 +556,8 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                           inputMode="decimal"
                           value={inputCost}
                           onChange={(event) => setInputCost(event.target.value)}
-                          placeholder="Opsional"
-                          disabled={isAdding}
+                          placeholder="Optional"
+                          disabled={isMutating}
                           className="bg-background"
                         />
                       </Field>
@@ -479,8 +575,8 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                           onChange={(event) =>
                             setOutputCost(event.target.value)
                           }
-                          placeholder="Opsional"
-                          disabled={isAdding}
+                          placeholder="Optional"
+                          disabled={isMutating}
                           className="bg-background"
                         />
                       </Field>
@@ -490,14 +586,14 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isAdding || accounts.length === 0}
+                  disabled={isMutating || accounts.length === 0}
                 >
                   {isAdding ? (
                     <Spinner data-icon="inline-start" />
                   ) : (
                     <PlusIcon data-icon="inline-start" />
                   )}
-                  Tambahkan
+                  Add
                 </Button>
               </FieldGroup>
             </form>
@@ -505,19 +601,17 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 border-t pt-3 text-xs text-muted-foreground">
-        <span className="mr-auto">
-          {isAdding || isReordering ? "Menyimpan..." : "Tersimpan"}
-        </span>
+      <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-3 border-t bg-background/95 py-3 text-xs text-muted-foreground backdrop-blur md:static md:bg-transparent md:py-3 md:backdrop-blur-none">
+        <span className="mr-auto">{isMutating ? "Saving..." : "Saved"}</span>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          disabled={isLoading || isAdding || isReordering}
+          disabled={isLoading || isMutating}
           onClick={() => void loadBuilderData()}
         >
           <RefreshCwIcon data-icon="inline-start" />
-          Muat ulang
+          Refresh
         </Button>
       </div>
     </div>

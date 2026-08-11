@@ -195,27 +195,35 @@ function SettingsSkeleton() {
         </div>
       </Card>
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-5 p-5 lg:col-span-2">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-12 w-full" />
-          {Array.from({ length: 6 }).map((_value, index) => (
-            <Skeleton
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-              key={`filter-skeleton-${index}`}
-              className="h-9 w-full"
-            />
-          ))}
+        <Card className="gap-0 overflow-hidden lg:col-span-2">
+          <div className="border-b border-border/50 px-5 pb-3 pt-4">
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="flex flex-col gap-3 px-5 py-5">
+            <Skeleton className="h-12 w-full" />
+            {Array.from({ length: 6 }).map((_value, index) => (
+              <Skeleton
+                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
+                key={`filter-skeleton-${index}`}
+                className="h-9 w-full"
+              />
+            ))}
+          </div>
         </Card>
         <div className="flex flex-col gap-4">
           {Array.from({ length: 2 }).map((_value, index) => (
             <Card
               // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
               key={`modifier-skeleton-${index}`}
-              className="gap-5 p-5"
+              className="gap-0 overflow-hidden"
             >
-              <Skeleton className="h-5 w-28" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <div className="border-b border-border/50 px-5 pb-3 pt-4">
+                <Skeleton className="h-5 w-28" />
+              </div>
+              <div className="flex flex-col gap-3 px-5 pb-5 pt-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
             </Card>
           ))}
         </div>
@@ -251,10 +259,10 @@ function ModifierCard({
 
   return (
     <Card
-      className="gap-5 overflow-hidden transition-colors duration-200 hover:bg-accent/20"
+      className="gap-0 overflow-hidden transition-colors duration-200 hover:bg-accent/20"
       aria-busy={isSaving}
     >
-      <CardHeader className="px-5 pb-0">
+      <CardHeader className="px-5 pb-3 pt-4">
         <div className="flex items-start gap-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
             <Icon className="size-4" />
@@ -279,7 +287,7 @@ function ModifierCard({
           <StatusLed active={enabled} label={enabled ? "ON" : "OFF"} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5">
+      <CardContent className="flex flex-col gap-4 px-5 pb-5">
         <Field
           orientation="horizontal"
           data-disabled={isSaving || !enabled || undefined}
@@ -352,7 +360,7 @@ export function TokenSaverPage() {
   const isActive = settings?.enabled ?? false;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
+    <div className="flex min-w-0 flex-col gap-5 pb-2">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
@@ -496,8 +504,8 @@ export function TokenSaverPage() {
           ) : null}
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="gap-5 overflow-hidden lg:col-span-2">
-              <CardHeader className="px-5 pb-0">
+            <Card className="gap-0 overflow-hidden lg:col-span-2">
+              <CardHeader className="px-5 pb-3 pt-4">
                 <div className="flex items-start gap-3">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                     <FilterIcon className="size-4" />
@@ -521,7 +529,7 @@ export function TokenSaverPage() {
                   </Badge>
                 </CardAction>
               </CardHeader>
-              <CardContent className="flex flex-col gap-5 px-5">
+              <CardContent className="flex flex-col gap-5 px-5 pb-5">
                 <FieldGroup>
                   <Field
                     orientation="horizontal"
@@ -575,7 +583,7 @@ export function TokenSaverPage() {
                             />
                             <div className="min-w-0">
                               <p className="truncate font-mono text-xs text-foreground/90">
-                                {filter.name}
+                                {detail.label}
                               </p>
                               <p className="truncate text-[10px] text-muted-foreground">
                                 {detail.description}

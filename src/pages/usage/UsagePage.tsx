@@ -13,13 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UsageTable } from "@/components/usage/UsageTable";
 import { useUsage } from "@/hooks/useUsage";
@@ -33,12 +27,6 @@ const costFmt = new Intl.NumberFormat("en-US", {
   currency: "USD",
   maximumFractionDigits: 4,
 });
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
 const metricTone = {
   primary: {
     icon: "border-primary/30 bg-primary/10 text-primary",
@@ -113,52 +101,15 @@ function MetricCell({
 function SectionHeading({
   icon: Icon,
   title,
-  action,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  action?: React.ReactNode;
 }) {
   return (
     <CardHeader className="flex-row items-center gap-2 px-4 pb-3 pt-4 sm:px-5">
       <Icon className="size-4 text-muted-foreground" />
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      {action ? <CardAction>{action}</CardAction> : null}
     </CardHeader>
-  );
-}
-
-function ActivityRow({ record }: { record: UsageRecord }) {
-  const isSuccess = record.status === "success";
-
-  return (
-    <div className="motion-safe:animate-trace-in flex items-center gap-2 border-b border-border/50 py-2 font-mono text-[11px] last:border-0">
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          isSuccess
-            ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-            : "bg-destructive shadow-[0_0_6px] shadow-destructive/70",
-        )}
-      />
-      <span className="shrink-0 text-muted-foreground/70">
-        {timeFmt.format(new Date(record.timestamp))}
-      </span>
-      <span
-        className={cn(
-          "shrink-0 font-semibold",
-          isSuccess ? "text-emerald-500" : "text-destructive",
-        )}
-      >
-        {isSuccess ? "OK" : "ERR"}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-foreground/90">
-        {record.model}
-      </span>
-      <span className="shrink-0 tabular-nums text-muted-foreground/70">
-        {record.latencyMs}ms
-      </span>
-    </div>
   );
 }
 
@@ -292,15 +243,6 @@ export function UsagePage() {
         records.length,
     );
   }, [records]);
-  const successRate = useMemo(() => {
-    if (records.length === 0) return 0;
-    return Math.round(
-      (records.filter((record) => record.status === "success").length /
-        records.length) *
-        100,
-    );
-  }, [records]);
-
   const providerRanking = useMemo(() => {
     const rows = (summary?.byProvider ?? [])
       .map((provider) => ({
@@ -343,15 +285,14 @@ export function UsagePage() {
   }, [records]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
+    <div className="flex min-w-0 flex-col gap-5 pb-2">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
             Telemetry / usage
-          </p>{" "}
+          </p>
           <h2 className="text-xl font-semibold tracking-tight">Usage</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {" "}
             Monitor request flow, token throughput, latency, and provider costs
             from a single control surface.
           </p>
@@ -359,7 +300,7 @@ export function UsagePage() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
-            LIVE
+            ANALYTICS
           </Badge>
           <Button
             type="button"
@@ -453,51 +394,6 @@ export function UsagePage() {
             tone="ok"
           />
         </div>
-      </Card>
-
-      <Card className="min-h-0 !py-0 overflow-hidden">
-        <SectionHeading
-          icon={ActivityIcon}
-          title="Live request stream"
-          action={
-            <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-500">
-              {successRate}% OK
-            </span>
-          }
-        />
-        <CardContent className="min-h-0 p-0">
-          <div
-            className="scrollbar-subtle max-h-[360px] overflow-y-auto bg-muted/20 px-4 pb-3 dark:bg-black/25 sm:px-5"
-            role="log"
-            aria-live="off"
-            aria-label="Live request stream"
-          >
-            {recordsLoading ? (
-              <div className="flex flex-col gap-2 py-2">
-                {Array.from({ length: 8 }).map((_value, index) => (
-                  <Skeleton
-                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                    key={`stream-${index}`}
-                    className="h-5 w-full"
-                  />
-                ))}
-              </div>
-            ) : records.length === 0 ? (
-              <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center">
-                <ActivityIcon className="size-5 text-muted-foreground/60" />{" "}
-                <p className="text-sm text-muted-foreground">
-                  No request traffic yet.
-                </p>
-              </div>
-            ) : (
-              records
-                .slice(0, 30)
-                .map((record) => (
-                  <ActivityRow key={record.id} record={record} />
-                ))
-            )}
-          </div>
-        </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">

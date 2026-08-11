@@ -53,7 +53,7 @@ export function LogsPage() {
   } = useLogs();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-4 scrollbar-subtle">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-0 scrollbar-subtle">
       <LogsHeader
         connectionStatus={connectionStatus}
         isLoading={isLoading}

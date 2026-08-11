@@ -17,6 +17,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -217,7 +218,9 @@ export function AppSidebar({
           >
             <a href={module.path} onClick={(e) => handleNav(module.path, e)}>
               <Icon />
-              <span>{module.label}</span>
+              <span className="group-data-[collapsible=icon]:hidden">
+                {module.label}
+              </span>
             </a>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -231,13 +234,20 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href={defaultPath} onClick={(e) => handleNav(defaultPath, e)}>
+              <a
+                href={defaultPath}
+                onClick={(e) => handleNav(defaultPath, e)}
+                aria-label="KCG Router dashboard"
+              >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary dark:shadow-[0_0_18px_-6px] dark:shadow-primary">
                   <Logo gradient={false} className="size-5" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">KCG Router</span>
-                  <span className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/50">
+                  <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">
+                    KCG Router
+                  </span>
+                  <span className="flex items-center gap-1.5 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
+                    <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
                     gateway online
                   </span>
                 </div>
@@ -247,19 +257,26 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="gap-1">
+          <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40">
+            Operations
+          </SidebarGroupLabel>
           <SidebarMenu>{renderModuleItems(mainModules)}</SidebarMenu>
         </SidebarGroup>
         <SidebarSeparator />
-        <SidebarGroup>
+        <SidebarGroup className="gap-1">
+          <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40">
+            Observability / system
+          </SidebarGroupLabel>
           <SidebarMenu>{renderModuleItems(secondaryModules)}</SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-              <span className="text-[11px] uppercase tracking-wide text-sidebar-foreground/60">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border/70 bg-sidebar-accent/20 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
+              <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-sidebar-foreground/60">
+                <span className="size-1.5 rounded-full bg-primary shadow-[0_0_6px] shadow-primary/60" />
                 Theme
               </span>
               <ThemePicker
@@ -271,16 +288,20 @@ export function AppSidebar({
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <div className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
+            <div className="mb-1 flex items-center gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
+              <span className="size-1.5 rounded-full bg-emerald-500/80" />
               session / local
             </div>
             <SidebarMenuButton
               tooltip="Log out"
+              className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
               disabled={isLoggingOut}
               onClick={handleLogout}
             >
               <LogOutIcon />
-              <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
+              <span className="group-data-[collapsible=icon]:hidden">
+                {isLoggingOut ? "Logging out..." : "Log out"}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

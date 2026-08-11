@@ -71,7 +71,7 @@ export function LogsTable({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/15 px-4 py-3 sm:px-5">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-muted/15 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
           <RadioIcon className="size-4 shrink-0 text-primary" />
           <div className="min-w-0">

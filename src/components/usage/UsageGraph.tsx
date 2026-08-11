@@ -577,6 +577,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
           className="ug-zoom-btn"
           onClick={() => applyZoom(zoom - ZOOM_STEP)}
           title="Zoom out"
+          aria-label="Zoom out"
         >
           <ZoomOut />
         </button>
@@ -586,6 +587,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
           className="ug-zoom-btn"
           onClick={() => applyZoom(zoom + ZOOM_STEP)}
           title="Zoom in"
+          aria-label="Zoom in"
         >
           <ZoomIn />
         </button>
@@ -594,6 +596,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
           className="ug-zoom-btn"
           onClick={() => applyZoom(DEFAULT_ZOOM)}
           title="Reset zoom"
+          aria-label="Reset graph zoom"
         >
           <Maximize2 />
         </button>

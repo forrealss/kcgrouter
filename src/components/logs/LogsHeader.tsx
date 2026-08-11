@@ -33,11 +33,16 @@ export function LogsHeader({
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-1">
+        <div className="mb-1 flex items-center gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+            Telemetry / activity
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-lg border bg-card text-primary shadow-xs">
+          <span className="flex size-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
             <ListTreeIcon className="size-4" />
           </span>
-          <h2 className="text-xl font-semibold tracking-tight">Activity log</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Activity Log</h2>
           <Badge
             variant="outline"
             className={`gap-1.5 font-mono text-[10px] uppercase tracking-wider ${
@@ -51,9 +56,9 @@ export function LogsHeader({
             <span
               className={`size-1.5 rounded-full ${
                 connectionStatus === "live"
-                  ? "animate-pulse bg-emerald-500"
+                  ? "animate-pulse bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
                   : connectionStatus === "connecting"
-                    ? "animate-pulse bg-amber-500"
+                    ? "animate-pulse bg-amber-500 shadow-[0_0_6px] shadow-amber-500/60"
                     : "bg-muted-foreground/50"
               }`}
             />
@@ -65,7 +70,8 @@ export function LogsHeader({
           </Badge>
         </div>
         <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm">
-          Monitor requests, provider results, and admin activity.
+          Monitor request flow, provider results, and administrative events in
+          real time.
         </p>
       </div>
       <div className="flex shrink-0 gap-2">

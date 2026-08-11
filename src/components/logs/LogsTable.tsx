@@ -71,11 +71,13 @@ export function LogsTable({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/15 px-5 py-4 sm:px-6">
+      <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/15 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
           <RadioIcon className="size-4 shrink-0 text-primary" />
           <div className="min-w-0">
-            <CardTitle className="text-base">Latest entries</CardTitle>
+            <CardTitle className="flex items-center gap-2 font-mono text-sm font-medium">
+              Latest entries
+            </CardTitle>
             <CardDescription className="truncate">
               Showing {numberFormatter.format(filteredLogs.length)} of{" "}
               {numberFormatter.format(totalLogs)} latest entries.
@@ -89,7 +91,7 @@ export function LogsTable({
           LIMIT 200
         </Badge>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+      <CardContent className="scrollbar-subtle min-h-0 flex-1 overflow-auto p-0">
         <div aria-live="polite" className="sr-only">
           {liveAnnouncement}
         </div>
@@ -97,7 +99,7 @@ export function LogsTable({
         <div className="hidden md:block">
           <Table className="min-w-[980px]">
             <TableHeader>
-              <TableRow className="bg-muted/20 hover:bg-muted/20 [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-muted/95">
+              <TableRow className="bg-muted/20 font-mono text-[10px] uppercase tracking-[0.08em] hover:bg-muted/20 [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-muted/95">
                 <TableHead className="pl-5">Time</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Source</TableHead>
@@ -128,7 +130,7 @@ export function LogsTable({
                       ? `Open ${typeLabels[log.type]} details ${log.model ?? ""}`
                       : undefined
                   }
-                  className={`motion-safe:animate-trace-in ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
+                  className={`motion-safe:animate-trace-in border-b border-border/50 font-mono text-[11px] transition-colors hover:bg-muted/30 ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
                 >
                   <TableCell className="whitespace-nowrap pl-5 align-top">
                     <time
@@ -142,7 +144,7 @@ export function LogsTable({
                   <TableCell className="align-top">
                     <LogBadge type={log.type} />
                   </TableCell>
-                  <TableCell className="align-top text-sm text-muted-foreground">
+                  <TableCell className="align-top font-mono text-xs text-muted-foreground">
                     {sourceLabels[log.source]}
                   </TableCell>
                   <TableCell className="max-w-44 align-top">
@@ -151,7 +153,7 @@ export function LogsTable({
                   <TableCell className="max-w-40 align-top">
                     {log.model ? (
                       <code
-                        className="block truncate rounded bg-muted/60 px-1.5 py-0.5 text-xs"
+                        className="block truncate rounded border border-border/50 bg-muted/60 px-1.5 py-0.5 text-xs"
                         title={log.model}
                       >
                         {log.model}
@@ -179,8 +181,16 @@ export function LogsTable({
           {filteredLogs.map((log) => (
             <article
               key={log.id}
-              onClick={() => void onOpenLog(log)}
-              onKeyDown={(event) => onLogKeyDown(event, log)}
+              onClick={
+                log.type === "request" || log.type === "success"
+                  ? () => void onOpenLog(log)
+                  : undefined
+              }
+              onKeyDown={
+                log.type === "request" || log.type === "success"
+                  ? (event) => onLogKeyDown(event, log)
+                  : undefined
+              }
               tabIndex={
                 log.type === "request" || log.type === "success" ? 0 : undefined
               }
@@ -194,7 +204,7 @@ export function LogsTable({
                   ? `Open ${typeLabels[log.type]} details ${log.model ?? ""}`
                   : undefined
               }
-              className={`motion-safe:animate-trace-in space-y-3 p-4 transition-colors hover:bg-muted/20 ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
+              className={`motion-safe:animate-trace-in space-y-3 p-4 transition-colors ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer hover:bg-muted/20 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <time
@@ -249,7 +259,7 @@ export function LogsTable({
           <span
             className={`size-1.5 rounded-full ${
               connectionStatus === "live"
-                ? "bg-emerald-500"
+                ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
                 : "bg-muted-foreground/50"
             }`}
           />

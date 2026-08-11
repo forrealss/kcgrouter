@@ -175,5 +175,6 @@ export function useCLIToolDetail(toolId: string) {
     defaultEndpoint,
     applyConfig,
     resetConfig,
+    refreshDetails: loadAll,
   };
 }

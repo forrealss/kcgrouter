@@ -86,10 +86,10 @@ export function runMigrations(): void {
           throw err;
         }
       }
-      getDb().run(
-        "INSERT INTO _migrations (id, applied_at) VALUES (?, ?)",
-        [migration.id, new Date().toISOString()],
-      );
+      getDb().run("INSERT INTO _migrations (id, applied_at) VALUES (?, ?)", [
+        migration.id,
+        new Date().toISOString(),
+      ]);
       console.log(`Migration ${migration.id} applied`);
     }
   }

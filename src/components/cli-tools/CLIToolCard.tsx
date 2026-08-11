@@ -1,17 +1,10 @@
-import {
-  ArrowRightIcon,
-  CheckIcon,
-  DownloadIcon,
-  Settings2Icon,
-  TerminalIcon,
-} from "lucide-react";
+import { ArrowRightIcon, TerminalIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -41,60 +34,81 @@ function ToolIcon({ icon, name }: { icon: string; name: string }) {
   );
 }
 
+function ToolStatus({ tool }: { tool: CLIToolSummary }) {
+  if (tool.configured) {
+    return (
+      <Badge variant="outline" className="gap-1.5 font-mono text-[10px]">
+        <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
+        CONNECTED
+      </Badge>
+    );
+  }
+
+  if (tool.installed) {
+    return (
+      <Badge variant="outline" className="gap-1.5 font-mono text-[10px]">
+        <span className="size-1.5 rounded-full bg-amber-400" />
+        SETUP REQUIRED
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1.5 font-mono text-[10px] text-muted-foreground"
+    >
+      <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+      NOT DETECTED
+    </Badge>
+  );
+}
+
 export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
   return (
     <Card
       className={cn(
-        "group gap-3 py-4",
-        onClick &&
-          "cursor-pointer transition-all hover:border-primary/40 hover:shadow-md",
+        "group gap-4 overflow-hidden border-l-2 border-l-primary/50 transition-colors duration-200",
+        onClick && "cursor-pointer hover:bg-accent/20",
       )}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (!onClick || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onClick();
+      }}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
-      <CardHeader className="px-4">
-        <CardTitle className="flex items-center gap-3">
-          <span
-            className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/60"
-            aria-hidden
-          >
+      <CardHeader className="px-5 pb-0">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-primary/30 bg-primary/10">
             <ToolIcon icon={tool.icon} name={tool.name} />
           </span>
-          <span className="truncate">{tool.name}</span>
-        </CardTitle>
-        <CardDescription className="truncate">
-          {tool.description}
-        </CardDescription>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate text-sm font-medium">
+              {tool.name}
+            </CardTitle>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {tool.description}
+            </p>
+          </div>
+        </div>
         <CardAction>
-          {tool.configured ? (
-            <Badge className="border-green-500/20 bg-green-500/10 font-normal text-green-600 dark:text-green-400">
-              <CheckIcon />
-              Connected
-            </Badge>
-          ) : tool.installed ? (
-            <Badge className="border-amber-500/20 bg-amber-500/10 font-normal text-amber-600 dark:text-amber-400">
-              <Settings2Icon />
-              Not configured
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground"
-            >
-              <DownloadIcon />
-              Not installed
-            </Badge>
-          )}
+          <ToolStatus tool={tool} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex items-center justify-between gap-2 px-4 text-xs text-muted-foreground">
-        <span className="truncate">
-          {tool.configured
-            ? "Connected to KCG Router"
-            : tool.installed
-              ? "Click to connect to KCG Router"
-              : "Install the CLI, then configure it here"}
-        </span>
-        <ArrowRightIcon className="size-3.5 shrink-0 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
+      <CardContent className="flex flex-col gap-3 px-5">
+        <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+          <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+            {tool.configured
+              ? "Router endpoint active"
+              : tool.installed
+                ? "Ready for configuration"
+                : "Install client to continue"}
+          </span>
+          <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+        </div>
       </CardContent>
     </Card>
   );
@@ -102,22 +116,18 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
 
 export function CLIToolCardSkeleton() {
   return (
-    <Card aria-hidden className="gap-3 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="flex items-center gap-3">
-          <Skeleton className="size-10 shrink-0 rounded-lg" />
-          <Skeleton className="h-4 w-24" />
-        </CardTitle>
-        <CardDescription>
-          <Skeleton className="h-3.5 w-40" />
-        </CardDescription>
-        <CardAction>
-          <Skeleton className="h-5 w-24 rounded-full" />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="px-4">
-        <Skeleton className="h-3 w-48" />
-      </CardContent>
+    <Card aria-hidden className="gap-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Skeleton className="size-9 shrink-0 rounded-md" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3.5 w-40 max-w-full" />
+          </div>
+        </div>
+        <Skeleton className="h-5 w-24 rounded-full" />
+      </div>
+      <Skeleton className="mt-2 h-3 w-48" />
     </Card>
   );
 }

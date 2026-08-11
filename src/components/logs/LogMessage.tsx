@@ -3,7 +3,7 @@ import type { RequestLog } from "@/types/log";
 export function LogMessage({ log }: { log: RequestLog }) {
   return log.message ? (
     <span
-      className="block line-clamp-2 text-sm leading-relaxed"
+      className="block line-clamp-2 text-xs leading-relaxed"
       title={log.message}
     >
       {log.message}

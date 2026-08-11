@@ -262,7 +262,7 @@ export function MultiCombobox({
             autoFocus
           />
 
-          <div className="-mx-2 max-h-80 overflow-y-auto px-2">
+          <div className="scrollbar-subtle -mx-2 max-h-80 overflow-y-auto overscroll-contain px-2">
             {groups.length === 0 ? (
               <div className="px-2 py-6 text-center text-xs text-muted-foreground">
                 {noResultsLabel}

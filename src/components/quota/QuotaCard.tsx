@@ -1,3 +1,4 @@
+import { ActivityIcon, Clock3Icon, GaugeIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,18 +10,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { ProviderTransport } from "@/types/provider";
+import { transportMeta } from "@/lib/provider-meta";
+import { cn } from "@/lib/utils";
 import type { ProviderQuotaItem, QuotaAccount } from "@/types/quota";
-
-const providerIcons: Record<ProviderTransport, string> = {
-  openai: "/images/providers/openai.svg",
-  anthropic: "/images/providers/anthropic.svg",
-  gemini: "",
-  kiro: "/images/providers/kiro.svg",
-  "command-code": "/images/providers/command-code.svg",
-  mimo: "/images/providers/xiaomimimo.svg",
-  qoder: "/images/providers/qoder.svg",
-};
 
 interface QuotaCardProps {
   account: QuotaAccount;
@@ -34,24 +26,23 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   timeStyle: "short",
 });
 
-const statusLabels: Record<QuotaAccount["status"], string> = {
-  active: "Active",
-  error: "Error",
-  expired: "Expired",
+const statusMeta: Record<
+  QuotaAccount["status"],
+  { label: string; dot: string }
+> = {
+  active: {
+    label: "ACTIVE",
+    dot: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
+  },
+  error: {
+    label: "ERROR",
+    dot: "bg-destructive shadow-[0_0_6px] shadow-destructive/70",
+  },
+  expired: {
+    label: "EXPIRED",
+    dot: "bg-muted-foreground/50",
+  },
 };
-
-function getStatusBadgeVariant(
-  status: QuotaAccount["status"],
-): "default" | "secondary" | "destructive" {
-  switch (status) {
-    case "active":
-      return "default";
-    case "error":
-      return "destructive";
-    case "expired":
-      return "secondary";
-  }
-}
 
 function formatTokens(tokens: number): string {
   return numberFormatter.format(tokens);
@@ -69,44 +60,65 @@ function getProgressValue(
   quotaLimitTokens: number,
 ): number {
   if (quotaLimitTokens <= 0) return tokensUsed > 0 ? 100 : 0;
-
   return Math.min(100, Math.max(0, (tokensUsed / quotaLimitTokens) * 100));
 }
 
 function formatCountdown(remainingMs: number): string {
   if (remainingMs <= 0) return "Reset soon";
 
-  const totalSeconds = Math.ceil(remainingMs / 1_000);
-  const days = Math.floor(totalSeconds / 86_400);
-  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
-  const minutes = Math.floor((totalSeconds % 3_600) / 60);
-  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.ceil(remainingMs / 60_000);
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
 
-  if (days > 0) return `${days}h ${hours}j ${minutes}m`;
-  if (hours > 0) return `${hours}j ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}d`;
-  return `${seconds}d`;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
-function getQuotaColor(percentage: number): "green" | "yellow" | "red" {
-  if (percentage > 70) return "green";
-  if (percentage >= 30) return "yellow";
-  return "red";
-}
-
-function getQuotaColorClass(color: "green" | "yellow" | "red"): string {
-  switch (color) {
-    case "green":
-      return "text-emerald-500";
-    case "yellow":
-      return "text-amber-500";
-    case "red":
-      return "text-destructive";
+function getRemainingTone(
+  percentage: number,
+  isAvailable = true,
+): {
+  text: string;
+  bar: string;
+} {
+  if (!isAvailable) {
+    return {
+      text: "text-muted-foreground",
+      bar: "[&_[data-slot=progress-indicator]]:bg-muted-foreground/40",
+    };
   }
+  if (percentage > 70) {
+    return {
+      text: "text-emerald-500",
+      bar: "[&_[data-slot=progress-indicator]]:bg-emerald-500",
+    };
+  }
+  if (percentage >= 30) {
+    return {
+      text: "text-amber-500",
+      bar: "[&_[data-slot=progress-indicator]]:bg-amber-500",
+    };
+  }
+  return {
+    text: "text-destructive",
+    bar: "[&_[data-slot=progress-indicator]]:bg-destructive",
+  };
 }
 
 function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
   const [now, setNow] = useState(() => Date.now());
+  const isCredit = quota.name === "credit";
+  const hasCapacity = quota.total > 0;
+  const remaining = Math.max(0, quota.total - quota.used);
+  const remainingPercentage = hasCapacity
+    ? Math.round((remaining / quota.total) * 100)
+    : 0;
+  const usedPercentage = hasCapacity
+    ? Math.min(100, Math.max(0, 100 - remainingPercentage))
+    : 0;
+  const tone = getRemainingTone(remainingPercentage, hasCapacity);
 
   useEffect(() => {
     if (!quota.resetAt) return;
@@ -114,53 +126,73 @@ function ProviderQuotaBar({ quota }: { quota: ProviderQuotaItem }) {
     return () => window.clearInterval(intervalId);
   }, [quota.resetAt]);
 
-  const isCredit = quota.name === "credit";
-  const remaining = quota.total - quota.used;
-  const percentage =
-    quota.total > 0
-      ? Math.round(((quota.total - quota.used) / quota.total) * 100)
-      : 0;
-  const color = getQuotaColor(percentage);
-  const colorClass = getQuotaColorClass(color);
-
   const resetMs = quota.resetAt
     ? new Date(quota.resetAt).getTime() - now
     : null;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{quota.name}</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate font-mono text-xs text-foreground/90">
+          {quota.name}
+        </span>
         {isCredit ? (
-          <span className="text-muted-foreground">
+          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
             {remaining.toFixed(2)} / {quota.total.toFixed(2)}
           </span>
         ) : (
-          <span className={colorClass}>{percentage}%</span>
+          <span
+            className={cn("shrink-0 font-mono text-xs tabular-nums", tone.text)}
+          >
+            {remainingPercentage}% left
+          </span>
         )}
       </div>
       <Progress
-        value={100 - percentage}
+        value={usedPercentage}
         aria-label={`${quota.used} of ${quota.total} used`}
-        className="h-2"
+        className={cn("h-1.5", tone.bar)}
       />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        {isCredit ? (
-          <span
-            className={remaining > 0 ? "text-emerald-500" : "text-destructive"}
-          >
-            {remaining > 0 ? "active" : "depleted"}
+      <div className="flex items-center justify-between gap-3 font-mono text-[10px] text-muted-foreground">
+        <span
+          className={cn(
+            !hasCapacity
+              ? "text-muted-foreground"
+              : remaining > 0
+                ? "text-emerald-500"
+                : "text-destructive",
+          )}
+        >
+          {!hasCapacity
+            ? "UNAVAILABLE"
+            : remaining > 0
+              ? "AVAILABLE"
+              : "DEPLETED"}
+        </span>
+        <span className="tabular-nums">
+          {!hasCapacity
+            ? "capacity unknown"
+            : isCredit
+              ? `${quota.used.toFixed(2)} used`
+              : `${quota.used.toLocaleString()} / ${quota.total.toLocaleString()}`}
+        </span>
+        {resetMs !== null ? (
+          <span className="shrink-0">
+            {resetMs > 0 ? `reset ${formatCountdown(resetMs)}` : "reset soon"}
           </span>
-        ) : (
-          <span>
-            {quota.used.toLocaleString()} / {quota.total.toLocaleString()}
-          </span>
-        )}
-        {resetMs !== null && resetMs > 0 && (
-          <span>in {formatCountdown(resetMs)}</span>
-        )}
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function StatusIndicator({ status }: { status: QuotaAccount["status"] }) {
+  const meta = statusMeta[status];
+  return (
+    <Badge variant="outline" className="gap-1.5 font-mono text-[10px]">
+      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      {meta.label}
+    </Badge>
   );
 }
 
@@ -171,61 +203,106 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
     quotaLimitTokens === null
       ? null
       : getProgressValue(quotaState.tokensUsed, quotaLimitTokens);
-
-  const hasProviderQuotas = providerQuotas && providerQuotas.length > 0;
+  const provider = transportMeta[account.transport];
+  const hasProviderQuotas = Boolean(providerQuotas?.length);
+  const isNearLimit =
+    progressValue !== null && progressValue >= 80 && progressValue < 100;
+  const isOverLimit = progressValue !== null && progressValue >= 100;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="truncate">{account.label}</CardTitle>
-        <CardDescription className="truncate flex items-center gap-1.5">
-          {providerIcons[account.transport] ? (
-            <img
-              src={providerIcons[account.transport]}
-              alt=""
-              className="size-3.5"
-            />
-          ) : null}
-          {account.providerName}
-          {plan && (
-            <Badge variant="secondary" className="ml-1">
-              {plan.toUpperCase()}
-            </Badge>
-          )}
-        </CardDescription>
+    <Card className="gap-5 overflow-hidden border-l-2 border-l-primary/50 transition-colors duration-200 hover:bg-accent/20">
+      <CardHeader className="px-5 pb-0">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-md border",
+              provider.accentClassName,
+            )}
+          >
+            {provider.icon ? (
+              <img src={provider.icon} alt="" className="size-4" />
+            ) : (
+              <provider.fallbackIcon className="size-4" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate text-sm font-medium">
+              {account.label}
+            </CardTitle>
+            <CardDescription className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-xs">
+              <span className="truncate">{account.providerName}</span>
+              <span className="text-muted-foreground/50">/</span>
+              <span className="font-mono uppercase text-[10px]">
+                {account.transport}
+              </span>
+            </CardDescription>
+          </div>
+        </div>
         <CardAction className="flex items-center gap-2">
-          <Badge variant={getStatusBadgeVariant(account.status)}>
-            {statusLabels[account.status]}
-          </Badge>
+          <StatusIndicator status={account.status} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        {/* Provider quota from API */}
-        {hasProviderQuotas ? (
-          <div className="flex flex-col gap-3">
-            <span className="text-sm font-medium text-muted-foreground">
-              {providerQuotas.length} quota
+
+      <CardContent className="flex flex-col gap-5 px-5">
+        {plan ? (
+          <div className="flex items-center justify-between border-b border-border/50 pb-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Provider plan
             </span>
-            {providerQuotas.map((quota) => (
-              <ProviderQuotaBar key={quota.name} quota={quota} />
-            ))}
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              {plan.toUpperCase()}
+            </Badge>
           </div>
         ) : null}
 
-        {/* Internal token quota */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-muted-foreground">Token quota</span>
+        {hasProviderQuotas ? (
+          <section className="flex flex-col gap-3" aria-label="Provider quotas">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <GaugeIcon className="size-3.5" />
+                Remote quota
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {providerQuotas.length} window
+                {providerQuotas.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {providerQuotas?.map((quota) => (
+              <ProviderQuotaBar key={quota.name} quota={quota} />
+            ))}
+          </section>
+        ) : null}
+
+        <section
+          className="flex flex-col gap-2"
+          aria-label="Internal token quota"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <GaugeIcon className="size-3.5" />
+              Router token budget
+            </span>
             {quotaLimitTokens === null ? (
-              <Badge variant="secondary">Unlimited</Badge>
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                UNLIMITED
+              </Badge>
             ) : (
-              <span className="font-medium">
-                {Math.round(progressValue ?? 0)}%
+              <span
+                className={cn(
+                  "font-mono text-xs font-medium tabular-nums",
+                  isOverLimit
+                    ? "text-destructive"
+                    : isNearLimit
+                      ? "text-amber-500"
+                      : "text-foreground/80",
+                )}
+              >
+                {Math.round(progressValue ?? 0)}% used
               </span>
             )}
           </div>
           {quotaLimitTokens === null ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="font-mono text-xs text-muted-foreground">
               {formatTokens(quotaState.tokensUsed)} tokens used
             </p>
           ) : (
@@ -233,25 +310,44 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
               <Progress
                 value={progressValue ?? 0}
                 aria-label={`${formatTokens(quotaState.tokensUsed)} of ${formatTokens(quotaLimitTokens)} tokens used`}
+                className={cn(
+                  "h-1.5",
+                  isOverLimit
+                    ? "[&_[data-slot=progress-indicator]]:bg-destructive"
+                    : isNearLimit
+                      ? "[&_[data-slot=progress-indicator]]:bg-amber-500"
+                      : "[&_[data-slot=progress-indicator]]:bg-primary",
+                )}
               />
-              <p className="text-sm text-muted-foreground">
-                {formatTokens(quotaState.tokensUsed)} of{" "}
-                {formatTokens(quotaLimitTokens)} tokens used
-              </p>
+              <div className="flex items-center justify-between gap-3 font-mono text-[10px] text-muted-foreground">
+                <span className="tabular-nums">
+                  {formatTokens(quotaState.tokensUsed)} used
+                </span>
+                <span className="tabular-nums">
+                  limit {formatTokens(quotaLimitTokens)}
+                </span>
+              </div>
             </>
           )}
-        </div>
+        </section>
 
-        <dl className="grid grid-cols-2 gap-4 text-sm">
-          <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Requests</dt>
-            <dd className="font-medium">
+        <dl className="grid grid-cols-2 gap-3 border-t border-border/50 pt-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              <ActivityIcon className="size-3" /> Requests
+            </dt>
+            <dd className="font-mono text-sm font-medium tabular-nums">
               {formatTokens(quotaState.requestCount)}
             </dd>
           </div>
-          <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground">Last used</dt>
-            <dd className="font-medium">
+          <div className="flex min-w-0 flex-col gap-1">
+            <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              <Clock3Icon className="size-3" /> Last used
+            </dt>
+            <dd
+              className="truncate font-mono text-[11px] font-medium"
+              title={formatTimestamp(account.lastUsedAt)}
+            >
               {formatTimestamp(account.lastUsedAt)}
             </dd>
           </div>

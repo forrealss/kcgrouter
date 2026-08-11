@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { Settings2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +64,7 @@ export function CLIToolConfigForm({
   const [roleSlotValues, setRoleSlotValues] = useState<Record<string, string>>(
     {},
   );
+  const [isApiKeyLoading, setIsApiKeyLoading] = useState(false);
 
   const form = status?.form;
   const roleSlots = form?.roleSlots ?? [];
@@ -87,15 +88,18 @@ export function CLIToolConfigForm({
     if (!savedKey) {
       setSelectedApiKeyId("");
       setSelectedApiKey("");
+      setIsApiKeyLoading(false);
       return;
     }
     if (apiKeys.length === 0) {
       setSelectedApiKeyId("__custom");
       setSelectedApiKey(savedKey);
+      setIsApiKeyLoading(false);
       return;
     }
 
     let cancelled = false;
+    setIsApiKeyLoading(true);
     void (async () => {
       for (const key of apiKeys) {
         try {
@@ -106,6 +110,7 @@ export function CLIToolConfigForm({
             if (!cancelled) {
               setSelectedApiKeyId(key.id);
               setSelectedApiKey(savedKey);
+              setIsApiKeyLoading(false);
             }
             return;
           }
@@ -117,14 +122,21 @@ export function CLIToolConfigForm({
         setSelectedApiKeyId("__custom");
         setSelectedApiKey(savedKey);
       }
+      if (!cancelled) setIsApiKeyLoading(false);
     })();
     return () => {
       cancelled = true;
+      setIsApiKeyLoading(false);
     };
   }, [status?.details?.apiKey, apiKeys]);
 
   async function handleApiKeySelect(id: string) {
     setSelectedApiKeyId(id);
+    if (id === "__custom") {
+      setIsApiKeyLoading(false);
+      return;
+    }
+    setIsApiKeyLoading(true);
     try {
       const res = await apiClient.get<{ key: string }>(
         `/api/settings/api-keys/${encodeURIComponent(id)}/key`,
@@ -132,6 +144,8 @@ export function CLIToolConfigForm({
       setSelectedApiKey(res.key);
     } catch {
       // ignore — user can type manually
+    } finally {
+      setIsApiKeyLoading(false);
     }
   }
 
@@ -167,40 +181,50 @@ export function CLIToolConfigForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Configuration</CardTitle>
+    <Card className="gap-0 overflow-hidden">
+      <CardHeader className="border-b border-border/50 px-5 py-4 sm:px-6">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <span className="flex size-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
+            <Settings2Icon className="size-3.5" />
+          </span>
+          Configuration
+        </CardTitle>
         <CardDescription>
           Point this CLI tool to KCG Router. All requests are routed through the{" "}
           <code className="font-mono">/v1</code> endpoint.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+      <CardContent className="px-5 py-5 sm:px-6">
+        <div className="grid gap-4 md:grid-cols-2">
           {/* Endpoint */}
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
-              <Label htmlFor="endpoint">Endpoint</Label>
+              <Label htmlFor="endpoint" className="font-mono text-xs">
+                Endpoint
+              </Label>
               <p className="text-sm text-muted-foreground">
                 {status?.form?.baseUrlStyle === "root"
                   ? "This tool appends /v1 itself, so point it at the router root. Defaults to"
                   : "Base URL of the router. Defaults to"}{" "}
                 <code className="font-mono text-xs">{defaultEndpoint}</code>.
               </p>
-            </div>
+            </div>{" "}
             <Input
               id="endpoint"
               value={selectedEndpoint}
               onChange={(e) => setSelectedEndpoint(e.target.value)}
               placeholder={defaultEndpoint}
               className="w-full font-mono text-sm"
+              disabled={isSaving}
             />
           </div>
 
           {/* API Key */}
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
-              <Label htmlFor="apikey">API Key</Label>
+              <Label htmlFor="apikey" className="font-mono text-xs">
+                API Key
+              </Label>
               <p className="text-sm text-muted-foreground">
                 Select an existing key or enter manually.
               </p>
@@ -209,6 +233,7 @@ export function CLIToolConfigForm({
               {apiKeys.length > 0 ? (
                 <Select
                   value={selectedApiKeyId}
+                  disabled={isSaving || isApiKeyLoading}
                   onValueChange={(id) => void handleApiKeySelect(id)}
                 >
                   <SelectTrigger className="w-full">
@@ -232,6 +257,7 @@ export function CLIToolConfigForm({
                   onChange={(e) => setSelectedApiKey(e.target.value)}
                   placeholder="sk_kcgrouter"
                   className="w-full font-mono text-sm"
+                  disabled={isSaving}
                 />
               ) : null}
             </div>
@@ -242,7 +268,12 @@ export function CLIToolConfigForm({
             roleSlots.map((slot) => (
               <div key={slot.envKey} className="flex flex-col gap-2">
                 <div className="flex flex-col gap-1">
-                  <Label htmlFor={`role-${slot.envKey}`}>{slot.label}</Label>
+                  <Label
+                    htmlFor={`role-${slot.envKey}`}
+                    className="font-mono text-xs"
+                  >
+                    {slot.label}
+                  </Label>
                   <p className="text-sm text-muted-foreground">
                     Model routed for this role. Leave empty to skip.
                   </p>
@@ -254,6 +285,7 @@ export function CLIToolConfigForm({
                     options={modelOptions}
                     value={roleSlotValues[slot.envKey] ?? ""}
                     onValueChange={(value) => handleRoleSlotChange(slot, value)}
+                    disabled={isSaving}
                     placeholder={
                       slot.defaultValue
                         ? `${slot.defaultValue} (default)`
@@ -272,6 +304,7 @@ export function CLIToolConfigForm({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleRoleSlotChange(slot, "")}
+                      disabled={isSaving}
                       aria-label={`Clear ${slot.label} model`}
                     >
                       <XIcon className="size-3.5" />
@@ -285,7 +318,7 @@ export function CLIToolConfigForm({
               {/* Models */}
               <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-1">
-                  <Label>Models</Label>
+                  <Label className="font-mono text-xs">Models</Label>
                   <p className="text-sm text-muted-foreground">
                     Models this tool can use. Star one to set it as the default.
                   </p>
@@ -297,6 +330,7 @@ export function CLIToolConfigForm({
                   onValueChange={handleModelsChange}
                   activeValue={activeModel}
                   onActiveChange={setActiveModel}
+                  disabled={isSaving}
                   emptyLabel="No models selected"
                   emptyHint="Pick models from your enabled providers or combos, then star one to make it the default."
                   searchPlaceholder="Search models..."
@@ -318,7 +352,12 @@ export function CLIToolConfigForm({
               {!hideSubagentModel ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="subagent-model">Subagent Model</Label>
+                    <Label
+                      htmlFor="subagent-model"
+                      className="font-mono text-xs"
+                    >
+                      Subagent Model
+                    </Label>
                     <p className="text-sm text-muted-foreground">
                       Model used for subagent tasks. Leave empty to skip.
                     </p>
@@ -329,6 +368,7 @@ export function CLIToolConfigForm({
                       options={modelOptions}
                       value={subagentModel}
                       onValueChange={setSubagentModel}
+                      disabled={isSaving}
                       placeholder="Select model..."
                       searchPlaceholder="Search models..."
                       dialogTitle="Select subagent model"
@@ -343,6 +383,7 @@ export function CLIToolConfigForm({
                         variant="ghost"
                         size="icon"
                         onClick={() => setSubagentModel("")}
+                        disabled={isSaving}
                         aria-label="Clear subagent model"
                       >
                         <XIcon className="size-3.5" />
@@ -356,10 +397,11 @@ export function CLIToolConfigForm({
         </div>
       </CardContent>
 
-      <CardFooter className="justify-between border-t">
+      <CardFooter className="justify-between border-t border-border/50 bg-muted/20 px-5 py-4 sm:px-6">
         <Button
           type="button"
           variant="outline"
+          className="font-mono text-xs"
           onClick={handleReset}
           disabled={isSaving || !status?.configured}
         >
@@ -367,8 +409,9 @@ export function CLIToolConfigForm({
         </Button>
         <Button
           type="button"
+          className="font-mono text-xs"
           onClick={handleSubmit}
-          disabled={isSaving || !selectedEndpoint.trim()}
+          disabled={isSaving || isApiKeyLoading || !selectedEndpoint.trim()}
         >
           {isSaving ? <Spinner data-icon="inline-start" /> : null}
           Apply
@@ -389,8 +432,8 @@ export function CLIToolConfigFormSkeleton() {
           <Skeleton className="h-4 w-72 max-w-full" />
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+      <CardContent className="px-5 py-5 sm:px-6">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-2">
               <Skeleton className="h-4 w-20" />
@@ -424,7 +467,7 @@ export function CLIToolConfigFormSkeleton() {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="justify-between border-t">
+      <CardFooter className="justify-between border-t border-border/50 bg-muted/20 px-5 py-4 sm:px-6">
         <Skeleton className="h-9 w-20" />
         <Skeleton className="h-9 w-24" />
       </CardFooter>

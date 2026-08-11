@@ -64,7 +64,7 @@ export function LogsDetailModal({
         if (!open) onClose(false);
       }}
     >
-      <DialogContent className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden sm:max-w-4xl">
+      <DialogContent className="flex max-h-[calc(100svh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {selectedLog ? typeLabels[selectedLog.type] : "Log"} detail
@@ -133,7 +133,7 @@ export function LogsDetailModal({
                     value={formatPayload(payloads?.requestBody)}
                   />
                 </div>
-                <pre className="mt-2 max-h-[55vh] overflow-auto rounded-lg border bg-muted/35 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                <pre className="scrollbar-subtle mt-2 max-h-[55vh] overflow-auto rounded-lg border bg-black/5 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all dark:bg-black/30">
                   {formatPayload(payloads?.requestBody)}
                 </pre>
               </TabsContent>
@@ -146,7 +146,7 @@ export function LogsDetailModal({
                     value={formatPayload(payloads?.responseBody)}
                   />
                 </div>
-                <pre className="mt-2 max-h-[55vh] overflow-auto rounded-lg border bg-muted/35 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                <pre className="scrollbar-subtle mt-2 max-h-[55vh] overflow-auto rounded-lg border bg-black/5 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all dark:bg-black/30">
                   {formatPayload(payloads?.responseBody)}
                 </pre>
               </TabsContent>

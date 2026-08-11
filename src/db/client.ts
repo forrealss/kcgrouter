@@ -28,7 +28,9 @@ export function query<T = unknown>(
   sql: string,
   ...params: SQLQueryBindings[]
 ): T[] {
-  return getDb().query(sql).all(...params) as T[];
+  return getDb()
+    .query(sql)
+    .all(...params) as T[];
 }
 
 export function get<T = unknown>(

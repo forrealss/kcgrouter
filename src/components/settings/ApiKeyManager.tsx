@@ -101,6 +101,7 @@ function ApiKeyManager() {
   const loadKeys = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setLoadError(null);
+    setActionError(null);
 
     try {
       const data = await apiClient.get<ApiKey[]>("/api/settings/api-keys", {
@@ -212,6 +213,8 @@ function ApiKeyManager() {
     }
   }
 
+  const activeKeyCount = keys?.filter((key) => key.has_key).length ?? 0;
+
   function closePlaintextDialog() {
     setPlaintextKey(null);
     setCopyStatus("idle");
@@ -219,39 +222,61 @@ function ApiKeyManager() {
 
   return (
     <>
-      <Card>
-        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Card aria-busy={isLoading || isCreating || Boolean(revokingKeyId)}>
+        <CardHeader className="gap-3 px-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <span
-              className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md border border-chart-2/30 bg-chart-2/10 text-chart-2"
               aria-hidden
             >
-              <KeyRoundIcon className="size-4 text-muted-foreground" />
+              <KeyRoundIcon className="size-4" />
             </span>
             <div className="flex min-w-0 flex-col gap-1">
-              <CardTitle>API access</CardTitle>
-              <CardDescription className="truncate">
-                API keys for your CLI tools and applications.
+              <CardTitle className="text-sm font-medium">API access</CardTitle>
+              <CardDescription className="truncate text-xs">
+                Credentials for CLI tools and routed applications.
               </CardDescription>
             </div>
           </div>
-          <CardAction className="shrink-0">
+          <CardAction className="flex shrink-0 items-center gap-2">
+            <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:inline-flex">
+              <span
+                className={`size-1.5 rounded-full ${
+                  isLoading
+                    ? "animate-pulse bg-amber-400"
+                    : keys?.length
+                      ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
+                      : "bg-muted-foreground/50"
+                }`}
+              />
+              {isLoading ? "SYNCING" : `${activeKeyCount} ACTIVE`}
+            </span>
             <Button
               type="button"
               size="sm"
               onClick={() => setIsCreateDialogOpen(true)}
+              disabled={isLoading || isCreating}
             >
               <PlusIcon data-icon="inline-start" />
               Create key
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-4 px-5">
           {loadError || actionError ? (
             <Alert variant="destructive">
-              <AlertTitle>API key could not be updated</AlertTitle>
+              <AlertTitle>
+                {loadError && !actionError
+                  ? "API keys could not be loaded"
+                  : "API key could not be updated"}
+              </AlertTitle>
               <AlertDescription className="flex flex-col gap-3">
                 <p>{actionError ?? loadError}</p>
+                {loadError && keys?.length ? (
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400">
+                    Showing last known key state
+                  </p>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -280,17 +305,37 @@ function ApiKeyManager() {
                 return (
                   <div
                     key={key.id}
-                    className="flex flex-col gap-3 p-3 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
+                    className="flex flex-col gap-3 p-3 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-3"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <span
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-md border ${
+                          key.has_key
+                            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-500"
+                            : "border-muted-foreground/20 bg-muted text-muted-foreground"
+                        }`}
+                      >
                         <KeyRoundIcon className="size-4" />
                       </span>
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate text-sm font-medium">
-                          {key.label}
+                        <span className="flex items-center gap-2 truncate text-sm font-medium">
+                          <span className="truncate">{key.label}</span>
+                          <span
+                            className={`hidden shrink-0 items-center gap-1 font-mono text-[9px] uppercase tracking-wide sm:inline-flex ${
+                              key.has_key
+                                ? "text-emerald-500"
+                                : "text-amber-500"
+                            }`}
+                          >
+                            <span
+                              className={`size-1 rounded-full ${
+                                key.has_key ? "bg-emerald-500" : "bg-amber-400"
+                              }`}
+                            />
+                            {key.has_key ? "READY" : "LEGACY"}
+                          </span>
                         </span>
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="truncate font-mono text-[10px] text-muted-foreground">
                           {!key.has_key
                             ? "Legacy key — copying unavailable"
                             : key.last_used_at
@@ -388,9 +433,9 @@ function ApiKeyManager() {
             </Empty>
           )}
         </CardContent>
-        <CardFooter className="gap-2 border-t text-xs text-muted-foreground">
-          <CircleAlertIcon className="size-3.5 shrink-0" />
-          Keys can be revoked at any time.
+        <CardFooter className="gap-2 border-t px-5 text-[11px] text-muted-foreground">
+          <CircleAlertIcon className="size-3.5 shrink-0 text-amber-500" />
+          Keys are encrypted at rest and can be revoked at any time.
         </CardFooter>
       </Card>
 

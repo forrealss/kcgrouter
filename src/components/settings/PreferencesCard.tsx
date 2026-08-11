@@ -2,6 +2,7 @@ import { LockKeyholeIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useState } from "react";
 import { ChangePasswordDialog } from "@/components/settings/ChangePasswordDialog";
 import { ThemeToggle } from "@/components/settings/ThemeToggle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,31 +23,39 @@ function PreferencesCard() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3">
+    <Card className="gap-5 overflow-hidden">
+      <CardHeader className="px-5 pb-0">
+        <div className="flex items-start gap-3">
           <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"
             aria-hidden
           >
-            <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
+            <SlidersHorizontalIcon className="size-4" />
           </span>
-          Preferences
-        </CardTitle>
-        <CardDescription>
-          Manage account security and dashboard appearance.
-        </CardDescription>
+          <div className="min-w-0">
+            <CardTitle className="text-sm font-medium">Preferences</CardTitle>
+            <CardDescription className="mt-1 text-xs">
+              Account security and dashboard appearance.
+            </CardDescription>
+          </div>
+        </div>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          LOCAL
+        </Badge>
       </CardHeader>
-      <CardContent>
-        <FieldGroup>
-          <Field orientation="horizontal">
+      <CardContent className="px-5">
+        <FieldGroup className="gap-0 overflow-hidden rounded-lg border">
+          <Field
+            orientation="horizontal"
+            className="px-3 py-3 transition-colors hover:bg-muted/30"
+          >
             <FieldContent>
-              <FieldLabel className="items-center gap-2">
-                <LockKeyholeIcon className="size-4 text-muted-foreground" />
+              <FieldLabel className="items-center gap-2 text-xs">
+                <LockKeyholeIcon className="size-3.5 text-muted-foreground" />
                 Password
               </FieldLabel>
-              <FieldDescription>
-                Update the password used to sign in to the dashboard.
+              <FieldDescription className="text-[11px]">
+                Update the dashboard sign-in credential.
               </FieldDescription>
             </FieldContent>
             <Button
@@ -55,12 +64,18 @@ function PreferencesCard() {
               size="sm"
               onClick={() => setIsPasswordDialogOpen(true)}
             >
-              Change password
+              Change
             </Button>
           </Field>
-          <ThemeToggle />
+          <div className="border-t border-border/60 px-3 py-3">
+            <ThemeToggle />
+          </div>
         </FieldGroup>
       </CardContent>
+      <div className="flex items-center gap-2 border-t border-border/50 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
+        Session controls ready
+      </div>
 
       <ChangePasswordDialog
         open={isPasswordDialogOpen}

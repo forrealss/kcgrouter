@@ -4,6 +4,7 @@ import { serve } from "bun";
 import { getServerPort } from "./config";
 import { runMigrations } from "./db/migrations";
 import { ensureSecrets } from "./env";
+import { setProcessName } from "./lib/process-name";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
@@ -19,6 +20,9 @@ import type { RouteHandler } from "./server/routes/types";
 import { usageRoutes } from "./server/routes/usage.routes";
 import { v1Routes } from "./server/routes/v1.routes";
 import { checkEncryptionHealth } from "./server/services/encryption-health.service";
+
+// Show up as "kcgrouter" (not "bun") in process managers.
+setProcessName("kcgrouter");
 
 const MIME_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",

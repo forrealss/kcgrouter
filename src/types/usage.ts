@@ -29,6 +29,8 @@ export interface UsageRecord {
   status: "success" | "error";
   latencyMs: number;
   estimatedCost: number;
+  /** In-place retries performed before this request completed (realtime only). */
+  retries?: number;
   requestBody?: string | null;
   responseBody?: string | null;
 }

@@ -2,13 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import { addAccount, createProvider } from "../provider-registry.service";
-import {
-  type ErrorKind,
-  getState,
-  isAvailable,
-  markError,
-  recordUsage,
-} from "../quota-tracker.service";
+import { getState, isAvailable, recordUsage } from "../quota-tracker.service";
 
 describe("QuotaTracker", () => {
   beforeAll(() => {
@@ -62,18 +56,24 @@ describe("QuotaTracker", () => {
     expect(isAvailable(acctId)).toBe(true);
   });
 
-  // Property 10: error kind maps to correct status
-  test("Property 10: error kind maps to correct account status", () => {
-    const errorKinds: ErrorKind[] = ["auth", "rate_limit", "server_error"];
-    for (const kind of errorKinds) {
-      const acctId = setupAccount(10000);
-      markError(acctId, kind);
-      const row = get<{ status: string }>(
-        "SELECT status FROM provider_accounts WHERE id = ?",
-        acctId,
-      );
-      expect(row?.status).toBe("error");
-    }
+  // Property 10: an account inside its error cooldown window is not
+  // available, and becomes available again once the window expires.
+  test("Property 10: cooldown window gates availability (auto-recovery)", () => {
+    const acctId = setupAccount(null);
+
+    run(
+      "UPDATE provider_accounts SET cooldown_until = ? WHERE id = ?",
+      new Date(Date.now() + 60_000).toISOString(),
+      acctId,
+    );
+    expect(isAvailable(acctId)).toBe(false);
+
+    run(
+      "UPDATE provider_accounts SET cooldown_until = ? WHERE id = ?",
+      new Date(Date.now() - 1_000).toISOString(),
+      acctId,
+    );
+    expect(isAvailable(acctId)).toBe(true);
   });
 
   // Property 11: tokens_used accumulation is consistent

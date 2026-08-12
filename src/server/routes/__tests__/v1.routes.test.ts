@@ -38,7 +38,16 @@ const scripted: CanonicalStreamChunk[] = [
 
 const fakeAdapter: ProviderAdapter = {
   transport: "command-code",
-  async send() {
+  async send(_req, credential) {
+    // Script upstream failures by API key so the router-level failover can be
+    // exercised without any real network: keys containing "rate" look like a
+    // 429 (rate limit), keys containing "bad" like a 502 (server error).
+    if (credential.apiKey.includes("rate")) {
+      throw new Error("OpenAI API error 429: rate limited");
+    }
+    if (credential.apiKey.includes("bad")) {
+      throw new Error("OpenAI API error 502: boom");
+    }
     return {
       message: {
         role: "assistant",
@@ -226,6 +235,97 @@ function parseAnthropicEvents(raw: string): Array<{
       };
     });
 }
+
+describe("POST /v1/chat/completions (prefix route failover)", () => {
+  function makeProvider(label: string) {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const provider = ProviderRegistry.createProvider({
+      name: `Failover-${label}-${suffix}`,
+      transport: "command-code",
+      baseUrl: "https://example.invalid",
+      prefix: `failover${label}${suffix}`,
+    });
+    return provider;
+  }
+
+  test("falls over to the next account when the first one fails", async () => {
+    const provider = makeProvider("A");
+    // listAccounts returns newest first, so create the good account before the
+    // bad one — the bad account is then the first one the router tries.
+    ProviderRegistry.addAccount(provider.id, {
+      label: "good",
+      apiKey: "sk_good_key",
+    });
+    const bad = ProviderRegistry.addAccount(provider.id, {
+      label: "bad",
+      apiKey: "sk_bad_key",
+    });
+
+    const res = await postCompletions({
+      model: `${provider.prefix}/some-model`,
+      stream: false,
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    // The bad account errored and the good one served the request.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as OpenAICompletionBody;
+    expect(body.choices[0]?.message.content).toBe("Hello world");
+
+    const badAfter = ProviderRegistry.getAccount(bad.id);
+    expect(badAfter?.status).toBe("error");
+    expect(badAfter?.cooldownUntil).not.toBeNull();
+
+    ProviderRegistry.deleteProvider(provider.id);
+  });
+
+  test("returns 502 when every account fails", async () => {
+    const provider = makeProvider("B");
+    ProviderRegistry.addAccount(provider.id, {
+      label: "bad1",
+      apiKey: "sk_bad_key",
+    });
+    ProviderRegistry.addAccount(provider.id, {
+      label: "bad2",
+      apiKey: "sk_bad_key",
+    });
+
+    const res = await postCompletions({
+      model: `${provider.prefix}/some-model`,
+      stream: false,
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(res.status).toBe(502);
+    ProviderRegistry.deleteProvider(provider.id);
+  });
+
+  test("returns 503 while the only account is cooling down after a 429", async () => {
+    const provider = makeProvider("C");
+    ProviderRegistry.addAccount(provider.id, {
+      label: "ratelimited",
+      apiKey: "sk_rate_key",
+    });
+
+    // First request: account fails with 429 → marked error + cooldown.
+    const first = await postCompletions({
+      model: `${provider.prefix}/some-model`,
+      stream: false,
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(first.status).toBe(502);
+
+    // Second request: the account is inside its cooldown window → 503.
+    const second = await postCompletions({
+      model: `${provider.prefix}/some-model`,
+      stream: false,
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(second.status).toBe(503);
+
+    ProviderRegistry.deleteProvider(provider.id);
+  });
+});
 
 describe("POST /v1/messages/count_tokens", () => {
   function postCountTokens(body: unknown): Promise<Response> {

@@ -7,7 +7,7 @@ import {
   TrashIcon,
   XCircleIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AccountFormDialog } from "@/components/providers/AccountFormDialog";
 import {
   AlertDialog,
@@ -60,7 +60,49 @@ const statusMeta = {
     dot: "bg-muted-foreground/50",
     text: "text-muted-foreground",
   },
+  // Shown when an error-status account is inside its auto-recovery cooldown.
+  cooldown: {
+    label: "COOLDOWN",
+    dot: "bg-amber-500 shadow-[0_0_6px] shadow-amber-500/70",
+    text: "text-amber-600 dark:text-amber-400",
+  },
 } as const;
+
+/** Remaining cooldown in seconds, or 0 when not cooling down. */
+function cooldownRemainingSeconds(cooldownUntil: string | null): number {
+  if (!cooldownUntil) return 0;
+  const ms = new Date(cooldownUntil).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
+}
+
+/**
+ * Re-renders every second while at least one account is cooling down, so the
+ * "RETRY IN Xs" badge ticks down live instead of freezing at mount time.
+ * The interval tears itself down as soon as every cooldown has expired.
+ */
+function useCooldownTick(accounts: ProviderAccount[]): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const cooling = accounts.some(
+      (a) => cooldownRemainingSeconds(a.cooldownUntil) > 0,
+    );
+    if (!cooling) {
+      setNow(Date.now());
+      return;
+    }
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      const stillCooling = accounts.some(
+        (a) => cooldownRemainingSeconds(a.cooldownUntil) > 0,
+      );
+      if (!stillCooling) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [accounts]);
+
+  return now;
+}
 
 export function ProviderDetailConnections({
   provider,
@@ -76,6 +118,7 @@ export function ProviderDetailConnections({
   const [editingAccount, setEditingAccount] = useState<ProviderAccount | null>(
     null,
   );
+  useCooldownTick(accounts);
 
   function handleAdd() {
     setEditingAccount(null);
@@ -157,7 +200,10 @@ export function ProviderDetailConnections({
                 const isDeleting = deletingAccountId === account.id;
                 const isTesting = testingAccountId === account.id;
                 const testStatus = accountTestStatus[account.id];
-                const status = statusMeta[account.status];
+                const coolingDown =
+                  cooldownRemainingSeconds(account.cooldownUntil) > 0;
+                const status =
+                  statusMeta[coolingDown ? "cooldown" : account.status];
                 return (
                   <div
                     key={account.id}
@@ -190,6 +236,12 @@ export function ProviderDetailConnections({
                               ? `QUOTA ${account.quotaLimitTokens.toLocaleString()} TOKENS`
                               : "QUOTA UNLIMITED"}
                           </span>
+                          {coolingDown ? (
+                            <span className="text-amber-600/80 dark:text-amber-400/80">
+                              RETRY IN{" "}
+                              {cooldownRemainingSeconds(account.cooldownUntil)}S
+                            </span>
+                          ) : null}
                           <span className="text-muted-foreground/60">
                             {account.lastUsedAt
                               ? `LAST USED ${new Date(account.lastUsedAt).toLocaleDateString()}`

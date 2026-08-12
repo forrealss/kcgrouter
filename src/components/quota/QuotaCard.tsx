@@ -263,8 +263,8 @@ export function QuotaCard({ account, providerQuotas, plan }: QuotaCardProps) {
                 Remote quota
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
-                {providerQuotas.length} window
-                {providerQuotas.length === 1 ? "" : "s"}
+                {providerQuotas?.length} window
+                {providerQuotas?.length === 1 ? "" : "s"}
               </span>
             </div>
             {providerQuotas?.map((quota) => (

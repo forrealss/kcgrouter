@@ -1,4 +1,5 @@
 import { fetchJson, parseToolArguments } from "../helpers";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -297,7 +298,13 @@ function createUpstreamSSEParseTransform(): TransformStream<
 export const openaiAdapter: ProviderAdapter = {
   transport: "openai",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = {
       model,
@@ -313,8 +320,10 @@ export const openaiAdapter: ProviderAdapter = {
       headers(credential.apiKey),
       body,
       "OpenAI",
+      opts,
     );
-    return parseOpenAIResponse(data);
+    // Carry retry metadata from the raw payload onto the parsed response.
+    return carryRetryMeta(parseOpenAIResponse(data), data);
   },
 
   async sendStream(
@@ -322,6 +331,7 @@ export const openaiAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = {
@@ -334,35 +344,28 @@ export const openaiAdapter: ProviderAdapter = {
       ...(buildToolsParam(req) ? { tools: buildToolsParam(req) } : {}),
     };
 
-    const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 60_000);
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
+    const res = await fetchWithRetry(
+      url,
+      {
         method: "POST",
         headers: headers(credential.apiKey),
         body: JSON.stringify(body),
-        signal: ac.signal,
-      });
-    } catch (err) {
-      clearTimeout(timeout);
-      if (err instanceof Error && err.name === "AbortError") {
-        throw new Error(`OpenAI API timeout: no response from ${url}`);
-      }
-      throw err;
-    }
-    clearTimeout(timeout);
+      },
+      { providerName: "OpenAI", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`OpenAI API error ${res.status}: ${text}`);
+      throw providerError("OpenAI", res, text);
     }
 
     if (!res.body) {
       throw new Error(`OpenAI API returned no body`);
     }
 
-    return res.body.pipeThrough(createUpstreamSSEParseTransform());
+    return carryRetryMeta(
+      res.body.pipeThrough(createUpstreamSSEParseTransform()),
+      res,
+    );
   },
 };

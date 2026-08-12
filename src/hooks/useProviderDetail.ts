@@ -6,6 +6,7 @@ import type {
   Provider,
   ProviderAccount,
   ProviderModel,
+  RetryConfig,
 } from "@/types/provider";
 
 export interface TestStatus {
@@ -237,6 +238,20 @@ export function useProviderDetail(providerId: string) {
     setModelCandidates(null);
   }
 
+  async function handleSaveRetryConfig(config: RetryConfig | null) {
+    try {
+      const updated = await apiClient.put<Provider>(
+        `/api/providers/${encodeURIComponent(providerId)}/retry-config`,
+        { retryConfig: config },
+      );
+      setProvider(updated);
+      return true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+      return false;
+    }
+  }
+
   async function handleTestModel(model: ProviderModel, accountId: string) {
     if (testingModelId) return;
     setTestingModelId(model.id);
@@ -323,5 +338,6 @@ export function useProviderDetail(providerId: string) {
     handleFetchModels,
     handleImportModels,
     handleCloseFetchDialog,
+    handleSaveRetryConfig,
   };
 }

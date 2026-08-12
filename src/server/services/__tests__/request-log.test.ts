@@ -13,6 +13,7 @@ import {
   clearAll,
   count,
   getHistory,
+  getRetryStats,
   prune,
   record,
 } from "../request-log.service";
@@ -79,6 +80,7 @@ describe("RequestLog", () => {
       stream: false,
       message: "insufficient balance",
       latencyMs: 50,
+      retries: 2,
     });
 
     const history = getHistory({ limit: 10 });
@@ -90,6 +92,11 @@ describe("RequestLog", () => {
     const success = history.find((r) => r.type === "success");
     expect(success?.accountLabel).toBe("Log Acct");
     expect(success?.providerName).toBe(p.name);
+
+    // Retries round-trip: 2 recorded on the error entry, default 0 elsewhere.
+    const error = history.find((r) => r.type === "error");
+    expect(error?.retries).toBe(2);
+    expect(success?.retries).toBe(0);
 
     const errors = getHistory({ type: "error", limit: 10 });
     expect(errors.length).toBe(1);
@@ -148,6 +155,29 @@ describe("RequestLog", () => {
     expect(history.length).toBe(3);
     // Newest three survive: models m7, m8, m9
     expect(history.map((r) => r.model).sort()).toEqual(["m7", "m8", "m9"]);
+  });
+
+  test("getRetryStats aggregates retries across retained entries", () => {
+    clearAll();
+    for (const retries of [1, 3, 0, 2]) {
+      record({
+        type: "success",
+        source: "router",
+        providerAccountId: null,
+        comboId: null,
+        model: "gpt-4o",
+        sourceFormat: "openai",
+        stream: false,
+        message: null,
+        latencyMs: 100,
+        retries,
+      });
+    }
+
+    const stats = getRetryStats();
+    expect(stats.totalRetries).toBe(6);
+    expect(stats.retriedRequests).toBe(3); // entries with retries > 0
+    clearAll();
   });
 
   test("clearAll empties the log table", () => {

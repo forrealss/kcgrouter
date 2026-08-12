@@ -3,16 +3,21 @@ import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import {
   addAccount,
+  countCoolingDownAccounts,
   createProvider,
   deleteProvider,
   getAccount,
   getDecryptedCredential,
   getProvider,
+  isAccountCoolingDown,
   listAccounts,
   listProviders,
   type NewProviderInput,
+  recordAccountError,
+  recordAccountSuccess,
   removeAccount,
   updateAccount,
+  updateProviderRetryConfig,
 } from "../provider-registry.service";
 
 describe("ProviderRegistry — Provider CRUD", () => {
@@ -134,6 +139,48 @@ describe("ProviderRegistry — Provider CRUD", () => {
   test("listProviders returns empty array when no providers exist", () => {
     const list = listProviders();
     expect(Array.isArray(list)).toBe(true);
+  });
+
+  test("updateProviderRetryConfig round-trips rules and resets to null", () => {
+    const provider = createProvider({
+      name: `RetryCfg-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://retrycfg.com",
+      prefix: `retrycfg-${Date.now()}`,
+    });
+    expect(provider.retryConfig).toBeNull();
+
+    const updated = updateProviderRetryConfig(provider.id, {
+      502: { attempts: 2, delayMs: 500 },
+      429: { attempts: 1, delayMs: 1000 },
+    });
+    expect(updated.retryConfig).toEqual({
+      502: { attempts: 2, delayMs: 500 },
+      429: { attempts: 1, delayMs: 1000 },
+    });
+
+    // Persisted — a fresh read still sees the rules.
+    expect(getProvider(provider.id)?.retryConfig?.[502]).toEqual({
+      attempts: 2,
+      delayMs: 500,
+    });
+
+    // Invalid status codes and negative attempts are rejected.
+    expect(() =>
+      updateProviderRetryConfig(provider.id, {
+        99: { attempts: 1, delayMs: 1 },
+      }),
+    ).toThrow(/100 and 599/);
+    expect(() =>
+      updateProviderRetryConfig(provider.id, {
+        502: { attempts: -1, delayMs: 1 },
+      }),
+    ).toThrow(/non-negative/);
+
+    const reset = updateProviderRetryConfig(provider.id, null);
+    expect(reset.retryConfig).toBeNull();
+
+    deleteProvider(provider.id);
   });
 });
 
@@ -300,6 +347,108 @@ describe("ProviderRegistry — Provider Account CRUD", () => {
     expect(() => updateAccount("acct_nonexistent", { label: "X" })).toThrow(
       /not found/,
     );
+  });
+
+  test("recordAccountError applies cooldown with exponential backoff; success clears it", () => {
+    const provider = createProvider({
+      name: `Cooldown-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      transport: "openai",
+      baseUrl: "https://cooldown.com",
+      prefix: `cooldown-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
+    const acct = addAccount(provider.id, {
+      label: "Cooldown Acct",
+      apiKey: "sk_cooldown",
+    });
+
+    recordAccountError(
+      acct.id,
+      "OpenAI API error 429: rate limited",
+      "rate_limit",
+    );
+    const afterFirst = getAccount(acct.id);
+    expect(afterFirst?.status).toBe("error");
+    expect(afterFirst?.lastError).toContain("429");
+    expect(afterFirst?.cooldownUntil).not.toBeNull();
+    expect(afterFirst?.backoffLevel).toBe(1);
+    if (afterFirst) {
+      expect(isAccountCoolingDown(afterFirst)).toBe(true);
+    }
+
+    // A second rate limit escalates the backoff level.
+    recordAccountError(
+      acct.id,
+      "OpenAI API error 429: rate limited",
+      "rate_limit",
+    );
+    expect(getAccount(acct.id)?.backoffLevel).toBe(2);
+
+    // A 401 is treated as auth: fixed cooldown, no backoff escalation.
+    recordAccountError(acct.id, "OpenAI API error 401: Unauthorized", "auth");
+    expect(getAccount(acct.id)?.backoffLevel).toBe(0);
+
+    recordAccountSuccess(acct.id);
+    const afterSuccess = getAccount(acct.id);
+    expect(afterSuccess?.status).toBe("active");
+    expect(afterSuccess?.cooldownUntil).toBeNull();
+    expect(afterSuccess?.backoffLevel).toBe(0);
+    expect(afterSuccess?.lastError).toBeNull();
+
+    deleteProvider(provider.id);
+  });
+
+  test("recordAccountError honors minCooldownMs from Retry-After", () => {
+    const provider = createProvider({
+      name: `RetryAfter-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://ra.com",
+      prefix: `retryafter-${Date.now()}`,
+    });
+    const acct = addAccount(provider.id, {
+      label: "RA Acct",
+      apiKey: "sk_ra",
+    });
+
+    // Upstream says wait 60s; base rate_limit cooldown (1s) must not win.
+    recordAccountError(
+      acct.id,
+      "OpenAI API error 429: rate limited",
+      "rate_limit",
+      60_000,
+    );
+    const cooling = getAccount(acct.id);
+    expect(cooling).not.toBeNull();
+    if (!cooling) return;
+    const remainingMs =
+      new Date(cooling.cooldownUntil ?? 0).getTime() - Date.now();
+    expect(remainingMs).toBeGreaterThan(55_000);
+    expect(remainingMs).toBeLessThanOrEqual(60_000);
+    // Backoff level still escalates alongside the floored duration.
+    expect(cooling.backoffLevel).toBe(1);
+
+    deleteProvider(provider.id);
+  });
+
+  test("countCoolingDownAccounts counts accounts inside their cooldown window", () => {
+    const provider = createProvider({
+      name: `CoolCount-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://coolcount.com",
+      prefix: `coolcount-${Date.now()}`,
+    });
+    const acct = addAccount(provider.id, {
+      label: "Cool Count",
+      apiKey: "sk_cc",
+    });
+
+    const before = countCoolingDownAccounts();
+    recordAccountError(acct.id, "boom", "server_error");
+    expect(countCoolingDownAccounts()).toBe(before + 1);
+
+    recordAccountSuccess(acct.id);
+    expect(countCoolingDownAccounts()).toBe(before);
+
+    deleteProvider(provider.id);
   });
 
   test("removeAccount on non-existent account throws", () => {

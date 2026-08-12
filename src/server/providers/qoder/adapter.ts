@@ -17,7 +17,9 @@
  *     downgrades to a different model upstream.
  */
 
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
+  AdapterRequestOptions,
   CanonicalContentPart,
   CanonicalRequest,
   CanonicalResponse,
@@ -54,20 +56,6 @@ function buildChatUrl(accessToken: string): string {
   return QODER_CHAT_URL_ENCODED;
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /**
  * Shared chat execution: resolve credentials, resolve model config, build +
  * encode + sign the payload, POST, and return the raw upstream Response.
@@ -76,6 +64,7 @@ async function executeQoderChat(
   req: CanonicalRequest,
   apiKey: string,
   model: string,
+  opts?: AdapterRequestOptions,
 ): Promise<{ response: Response; qoderKey: string }> {
   const resolved = await resolveQoderCredentials(apiKey);
   if (!resolved.userId) {
@@ -134,20 +123,25 @@ async function executeQoderChat(
     ...cosyHeaders,
   };
 
-  const response = await fetchWithTimeout(
+  const response = await fetchWithRetry(
     url,
     { method: "POST", headers, body: encodedBodyBuf },
-    CHAT_TIMEOUT_MS,
+    { providerName: "Qoder", timeoutMs: CHAT_TIMEOUT_MS, retry: opts?.retry },
   );
 
   return { response, qoderKey };
 }
 
-function extractError(res: Response): Promise<string> {
-  return res
+// Qoder errors go through providerError() like every other adapter, so the
+// status code lands on the ProviderError for classification. Only the raw
+// body text is passed — providerError prepends the `Qoder API error <status>: `
+// prefix itself (passing the formatted string would double-prefix it).
+async function throwQoderProviderError(res: Response): Promise<never> {
+  const text = await res
     .text()
-    .then((text) => `Qoder API error ${res.status}: ${text.slice(0, 300)}`)
-    .catch(() => `Qoder API error ${res.status}`);
+    .then((body) => body.slice(0, 300))
+    .catch(() => "");
+  throw providerError("Qoder", res, text);
 }
 
 // --- SSE envelope → canonical chunks ---
@@ -423,11 +417,22 @@ export { assembleResponse, createQoderStream };
 export const qoderAdapter: ProviderAdapter = {
   transport: "qoder",
 
-  async send(req, credential, model): Promise<CanonicalResponse> {
-    const { response } = await executeQoderChat(req, credential.apiKey, model);
+  async send(
+    req,
+    credential,
+    model,
+    _baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
+    const { response } = await executeQoderChat(
+      req,
+      credential.apiKey,
+      model,
+      opts,
+    );
 
     if (!response.ok) {
-      throw new Error(await extractError(response));
+      await throwQoderProviderError(response);
     }
     if (!response.body) {
       throw new Error("Qoder API returned no body");
@@ -453,23 +458,30 @@ export const qoderAdapter: ProviderAdapter = {
       throw new Error(text || "Qoder stream ended with an upstream error");
     }
 
-    return assembleResponse(chunks);
+    return carryRetryMeta(assembleResponse(chunks), response);
   },
 
   async sendStream(
     req,
     credential,
     model,
+    _baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
-    const { response } = await executeQoderChat(req, credential.apiKey, model);
+    const { response } = await executeQoderChat(
+      req,
+      credential.apiKey,
+      model,
+      opts,
+    );
 
     if (!response.ok) {
-      throw new Error(await extractError(response));
+      await throwQoderProviderError(response);
     }
     if (!response.body) {
       throw new Error("Qoder API returned no body");
     }
 
-    return createQoderStream(response.body);
+    return carryRetryMeta(createQoderStream(response.body), response);
   },
 };

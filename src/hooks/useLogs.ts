@@ -75,9 +75,34 @@ export function useLogs() {
       );
       void loadLogs(false);
     };
+    const onAccountCooldown = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as {
+          message?: string;
+          errorKind?: string;
+          cooldownMs?: number;
+        };
+        const kind = data.errorKind ?? "error";
+        const seconds = Math.round((data.cooldownMs ?? 0) / 1000);
+        setLiveAnnouncement(
+          `Account cooling down (${kind}) for ${seconds}s: ${data.message ?? ""}`,
+        );
+      } catch {
+        // ignore malformed frames
+      }
+      void loadLogs(false);
+    };
+    const onAccountRecovered = () => {
+      setLiveAnnouncement(
+        `Account cooldown expired at ${new Date().toLocaleTimeString("en-US")}.`,
+      );
+      void loadLogs(false);
+    };
 
     setConnectionStatus("connecting");
     eventSource.addEventListener("log:new", onLogNew);
+    eventSource.addEventListener("account:cooldown", onAccountCooldown);
+    eventSource.addEventListener("account:recovered", onAccountRecovered);
     eventSource.onopen = () => setConnectionStatus("live");
     eventSource.onerror = () => setConnectionStatus("offline");
 

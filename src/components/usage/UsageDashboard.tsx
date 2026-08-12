@@ -151,6 +151,11 @@ function ActivityItem({ record }: { record: UsageRecord }) {
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
             {record.status}
           </Badge>
+          {record.retries ? (
+            <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
+              RETRIED {record.retries}×
+            </span>
+          ) : null}
         </div>
         <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
           <span>
@@ -213,6 +218,7 @@ export function UsageDashboard() {
           model: string;
           transport: string;
           latencyMs: number;
+          retries?: number;
           timestamp: number;
         } = JSON.parse(e.data);
 
@@ -226,6 +232,7 @@ export function UsageDashboard() {
           outputTokens: 0,
           status: "success",
           latencyMs: data.latencyMs,
+          retries: data.retries ?? 0,
           estimatedCost: 0,
         };
 

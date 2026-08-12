@@ -10,6 +10,7 @@ import { authenticateSession } from "./server/middleware/session-auth.middleware
 import { authRoutes } from "./server/routes/auth.routes";
 import { cliToolsRoutes } from "./server/routes/cli-tools.routes";
 import { combosRoutes } from "./server/routes/combos.routes";
+import { dashboardRoutes } from "./server/routes/dashboard.routes";
 import { eventsRoutes } from "./server/routes/events.routes";
 import { logsRoutes } from "./server/routes/logs.routes";
 import { matchRoute as resolveRoute } from "./server/routes/match-route";
@@ -109,6 +110,7 @@ const apiRoutes: Record<string, RouteHandler> = {
   ...cliToolsRoutes,
   ...providersRoutes,
   ...combosRoutes,
+  ...dashboardRoutes,
   ...logsRoutes,
   ...usageRoutes,
   ...quotaRoutes,

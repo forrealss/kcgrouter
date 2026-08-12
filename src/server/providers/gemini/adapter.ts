@@ -3,6 +3,7 @@ import {
   extractSystemText,
   parseToolArguments,
 } from "../helpers";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -145,23 +146,30 @@ const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
 export const geminiAdapter: ProviderAdapter = {
   transport: "gemini",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const base = (baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     const body = buildBody(req);
     const url = `${base}/v1beta/models/${model}:generateContent?key=${credential.apiKey}`;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      { method: "POST", headers: headers(), body: JSON.stringify(body) },
+      { providerName: "Gemini", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Gemini API error ${res.status}: ${text}`);
+      throw providerError("Gemini", res, text);
     }
 
-    return parseGeminiResponse(await res.json());
+    const data = await res.json();
+    return carryRetryMeta(parseGeminiResponse(data), data);
   },
 
   async sendStream(
@@ -169,20 +177,21 @@ export const geminiAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const base = (baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     const body = buildBody(req);
     const url = `${base}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${credential.apiKey}`;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      { method: "POST", headers: headers(), body: JSON.stringify(body) },
+      { providerName: "Gemini", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Gemini API error ${res.status}: ${text}`);
+      throw providerError("Gemini", res, text);
     }
 
     // A Gemini SSE chunk can carry several parts — text, thought, and
@@ -190,66 +199,69 @@ export const geminiAdapter: ProviderAdapter = {
     // not just the first (parts[0]-only dropped function calls entirely).
     let functionCallCounter = 0;
 
-    return createSSEStream(res, (parsed, controller) => {
-      const candidates = parsed.candidates as
-        | Array<Record<string, unknown>>
-        | undefined;
-      const candidate = candidates?.[0];
-      const content = candidate?.content as
-        | { parts?: Array<Record<string, unknown>> }
-        | undefined;
-      const parts = content?.parts ?? [];
-
-      for (const part of parts) {
-        if (part.thought === true && typeof part.text === "string") {
-          // Thought parts are reasoning, never user-visible content.
-          if (part.text) controller.enqueue({ reasoning: part.text });
-          continue;
-        }
-
-        if (typeof part.text === "string" && part.text) {
-          controller.enqueue({ delta: part.text });
-        }
-
-        const fc = part.functionCall as
-          | { name?: string; args?: unknown }
+    return carryRetryMeta(
+      createSSEStream(res, (parsed, controller) => {
+        const candidates = parsed.candidates as
+          | Array<Record<string, unknown>>
           | undefined;
-        if (fc && typeof fc.name === "string" && fc.name) {
-          // Gemini function calls carry no id — synthesize a stable one.
-          const toolCallId = `fc_${Date.now()}_${functionCallCounter++}`;
+        const candidate = candidates?.[0];
+        const content = candidate?.content as
+          | { parts?: Array<Record<string, unknown>> }
+          | undefined;
+        const parts = content?.parts ?? [];
+
+        for (const part of parts) {
+          if (part.thought === true && typeof part.text === "string") {
+            // Thought parts are reasoning, never user-visible content.
+            if (part.text) controller.enqueue({ reasoning: part.text });
+            continue;
+          }
+
+          if (typeof part.text === "string" && part.text) {
+            controller.enqueue({ delta: part.text });
+          }
+
+          const fc = part.functionCall as
+            | { name?: string; args?: unknown }
+            | undefined;
+          if (fc && typeof fc.name === "string" && fc.name) {
+            // Gemini function calls carry no id — synthesize a stable one.
+            const toolCallId = `fc_${Date.now()}_${functionCallCounter++}`;
+            controller.enqueue({
+              toolCallStart: { toolCallId, toolName: fc.name },
+            });
+            controller.enqueue({
+              toolCallDelta: {
+                toolCallId,
+                arguments: JSON.stringify(fc.args ?? {}),
+              },
+            });
+          }
+        }
+
+        if (candidate?.finishReason) {
           controller.enqueue({
-            toolCallStart: { toolCallId, toolName: fc.name },
+            delta: "",
+            finishReason:
+              STREAM_FINISH_MAP[candidate.finishReason as string] ?? "stop",
           });
+        }
+
+        if (parsed.usageMetadata) {
+          const usage = parsed.usageMetadata as {
+            promptTokenCount?: number;
+            candidatesTokenCount?: number;
+          };
           controller.enqueue({
-            toolCallDelta: {
-              toolCallId,
-              arguments: JSON.stringify(fc.args ?? {}),
+            delta: "",
+            usage: {
+              inputTokens: usage.promptTokenCount ?? 0,
+              outputTokens: usage.candidatesTokenCount ?? 0,
             },
           });
         }
-      }
-
-      if (candidate?.finishReason) {
-        controller.enqueue({
-          delta: "",
-          finishReason:
-            STREAM_FINISH_MAP[candidate.finishReason as string] ?? "stop",
-        });
-      }
-
-      if (parsed.usageMetadata) {
-        const usage = parsed.usageMetadata as {
-          promptTokenCount?: number;
-          candidatesTokenCount?: number;
-        };
-        controller.enqueue({
-          delta: "",
-          usage: {
-            inputTokens: usage.promptTokenCount ?? 0,
-            outputTokens: usage.candidatesTokenCount ?? 0,
-          },
-        });
-      }
-    });
+      }),
+      res,
+    );
   },
 };

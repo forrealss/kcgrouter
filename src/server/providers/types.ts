@@ -1,4 +1,5 @@
 import type { ProviderTransport } from "../../db/schema";
+import type { RetryConfig } from "./retry";
 
 // --- Canonical Types ---
 
@@ -52,6 +53,16 @@ export interface CanonicalStreamChunk {
 
 // --- Provider Adapter Interface ---
 
+/**
+ * Optional per-request options passed from the router to an adapter. Today it
+ * carries the provider's retry policy (stored per provider record and editable
+ * from the UI); the adapter forwards it into `fetchWithRetry`. Undefined means
+ * "use the global defaults".
+ */
+export interface AdapterRequestOptions {
+  retry?: RetryConfig;
+}
+
 export interface ProviderAdapter {
   readonly transport: ProviderTransport;
   send(
@@ -59,12 +70,14 @@ export interface ProviderAdapter {
     credential: { apiKey: string },
     model: string,
     baseUrl?: string,
+    opts?: AdapterRequestOptions,
   ): Promise<CanonicalResponse>;
   sendStream(
     request: CanonicalRequest,
     credential: { apiKey: string },
     model: string,
     baseUrl?: string,
+    opts?: AdapterRequestOptions,
   ): Promise<ReadableStream<CanonicalStreamChunk>>;
 }
 

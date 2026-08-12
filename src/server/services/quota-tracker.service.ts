@@ -27,12 +27,23 @@ export function getState(accountId: string): QuotaState {
 export function isAvailable(accountId: string): boolean {
   const state = getState(accountId);
 
-  // Get quota_limit_tokens from provider_accounts
-  const row = get<{ quota_limit_tokens: number | null }>(
-    "SELECT quota_limit_tokens FROM provider_accounts WHERE id = ?",
+  // Get quota_limit_tokens + error cooldown from provider_accounts
+  const row = get<{
+    quota_limit_tokens: number | null;
+    cooldown_until: string | null;
+  }>(
+    "SELECT quota_limit_tokens, cooldown_until FROM provider_accounts WHERE id = ?",
     accountId,
   );
   if (!row) return false;
+
+  // Account is cooling down after an upstream error — skip it.
+  if (
+    row.cooldown_until &&
+    new Date(row.cooldown_until).getTime() > Date.now()
+  ) {
+    return false;
+  }
 
   if (row.quota_limit_tokens == null) return true;
 
@@ -48,7 +59,3 @@ export function recordUsage(accountId: string, tokens: number): void {
 }
 
 export type ErrorKind = "auth" | "rate_limit" | "server_error";
-
-export function markError(accountId: string, _errorKind: ErrorKind): void {
-  run("UPDATE provider_accounts SET status = 'error' WHERE id = ?", accountId);
-}

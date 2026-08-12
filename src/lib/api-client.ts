@@ -81,6 +81,9 @@ export const apiClient = {
   patch<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
     return request<T>(path, "PATCH", body, options);
   },
+  put<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
+    return request<T>(path, "PUT", body, options);
+  },
   delete<T>(path: string, options?: ApiRequestOptions) {
     return request<T>(path, "DELETE", undefined, options);
   },

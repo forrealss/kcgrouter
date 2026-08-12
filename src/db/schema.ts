@@ -34,6 +34,8 @@ export interface ProviderRow {
   base_url: string;
   is_builtin: number;
   prefix: string;
+  /** JSON-encoded per-status retry rules, or NULL for the global defaults. */
+  retry_config: string | null;
   created_at: string;
 }
 
@@ -47,6 +49,8 @@ export interface ProviderAccountRow {
   last_used_at: string | null;
   last_error: string | null;
   last_error_at: string | null;
+  cooldown_until: string | null;
+  backoff_level: number;
   created_at: string;
 }
 
@@ -90,6 +94,7 @@ export interface RequestLogRow {
   message: string | null;
   latency_ms: number | null;
   request_id: string | null;
+  retries: number;
 }
 
 export interface UsageRecordRow {

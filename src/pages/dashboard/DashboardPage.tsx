@@ -3,7 +3,9 @@ import {
   BoxesIcon,
   CoinsIcon,
   GaugeIcon,
+  HourglassIcon,
   Layers3Icon,
+  RefreshCwIcon,
   ServerIcon,
   SignalIcon,
   ZapIcon,
@@ -138,6 +140,14 @@ function LogRow({ record }: { record: UsageRecord }) {
         {ok ? "OK " : "ERR"}
       </span>
       <span className="truncate flex-1 text-foreground/90">{record.model}</span>
+      {record.retries ? (
+        <span
+          className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-semibold text-amber-600 dark:text-amber-400"
+          title={`Saved by ${record.retries} in-place retr${record.retries === 1 ? "y" : "ies"}`}
+        >
+          RTY {record.retries}×
+        </span>
+      ) : null}
       <span className="text-muted-foreground/70 shrink-0 tabular-nums">
         {numFmt.format(record.inputTokens + record.outputTokens)}tok
       </span>
@@ -146,6 +156,19 @@ function LogRow({ record }: { record: UsageRecord }) {
       </span>
     </div>
   );
+}
+
+/** Remaining cooldown in seconds, or 0 when not cooling down. */
+function cooldownRemainingSeconds(cooldownUntil: string | null): number {
+  if (!cooldownUntil) return 0;
+  const ms = new Date(cooldownUntil).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
+}
+
+interface DashboardRetryStats {
+  totalRetries: number;
+  retriedRequests: number;
+  coolingDown: number;
 }
 
 // ─── main dashboard ──────────────────────────────────────────────────────────
@@ -158,6 +181,9 @@ export function DashboardPage() {
 
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const [retryStats, setRetryStats] = useState<DashboardRetryStats | null>(
+    null,
+  );
   const mainRowRef = useRef<HTMLDivElement>(null);
   const [graphH, setGraphH] = useState(360);
 
@@ -178,6 +204,19 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get<DashboardRetryStats>("/api/dashboard/stats")
+      .then((data) => {
+        if (!cancelled) setRetryStats(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const es = new EventSource("/api/events");
     es.addEventListener("request:complete", (e: MessageEvent) => {
       try {
@@ -186,6 +225,7 @@ export function DashboardPage() {
           model: string;
           transport: string;
           latencyMs: number;
+          retries?: number;
           timestamp: number;
         };
         const newRecord: UsageRecord = {
@@ -198,6 +238,7 @@ export function DashboardPage() {
           outputTokens: 0,
           status: "success",
           latencyMs: data.latencyMs,
+          retries: data.retries ?? 0,
           estimatedCost: 0,
         };
         setRecords((prev) => [newRecord, ...prev].slice(0, 20));
@@ -234,6 +275,25 @@ export function DashboardPage() {
       return list.map((a) => ({ account: a, provider: p }));
     });
   }, [providers, accounts]);
+
+  // Re-render once per second while any account is cooling down, so the
+  // COOLDOWN countdown in the port table ticks live. The interval tears
+  // itself down as soon as every cooldown has expired.
+  const [, setCooldownTick] = useState(0);
+  useEffect(() => {
+    const cooling = allAccounts.some(
+      (x) => cooldownRemainingSeconds(x.account.cooldownUntil) > 0,
+    );
+    if (!cooling) return;
+    const timer = setInterval(() => {
+      setCooldownTick((t) => t + 1);
+      const stillCooling = allAccounts.some(
+        (x) => cooldownRemainingSeconds(x.account.cooldownUntil) > 0,
+      );
+      if (!stillCooling) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [allAccounts]);
 
   const activeCount = useMemo(
     () => allAccounts.filter((x) => x.account.status === "active").length,
@@ -296,7 +356,7 @@ export function DashboardPage() {
 
       {/* ── System Status Strip ────────────────────────────────────── */}
       <Card className="!py-0 overflow-hidden">
-        <div className="grid min-w-0 grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-6 [&>*]:bg-card">
+        <div className="grid min-w-0 grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-4 [&>*]:bg-card">
           <SysMetric
             label="Providers Connected"
             value={numFmt.format(providers?.length ?? 0)}
@@ -335,6 +395,20 @@ export function DashboardPage() {
             icon={GaugeIcon}
             loading={!providers}
             tone={errorCount > 0 ? "bad" : "ok"}
+          />
+          <SysMetric
+            label="Retries"
+            value={numFmt.format(retryStats?.totalRetries ?? 0)}
+            icon={RefreshCwIcon}
+            loading={!retryStats}
+            tone={(retryStats?.totalRetries ?? 0) > 0 ? "warn" : "ok"}
+          />
+          <SysMetric
+            label="Cooling Down"
+            value={numFmt.format(retryStats?.coolingDown ?? 0)}
+            icon={HourglassIcon}
+            loading={!retryStats}
+            tone={(retryStats?.coolingDown ?? 0) > 0 ? "bad" : "ok"}
           />
         </div>
       </Card>
@@ -448,7 +522,16 @@ export function DashboardPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <StatusLed status={account.status} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusLed status={account.status} />
+                          {cooldownRemainingSeconds(account.cooldownUntil) >
+                          0 ? (
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
+                              COOLDOWN ·{" "}
+                              {cooldownRemainingSeconds(account.cooldownUntil)}s
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-sm">
                         {numFmt.format(usage?.requestCount ?? 0)}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { extractSystemText, parseToolArguments } from "../helpers";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -283,19 +284,29 @@ function buildUrl(baseUrl: string): string {
 export const commandCodeAdapter: ProviderAdapter = {
   transport: "command-code",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const body = buildCommandCodeBody(req, model);
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: buildCommandCodeHeaders(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: buildCommandCodeHeaders(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Command Code", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Command Code API error ${res.status}: ${text}`);
+      throw providerError("Command Code", res, text);
     }
 
     const reader = res.body?.getReader();
@@ -366,11 +377,14 @@ export const commandCodeAdapter: ProviderAdapter = {
       error: "error",
     };
 
-    return {
-      message: { role: "assistant", content: parts },
-      usage,
-      finishReason: finishMap[finishReason] ?? "stop",
-    };
+    return carryRetryMeta(
+      {
+        message: { role: "assistant", content: parts },
+        usage,
+        finishReason: finishMap[finishReason] ?? "stop",
+      },
+      res,
+    );
   },
 
   async sendStream(
@@ -378,19 +392,24 @@ export const commandCodeAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const body = buildCommandCodeBody(req, model);
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: buildCommandCodeHeaders(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: buildCommandCodeHeaders(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Command Code", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Command Code API error ${res.status}: ${text}`);
+      throw providerError("Command Code", res, text);
     }
 
     if (!res.body) throw new Error("Empty response body");
@@ -474,20 +493,23 @@ export const commandCodeAdapter: ProviderAdapter = {
       if (usage) controller.enqueue({ usage });
     }
 
-    return res.body.pipeThrough(
-      new TransformStream<Uint8Array, CanonicalStreamChunk>({
-        transform(chunk, controller) {
-          buffer += decoder.decode(chunk, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
+    return carryRetryMeta(
+      res.body.pipeThrough(
+        new TransformStream<Uint8Array, CanonicalStreamChunk>({
+          transform(chunk, controller) {
+            buffer += decoder.decode(chunk, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
 
-          for (const line of lines) emit(controller, line);
-        },
-        flush(controller) {
-          if (buffer.trim()) emit(controller, buffer);
-          seenToolDeltas.clear();
-        },
-      }),
+            for (const line of lines) emit(controller, line);
+          },
+          flush(controller) {
+            if (buffer.trim()) emit(controller, buffer);
+            seenToolDeltas.clear();
+          },
+        }),
+      ),
+      res,
     );
   },
 };

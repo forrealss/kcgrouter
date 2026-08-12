@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalResponse,
@@ -48,19 +49,29 @@ function buildKiroHeaders(apiKey: string): Record<string, string> {
 export const kiroAdapter: ProviderAdapter = {
   transport: "kiro",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = buildKiroPayload(req, model);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: buildKiroHeaders(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: buildKiroHeaders(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Kiro", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Kiro API error ${res.status}: ${text}`);
+      throw providerError("Kiro", res, text);
     }
 
     const arrayBuffer = await res.arrayBuffer();
@@ -196,11 +207,14 @@ export const kiroAdapter: ProviderAdapter = {
       });
     }
 
-    return {
-      message: { role: "assistant", content: parts },
-      usage,
-      finishReason,
-    };
+    return carryRetryMeta(
+      {
+        message: { role: "assistant", content: parts },
+        usage,
+        finishReason,
+      },
+      res,
+    );
   },
 
   async sendStream(
@@ -208,21 +222,29 @@ export const kiroAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = buildKiroPayload(req, model);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: buildKiroHeaders(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: buildKiroHeaders(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Kiro", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Kiro API error ${res.status}: ${text}`);
+      throw providerError("Kiro", res, text);
     }
 
-    return createKiroStream(res, resolveContextWindow(model));
+    return carryRetryMeta(
+      createKiroStream(res, resolveContextWindow(model)),
+      res,
+    );
   },
 };

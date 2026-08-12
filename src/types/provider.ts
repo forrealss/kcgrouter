@@ -7,6 +7,16 @@ export type ProviderTransport =
   | "mimo"
   | "qoder";
 
+export interface RetryRule {
+  /** Number of retries *after* the first attempt (0 = no retry). */
+  attempts: number;
+  /** Delay before each retry, in milliseconds. */
+  delayMs: number;
+}
+
+/** Per-status retry policy, keyed by HTTP status code. */
+export type RetryConfig = Partial<Record<number, RetryRule>>;
+
 export interface Provider {
   id: string;
   name: string;
@@ -14,6 +24,8 @@ export interface Provider {
   baseUrl: string;
   isBuiltin: boolean;
   prefix: string;
+  /** Per-status retry policy, or null to use the global defaults. */
+  retryConfig: RetryConfig | null;
   createdAt: string;
   accountCount: number;
 }
@@ -29,6 +41,10 @@ export interface ProviderAccount {
   lastUsedAt: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
+  /** ISO timestamp; while in the future the account is auto-skipped. */
+  cooldownUntil: string | null;
+  /** Exponential-backoff level for repeated rate limits. */
+  backoffLevel: number;
   createdAt: string;
 }
 

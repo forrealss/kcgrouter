@@ -3,6 +3,7 @@ import {
   extractSystemText,
   parseToolArguments,
 } from "../helpers";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -125,7 +126,13 @@ const STREAM_FINISH_MAP: Record<string, "stop" | "length" | "tool_call"> = {
 export const anthropicAdapter: ProviderAdapter = {
   transport: "anthropic",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const { system, messages } = buildAnthropicMessages(req);
 
@@ -146,18 +153,23 @@ export const anthropicAdapter: ProviderAdapter = {
       }));
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: headers(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: headers(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Anthropic", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Anthropic API error ${res.status}: ${text}`);
+      throw providerError("Anthropic", res, text);
     }
 
-    return parseAnthropicResponse(await res.json());
+    const data = await res.json();
+    return carryRetryMeta(parseAnthropicResponse(data), data);
   },
 
   async sendStream(
@@ -165,6 +177,7 @@ export const anthropicAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const { system, messages } = buildAnthropicMessages(req);
@@ -186,15 +199,19 @@ export const anthropicAdapter: ProviderAdapter = {
       }));
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: headers(credential.apiKey),
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: headers(credential.apiKey),
+        body: JSON.stringify(body),
+      },
+      { providerName: "Anthropic", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Anthropic API error ${res.status}: ${text}`);
+      throw providerError("Anthropic", res, text);
     }
 
     // Anthropic's stream carries input_tokens only in message_start and
@@ -204,80 +221,85 @@ export const anthropicAdapter: ProviderAdapter = {
     let inputTokens = 0;
     const toolCallIdsByBlockIndex = new Map<number, string>();
 
-    return createSSEStream(res, (parsed, controller) => {
-      if (parsed.type === "message_start") {
-        const message = parsed.message as { usage?: { input_tokens?: number } };
-        const reported = message?.usage?.input_tokens;
-        if (typeof reported === "number") inputTokens = reported;
-      }
-
-      if (parsed.type === "content_block_start") {
-        const block = parsed.content_block as {
-          type: string;
-          id?: string;
-          name?: string;
-        };
-        const index = parsed.index as number;
-
-        if (block?.type === "tool_use" && block.id && block.name) {
-          toolCallIdsByBlockIndex.set(index, block.id);
-          controller.enqueue({
-            toolCallStart: { toolCallId: block.id, toolName: block.name },
-          });
-        } else if (block?.type === "thinking") {
-          // Empty reasoning chunk opens a thinking block downstream.
-          controller.enqueue({ reasoning: "" });
+    return carryRetryMeta(
+      createSSEStream(res, (parsed, controller) => {
+        if (parsed.type === "message_start") {
+          const message = parsed.message as {
+            usage?: { input_tokens?: number };
+          };
+          const reported = message?.usage?.input_tokens;
+          if (typeof reported === "number") inputTokens = reported;
         }
-        return;
-      }
 
-      if (parsed.type === "content_block_delta") {
-        const delta = parsed.delta as {
-          type?: string;
-          text?: string;
-          thinking?: string;
-          partial_json?: string;
-        };
-        const index = parsed.index as number;
+        if (parsed.type === "content_block_start") {
+          const block = parsed.content_block as {
+            type: string;
+            id?: string;
+            name?: string;
+          };
+          const index = parsed.index as number;
 
-        if (delta?.type === "text_delta" && delta.text) {
-          controller.enqueue({ delta: delta.text });
-        } else if (delta?.type === "thinking_delta" && delta.thinking) {
-          controller.enqueue({ reasoning: delta.thinking });
-        } else if (delta?.type === "input_json_delta" && delta.partial_json) {
-          const toolCallId = toolCallIdsByBlockIndex.get(index);
-          if (toolCallId) {
+          if (block?.type === "tool_use" && block.id && block.name) {
+            toolCallIdsByBlockIndex.set(index, block.id);
             controller.enqueue({
-              toolCallDelta: {
-                toolCallId,
-                arguments: delta.partial_json,
+              toolCallStart: { toolCallId: block.id, toolName: block.name },
+            });
+          } else if (block?.type === "thinking") {
+            // Empty reasoning chunk opens a thinking block downstream.
+            controller.enqueue({ reasoning: "" });
+          }
+          return;
+        }
+
+        if (parsed.type === "content_block_delta") {
+          const delta = parsed.delta as {
+            type?: string;
+            text?: string;
+            thinking?: string;
+            partial_json?: string;
+          };
+          const index = parsed.index as number;
+
+          if (delta?.type === "text_delta" && delta.text) {
+            controller.enqueue({ delta: delta.text });
+          } else if (delta?.type === "thinking_delta" && delta.thinking) {
+            controller.enqueue({ reasoning: delta.thinking });
+          } else if (delta?.type === "input_json_delta" && delta.partial_json) {
+            const toolCallId = toolCallIdsByBlockIndex.get(index);
+            if (toolCallId) {
+              controller.enqueue({
+                toolCallDelta: {
+                  toolCallId,
+                  arguments: delta.partial_json,
+                },
+              });
+            }
+          }
+          return;
+        }
+
+        if (parsed.type === "message_delta") {
+          const delta = parsed.delta as { stop_reason?: string } | undefined;
+          if (delta?.stop_reason) {
+            controller.enqueue({
+              delta: "",
+              finishReason: STREAM_FINISH_MAP[delta.stop_reason] ?? "stop",
+            });
+          }
+
+          const usage = parsed.usage as { output_tokens?: number } | undefined;
+          if (usage) {
+            controller.enqueue({
+              delta: "",
+              usage: {
+                inputTokens,
+                outputTokens: usage.output_tokens ?? 0,
               },
             });
           }
         }
-        return;
-      }
-
-      if (parsed.type === "message_delta") {
-        const delta = parsed.delta as { stop_reason?: string } | undefined;
-        if (delta?.stop_reason) {
-          controller.enqueue({
-            delta: "",
-            finishReason: STREAM_FINISH_MAP[delta.stop_reason] ?? "stop",
-          });
-        }
-
-        const usage = parsed.usage as { output_tokens?: number } | undefined;
-        if (usage) {
-          controller.enqueue({
-            delta: "",
-            usage: {
-              inputTokens,
-              outputTokens: usage.output_tokens ?? 0,
-            },
-          });
-        }
-      }
-    });
+      }),
+      res,
+    );
   },
 };

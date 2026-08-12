@@ -1,4 +1,6 @@
+import { carryRetryMeta, fetchWithRetry, providerError } from "./retry";
 import type {
+  AdapterRequestOptions,
   CanonicalMessage,
   CanonicalRequest,
   CanonicalStreamChunk,
@@ -140,26 +142,34 @@ export function parseToolArguments(args: unknown): unknown {
 
 /**
  * Sends a POST request to a provider API, throwing on non-2xx responses.
- * Returns the parsed JSON response.
+ * Returns the parsed JSON response. `opts.retry` forwards the provider's
+ * retry policy (if any) into fetchWithRetry.
  */
 export async function fetchJson(
   url: string,
   headers: Record<string, string>,
   body: unknown,
   providerName: string,
+  opts?: AdapterRequestOptions,
 ): Promise<unknown> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  const res = await fetchWithRetry(
+    url,
+    { method: "POST", headers, body: JSON.stringify(body) },
+    { providerName, retry: opts?.retry },
+  );
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${providerName} API error ${res.status}: ${text}`);
+    throw providerError(providerName, res, text);
   }
 
-  return res.json();
+  // Carry retry metadata onto the parsed payload so the router can record how
+  // many retries a successful non-streaming request went through.
+  const data = await res.json();
+  if (data && typeof data === "object") {
+    return carryRetryMeta(data as object, res);
+  }
+  return data;
 }
 
 // --- SSE Stream Reader ---

@@ -13,6 +13,7 @@ export interface RequestLog {
   stream: boolean;
   message: string | null;
   latencyMs: number | null;
+  retries?: number;
   accountLabel: string | null;
   providerId: string | null;
   providerName: string | null;

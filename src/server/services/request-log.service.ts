@@ -23,6 +23,8 @@ export interface RequestLogEntry {
   message: string | null;
   latencyMs: number | null;
   requestId?: string | null;
+  /** In-place retries performed by fetchWithRetry before this entry. */
+  retries?: number;
 }
 
 export interface RequestLogRecord extends RequestLogEntry {
@@ -54,6 +56,7 @@ function rowToRecord(row: LogRowWithJoins): RequestLogRecord {
     message: row.message,
     latencyMs: row.latency_ms,
     requestId: row.request_id ?? null,
+    retries: row.retries ?? 0,
     accountLabel: row.account_label ?? null,
     providerId: row.provider_id ?? null,
     providerName: row.provider_name ?? null,
@@ -77,8 +80,8 @@ export function record(entry: Omit<RequestLogEntry, "id" | "timestamp">): void {
   const now = new Date().toISOString();
 
   run(
-    `INSERT INTO request_logs (id, timestamp, type, source, provider_account_id, combo_id, model, source_format, stream, message, latency_ms, request_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO request_logs (id, timestamp, type, source, provider_account_id, combo_id, model, source_format, stream, message, latency_ms, request_id, retries)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     now,
     entry.type,
@@ -91,6 +94,7 @@ export function record(entry: Omit<RequestLogEntry, "id" | "timestamp">): void {
     entry.message,
     entry.latencyMs,
     entry.requestId ?? null,
+    entry.retries ?? 0,
   );
 
   EventBus.publish("log:new", {
@@ -181,6 +185,22 @@ export function getPayloads(logId: string): RequestLogPayloads | null {
   return row?.usage_id
     ? { requestBody: row.request_body, responseBody: row.response_body }
     : null;
+}
+
+/**
+ * Aggregated retry observability across the retained request log — how many
+ * in-place retries happened in total and on how many requests. Feeds the
+ * dashboard's retry metric.
+ */
+export function getRetryStats(): {
+  totalRetries: number;
+  retriedRequests: number;
+} {
+  const row = get<{ total: number; count: number }>(
+    `SELECT COALESCE(SUM(retries), 0) AS total, COUNT(*) AS count
+     FROM request_logs WHERE retries > 0`,
+  );
+  return { totalRetries: row?.total ?? 0, retriedRequests: row?.count ?? 0 };
 }
 
 export function clearAll(): void {

@@ -1,6 +1,7 @@
 import { ProviderDetailConnections } from "@/components/providers/ProviderDetailConnections";
 import { ProviderDetailHeader } from "@/components/providers/ProviderDetailHeader";
 import { ProviderDetailModels } from "@/components/providers/ProviderDetailModels";
+import { ProviderDetailRetry } from "@/components/providers/ProviderDetailRetry";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { useProviderDetail } from "@/hooks/useProviderDetail";
@@ -36,6 +37,7 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     handleFetchModels,
     handleImportModels,
     handleCloseFetchDialog,
+    handleSaveRetryConfig,
   } = useProviderDetail(providerId);
 
   const latestAccountError = getLatestAccountError(accounts);
@@ -66,7 +68,7 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
         lastError={latestAccountError}
       />
       <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
-        <div className="min-w-0 xl:col-span-2">
+        <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
           <ProviderDetailConnections
             provider={provider}
             accounts={accounts}
@@ -76,6 +78,10 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
             onDeleteAccount={handleDeleteAccount}
             onAccountSaved={handleAccountSaved}
             onTestConnection={handleTestConnection}
+          />
+          <ProviderDetailRetry
+            provider={provider}
+            onSave={handleSaveRetryConfig}
           />
         </div>
         <div className="min-w-0 xl:col-span-3">

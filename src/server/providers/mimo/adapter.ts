@@ -1,4 +1,5 @@
 import { buildOpenAIMessages, fetchJson, parseToolArguments } from "../helpers";
+import { carryRetryMeta, fetchWithRetry, providerError } from "../retry";
 import type {
   CanonicalContentPart,
   CanonicalRequest,
@@ -248,7 +249,13 @@ function createUpstreamSSEParseTransform(): TransformStream<
 export const mimoAdapter: ProviderAdapter = {
   transport: "mimo",
 
-  async send(req, credential, model, baseUrl): Promise<CanonicalResponse> {
+  async send(
+    req,
+    credential,
+    model,
+    baseUrl,
+    opts,
+  ): Promise<CanonicalResponse> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = {
       model,
@@ -259,8 +266,14 @@ export const mimoAdapter: ProviderAdapter = {
       ...(buildToolsParam(req) ? { tools: buildToolsParam(req) } : {}),
     };
 
-    const data = await fetchJson(url, headers(credential.apiKey), body, "MiMo");
-    return parseOpenAIResponse(data);
+    const data = await fetchJson(
+      url,
+      headers(credential.apiKey),
+      body,
+      "MiMo",
+      opts,
+    );
+    return carryRetryMeta(parseOpenAIResponse(data), data);
   },
 
   async sendStream(
@@ -268,6 +281,7 @@ export const mimoAdapter: ProviderAdapter = {
     credential,
     model,
     baseUrl,
+    opts,
   ): Promise<ReadableStream<CanonicalStreamChunk>> {
     const url = buildUrl(baseUrl ?? DEFAULT_BASE_URL);
     const body = {
@@ -280,35 +294,28 @@ export const mimoAdapter: ProviderAdapter = {
       ...(buildToolsParam(req) ? { tools: buildToolsParam(req) } : {}),
     };
 
-    const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 60_000);
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
+    const res = await fetchWithRetry(
+      url,
+      {
         method: "POST",
         headers: headers(credential.apiKey),
         body: JSON.stringify(body),
-        signal: ac.signal,
-      });
-    } catch (err) {
-      clearTimeout(timeout);
-      if (err instanceof Error && err.name === "AbortError") {
-        throw new Error(`MiMo API timeout: no response from ${url}`);
-      }
-      throw err;
-    }
-    clearTimeout(timeout);
+      },
+      { providerName: "MiMo", retry: opts?.retry },
+    );
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`MiMo API error ${res.status}: ${text}`);
+      throw providerError("MiMo", res, text);
     }
 
     if (!res.body) {
       throw new Error(`MiMo API returned no body`);
     }
 
-    return res.body.pipeThrough(createUpstreamSSEParseTransform());
+    return carryRetryMeta(
+      res.body.pipeThrough(createUpstreamSSEParseTransform()),
+      res,
+    );
   },
 };

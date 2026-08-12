@@ -7,7 +7,10 @@ import type {
   ProviderRow,
   ProviderTransport,
 } from "../../db/schema";
+import type { RetryConfig } from "../providers/retry";
 import { decrypt, encrypt } from "./crypto.service";
+import * as EventBus from "./event-bus";
+import type { ErrorKind } from "./quota-tracker.service";
 
 const VALID_TRANSPORTS: ProviderTransport[] = [
   "openai",
@@ -39,6 +42,8 @@ export interface Provider {
   baseUrl: string;
   isBuiltin: boolean;
   prefix: string;
+  /** Per-status retry policy, or null to use the global defaults. */
+  retryConfig: RetryConfig | null;
   createdAt: string;
   accountCount?: number;
 }
@@ -52,11 +57,109 @@ export interface ProviderAccount {
   lastUsedAt: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
+  cooldownUntil: string | null;
+  backoffLevel: number;
   createdAt: string;
+}
+
+/**
+ * Account cooldown tuning (mirrors 9router's errorConfig):
+ *   - rate_limit: exponential backoff — 1s, 2s, 4s, ... capped at 4 min.
+ *   - server_error: short fixed cooldown (transient blips self-heal quickly).
+ *   - auth: long fixed cooldown — a bad key won't fix itself, so back off hard.
+ */
+const COOLDOWN_CONFIG = {
+  rateLimitBaseMs: 1_000,
+  rateLimitMaxMs: 240_000,
+  maxBackoffLevel: 8,
+  serverErrorMs: 10_000,
+  authMs: 300_000,
+} as const;
+
+/**
+ * Compute the cooldown duration + next backoff level for an error kind.
+ * Mirrors 9router `getQuotaCooldown` (base * 2^level, capped) for rate limits.
+ *
+ * `minCooldownMs` (e.g. an upstream `Retry-After` hint) is honored as a floor
+ * — never let the cooldown be shorter than what the upstream asked for.
+ */
+export function computeCooldownMs(
+  kind: ErrorKind,
+  backoffLevel: number,
+  minCooldownMs?: number,
+): { cooldownMs: number; newBackoffLevel: number } {
+  let cooldownMs: number;
+  let newBackoffLevel: number;
+
+  if (kind === "rate_limit") {
+    newBackoffLevel = Math.min(
+      backoffLevel + 1,
+      COOLDOWN_CONFIG.maxBackoffLevel,
+    );
+    const ms =
+      COOLDOWN_CONFIG.rateLimitBaseMs * 2 ** Math.max(0, newBackoffLevel - 1);
+    cooldownMs = Math.min(ms, COOLDOWN_CONFIG.rateLimitMaxMs);
+  } else if (kind === "auth") {
+    cooldownMs = COOLDOWN_CONFIG.authMs;
+    newBackoffLevel = 0;
+  } else {
+    cooldownMs = COOLDOWN_CONFIG.serverErrorMs;
+    newBackoffLevel = 0;
+  }
+
+  if (minCooldownMs && minCooldownMs > cooldownMs) {
+    cooldownMs = minCooldownMs;
+  }
+  return { cooldownMs, newBackoffLevel };
+}
+
+/** Whether the account is currently in its post-error cooldown window. */
+export function isAccountCoolingDown(account: ProviderAccount): boolean {
+  if (!account.cooldownUntil) return false;
+  return new Date(account.cooldownUntil).getTime() > Date.now();
+}
+
+/**
+ * Whether an account can serve a request right now: not permanently expired
+ * and not inside a cooldown window. An `error`-status account whose cooldown
+ * expired is usable again — this is the auto-recovery path.
+ */
+export function isAccountAvailable(account: ProviderAccount): boolean {
+  if (account.status === "expired") return false;
+  return !isAccountCoolingDown(account);
 }
 
 function generateId(prefix: string): string {
   return `${prefix}_${randomBytes(12).toString("hex")}`;
+}
+
+function parseRetryConfig(raw: string | null): RetryConfig | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const config: RetryConfig = {};
+    for (const [status, rule] of Object.entries(parsed)) {
+      const statusNum = Number(status);
+      if (
+        !Number.isInteger(statusNum) ||
+        statusNum < 100 ||
+        statusNum > 599 ||
+        !rule ||
+        typeof rule !== "object" ||
+        typeof (rule as { attempts?: unknown }).attempts !== "number" ||
+        typeof (rule as { delayMs?: unknown }).delayMs !== "number"
+      ) {
+        continue;
+      }
+      config[statusNum] = {
+        attempts: (rule as { attempts: number }).attempts,
+        delayMs: (rule as { delayMs: number }).delayMs,
+      };
+    }
+    return Object.keys(config).length > 0 ? config : null;
+  } catch {
+    return null;
+  }
 }
 
 function rowToProvider(row: ProviderRow, accountCount: number): Provider {
@@ -67,6 +170,7 @@ function rowToProvider(row: ProviderRow, accountCount: number): Provider {
     baseUrl: row.base_url,
     isBuiltin: row.is_builtin === 1,
     prefix: row.prefix,
+    retryConfig: parseRetryConfig(row.retry_config),
     createdAt: row.created_at,
     accountCount,
   };
@@ -82,6 +186,8 @@ function rowToAccount(row: ProviderAccountRow): ProviderAccount {
     lastUsedAt: row.last_used_at,
     lastError: row.last_error,
     lastErrorAt: row.last_error_at,
+    cooldownUntil: row.cooldown_until,
+    backoffLevel: row.backoff_level ?? 0,
     createdAt: row.created_at,
   };
 }
@@ -148,6 +254,7 @@ export function createProvider(input: NewProviderInput): Provider {
     baseUrl: input.baseUrl.trim(),
     isBuiltin: false,
     prefix: normalizedPrefix,
+    retryConfig: null,
     createdAt: now,
     accountCount: 0,
   };
@@ -169,6 +276,7 @@ export function listProviders(): Provider[] {
     baseUrl: r.base_url,
     isBuiltin: r.is_builtin === 1,
     prefix: r.prefix,
+    retryConfig: parseRetryConfig(r.retry_config),
     createdAt: r.created_at,
     accountCount: r.account_count,
   }));
@@ -211,6 +319,60 @@ export function deleteProvider(providerId: string): void {
   }
 
   run("DELETE FROM providers WHERE id = ?", providerId);
+}
+
+/**
+ * Persist a per-provider retry policy, or clear it (null) to fall back to the
+ * global defaults. Invalid rules are rejected here so the router never has to
+ * defend against malformed rows.
+ */
+export function updateProviderRetryConfig(
+  providerId: string,
+  config: RetryConfig | null,
+): Provider {
+  const existing = get<ProviderRow>(
+    "SELECT id FROM providers WHERE id = ?",
+    providerId,
+  );
+  if (!existing) throw new Error("Provider not found");
+
+  if (config !== null) {
+    for (const [status, rule] of Object.entries(config)) {
+      if (!rule) continue;
+      const statusNum = Number(status);
+      if (!Number.isInteger(statusNum) || statusNum < 100 || statusNum > 599) {
+        throw new Error(
+          "Retry config status codes must be between 100 and 599",
+        );
+      }
+      if (!Number.isInteger(rule.attempts) || rule.attempts < 0) {
+        throw new Error("Retry attempts must be a non-negative integer");
+      }
+      if (!Number.isFinite(rule.delayMs) || rule.delayMs < 0) {
+        throw new Error("Retry delayMs must be a non-negative number");
+      }
+    }
+  }
+
+  run(
+    "UPDATE providers SET retry_config = ? WHERE id = ?",
+    config === null ? null : JSON.stringify(config),
+    providerId,
+  );
+
+  const updated = getProvider(providerId);
+  if (!updated) throw new Error("Provider not found after update");
+  return updated;
+}
+
+/** Number of accounts currently inside their post-error cooldown window. */
+export function countCoolingDownAccounts(): number {
+  const row = get<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM provider_accounts
+     WHERE cooldown_until IS NOT NULL AND cooldown_until > ?`,
+    new Date().toISOString(),
+  );
+  return row?.c ?? 0;
 }
 
 // --- Provider Account CRUD ---
@@ -260,6 +422,8 @@ export function addAccount(
     lastUsedAt: null,
     lastError: null,
     lastErrorAt: null,
+    cooldownUntil: null,
+    backoffLevel: 0,
     createdAt: now,
   };
 }
@@ -293,6 +457,8 @@ export function updateAccount(
     updates.push("status = 'active'");
     updates.push("last_error = NULL");
     updates.push("last_error_at = NULL");
+    updates.push("cooldown_until = NULL");
+    updates.push("backoff_level = 0");
   }
 
   if (patch.quotaLimitTokens !== undefined) {
@@ -346,23 +512,63 @@ export function listAccounts(providerId: string): ProviderAccount[] {
   return rows.map(rowToAccount);
 }
 
-export function recordAccountError(accountId: string, message: string): void {
+/**
+ * Record an upstream failure and put the account into a cooldown window.
+ * The cooldown (and backoff level for rate limits) is computed from the error
+ * kind; `minCooldownMs` (e.g. an upstream `Retry-After` hint) is honored as a
+ * floor. Once the cooldown expires the account is usable again automatically.
+ */
+export function recordAccountError(
+  accountId: string,
+  message: string,
+  errorKind: ErrorKind = "server_error",
+  minCooldownMs?: number,
+): void {
   const now = new Date().toISOString();
-  run(
-    "UPDATE provider_accounts SET status = 'error', last_error = ?, last_error_at = ? WHERE id = ?",
-    message,
-    now,
+  const current = get<{ backoff_level: number }>(
+    "SELECT backoff_level FROM provider_accounts WHERE id = ?",
     accountId,
   );
+  const { cooldownMs, newBackoffLevel } = computeCooldownMs(
+    errorKind,
+    current?.backoff_level ?? 0,
+    minCooldownMs,
+  );
+  const cooldownUntil = new Date(Date.now() + cooldownMs).toISOString();
+
+  run(
+    `UPDATE provider_accounts
+     SET status = 'error', last_error = ?, last_error_at = ?,
+         cooldown_until = ?, backoff_level = ?
+     WHERE id = ?`,
+    message,
+    now,
+    cooldownUntil,
+    newBackoffLevel,
+    accountId,
+  );
+
+  EventBus.publish("account:cooldown", {
+    accountId,
+    message,
+    errorKind,
+    cooldownMs,
+    cooldownUntil,
+  });
 }
 
 export function recordAccountSuccess(accountId: string): void {
   const now = new Date().toISOString();
   run(
-    "UPDATE provider_accounts SET status = 'active', last_error = NULL, last_error_at = NULL, last_used_at = ? WHERE id = ?",
+    `UPDATE provider_accounts
+     SET status = 'active', last_error = NULL, last_error_at = NULL,
+         cooldown_until = NULL, backoff_level = 0, last_used_at = ?
+     WHERE id = ?`,
     now,
     accountId,
   );
+
+  EventBus.publish("account:recovered", { accountId });
 }
 
 export function getDecryptedCredential(accountId: string): { apiKey: string } {

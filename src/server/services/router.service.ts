@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getAdapter } from "../providers/registry";
+import { ProviderError, readRetryMeta } from "../providers/retry";
 import type {
   CanonicalRequest,
   CanonicalStreamChunk,
@@ -57,6 +58,8 @@ interface StreamHandoff {
   rawBody: unknown;
   providerAccountId: string;
   comboId: string | null;
+  /** In-place retries fetchWithRetry performed before the stream opened. */
+  retries: number;
   onComplete: (
     usage: { inputTokens: number; outputTokens: number },
     latencyMs: number,
@@ -164,11 +167,240 @@ function formatErrorResponse(
 
 function classifyError(err: unknown): "auth" | "rate_limit" | "server_error" {
   const message = err instanceof Error ? err.message : String(err);
-  if (message.includes("401") || message.includes("Unauthorized"))
-    return "auth";
-  if (message.includes("429") || message.includes("rate limit"))
-    return "rate_limit";
+  // Prefer the structured status code on ProviderError (set by adapters from
+  // the actual response) over free-text matching — an upstream body mentioning
+  // "401" or "rate limit" inside a 502 must not be misclassified, since the
+  // kind now drives the account cooldown duration.
+  if (err instanceof ProviderError) {
+    if (err.status === 401 || err.status === 403) return "auth";
+    if (err.status === 429) return "rate_limit";
+    return "server_error";
+  }
+  const statusMatch = message.match(/API error (\d{3})/);
+  const status = statusMatch?.[1] ? Number(statusMatch[1]) : null;
+  if (status !== null) {
+    if (status === 401 || status === 403) return "auth";
+    if (status === 429) return "rate_limit";
+    return "server_error";
+  }
+  if (message.includes("Unauthorized")) return "auth";
+  if (message.includes("rate limit")) return "rate_limit";
   return "server_error";
+}
+
+/**
+ * Extract the upstream `Retry-After` hint carried by a ProviderError, if any.
+ * Used to floor the account cooldown so a rate-limited account isn't picked
+ * again before the upstream asked us to wait.
+ */
+function retryAfterFloor(err: unknown): number | undefined {
+  if (err instanceof ProviderError && err.retryAfterMs != null) {
+    return err.retryAfterMs;
+  }
+  return undefined;
+}
+
+interface AccountAttemptParams {
+  requestId: string;
+  canonical: CanonicalRequest;
+  account: ProviderRegistry.ProviderAccount;
+  provider: ProviderRegistry.Provider;
+  modelName: string;
+  sourceFormat: SourceFormat;
+  stream: boolean;
+  tokenSaverEstimate: number;
+  includeUsage: boolean;
+  rawBody: unknown;
+  comboId: string | null;
+  /** Combo member carrying per-token costs; null for plain prefix routes. */
+  cost?: {
+    inputCostPer1M: number | null;
+    outputCostPer1M: number | null;
+  } | null;
+}
+
+/**
+ * Executes one request attempt against a single provider account.
+ * Shared by the prefix route (failover across a provider's accounts) and the
+ * combo route (failover across combo members). Throws on upstream failure so
+ * the caller can mark the account and try the next one.
+ */
+async function attemptAccount(
+  params: AccountAttemptParams,
+): Promise<RouterResult> {
+  const {
+    requestId,
+    canonical,
+    account,
+    provider,
+    modelName,
+    sourceFormat,
+    stream,
+    tokenSaverEstimate,
+    includeUsage,
+    rawBody,
+    comboId,
+    cost,
+  } = params;
+
+  const adapter = getAdapter(provider.transport);
+  const credential = ProviderRegistry.getDecryptedCredential(account.id);
+  const startedAt = Date.now();
+  const reqWithModel = { ...canonical, modelHint: modelName };
+  // Forward the provider's stored retry policy (if any) into the adapter, so
+  // fetchWithRetry merges it over the global defaults per status code.
+  const adapterOpts = provider.retryConfig
+    ? { retry: provider.retryConfig }
+    : undefined;
+
+  const estimatedCost = (usage: {
+    inputTokens: number;
+    outputTokens: number;
+  }): number => (cost != null ? estimateCost(cost, usage) : 0);
+
+  if (stream) {
+    const streamResult = await adapter.sendStream(
+      reqWithModel,
+      credential,
+      modelName,
+      provider.baseUrl,
+      adapterOpts,
+    );
+    const retries = readRetryMeta(streamResult)?.retries ?? 0;
+
+    return buildStreamResult(
+      streamResult,
+      {
+        modelName,
+        includeUsage,
+        tokenSaverEstimate,
+        startedAt,
+        rawBody,
+        providerAccountId: account.id,
+        comboId,
+        retries,
+        onComplete: (usage, latencyMs, collectedChunks) => {
+          const responseBody = collectedChunks.map((c) => ({
+            role: "assistant" as const,
+            content: c.delta ?? "",
+            reasoning: c.reasoning,
+            toolCalls: c.toolCallStart
+              ? [
+                  {
+                    id: c.toolCallStart.toolCallId,
+                    name: c.toolCallStart.toolName,
+                    arguments: "",
+                  },
+                ]
+              : undefined,
+          }));
+          UsageRecorder.record({
+            requestId,
+            providerAccountId: account.id,
+            comboId,
+            model: modelName,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            status: "success",
+            latencyMs,
+            estimatedCost: estimatedCost(usage),
+            requestBody: JSON.stringify(rawBody),
+            responseBody: JSON.stringify(responseBody),
+          });
+          EventBus.publish("request:complete", {
+            providerAccountId: account.id,
+            comboId,
+            model: modelName,
+            transport: provider.transport,
+            latencyMs,
+            retries,
+            timestamp: Date.now(),
+          });
+          QuotaTracker.recordUsage(
+            account.id,
+            usage.inputTokens + usage.outputTokens,
+          );
+          ProviderRegistry.recordAccountSuccess(account.id);
+          RequestLog.record({
+            requestId,
+            type: "success",
+            source: "router",
+            providerAccountId: account.id,
+            comboId,
+            model: modelName,
+            sourceFormat,
+            stream: true,
+            message: null,
+            latencyMs,
+            retries,
+          });
+        },
+      },
+      sourceFormat,
+    );
+  }
+
+  // Non-streaming
+  const response = await adapter.send(
+    reqWithModel,
+    credential,
+    modelName,
+    provider.baseUrl,
+    adapterOpts,
+  );
+  const retries = readRetryMeta(response)?.retries ?? 0;
+  const latencyMs = Date.now() - startedAt;
+  const responseBody = fromCanonical(response, sourceFormat);
+
+  UsageRecorder.record({
+    requestId,
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    inputTokens: response.usage.inputTokens,
+    outputTokens: response.usage.outputTokens,
+    status: "success",
+    latencyMs,
+    estimatedCost: estimatedCost(response.usage),
+    requestBody: JSON.stringify(rawBody),
+    responseBody: JSON.stringify(responseBody),
+  });
+  EventBus.publish("request:complete", {
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    transport: provider.transport,
+    latencyMs,
+    retries,
+    timestamp: Date.now(),
+  });
+  QuotaTracker.recordUsage(
+    account.id,
+    response.usage.inputTokens + response.usage.outputTokens,
+  );
+  ProviderRegistry.recordAccountSuccess(account.id);
+  RequestLog.record({
+    requestId,
+    type: "success",
+    source: "router",
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    sourceFormat,
+    stream: false,
+    message: null,
+    latencyMs,
+    retries,
+  });
+
+  return {
+    status: 200,
+    body: responseBody,
+    headers: {
+      "Content-Type": "application/json",
+      "x-router-tokens-saved": String(tokenSaverEstimate),
+    },
+  };
 }
 
 async function handlePrefixRoute(
@@ -205,12 +437,19 @@ async function handlePrefixRoute(
     };
   }
 
-  // Find first available account for this provider
+  // Fail over across the provider's available accounts (skipping any that are
+  // inside their post-error cooldown window). This mirrors 9router's
+  // account-fallback: a single upstream failure no longer kills the provider.
   const accounts = ProviderRegistry.listAccounts(provider.id);
-  const activeAccount = accounts.find((a) => a.status === "active");
+  const availableAccounts = accounts.filter((a) =>
+    ProviderRegistry.isAccountAvailable(a),
+  );
 
-  if (!activeAccount) {
-    const message = `No active account found for provider "${provider.name}"`;
+  if (availableAccounts.length === 0) {
+    const noAccounts = accounts.length === 0;
+    const message = noAccounts
+      ? `No accounts found for provider "${provider.name}"`
+      : `All accounts for provider "${provider.name}" are cooling down`;
     RequestLog.record({
       requestId,
       type: "error",
@@ -224,173 +463,76 @@ async function handlePrefixRoute(
       latencyMs: null,
     });
     return {
-      status: 404,
+      status: noAccounts ? 404 : 503,
       body: formatErrorResponse(new Error(message), sourceFormat),
       headers: {},
     };
   }
 
-  const adapter = getAdapter(provider.transport);
-  const credential = ProviderRegistry.getDecryptedCredential(activeAccount.id);
-  const startedAt = Date.now();
-  const reqWithModel = { ...canonical, modelHint: modelName };
-
-  try {
-    if (stream) {
-      const streamResult = await adapter.sendStream(
-        reqWithModel,
-        credential,
+  let lastError: unknown = null;
+  for (const account of availableAccounts) {
+    const startedAt = Date.now();
+    try {
+      return await attemptAccount({
+        requestId,
+        canonical,
+        account,
+        provider,
         modelName,
-        provider.baseUrl,
-      );
-
-      return buildStreamResult(
-        streamResult,
-        {
-          modelName,
-          includeUsage,
-          tokenSaverEstimate,
-          startedAt,
-          rawBody,
-          providerAccountId: activeAccount.id,
-          comboId: null,
-          onComplete: (usage, latencyMs, collectedChunks) => {
-            const responseBody = collectedChunks.map((c) => ({
-              role: "assistant" as const,
-              content: c.delta ?? "",
-              reasoning: c.reasoning,
-              toolCalls: c.toolCallStart
-                ? [
-                    {
-                      id: c.toolCallStart.toolCallId,
-                      name: c.toolCallStart.toolName,
-                      arguments: "",
-                    },
-                  ]
-                : undefined,
-            }));
-            UsageRecorder.record({
-              requestId,
-              providerAccountId: activeAccount.id,
-              comboId: null,
-              model: modelName,
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              status: "success",
-              latencyMs,
-              estimatedCost: 0,
-              requestBody: JSON.stringify(rawBody),
-              responseBody: JSON.stringify(responseBody),
-            });
-            EventBus.publish("request:complete", {
-              providerAccountId: activeAccount.id,
-              comboId: null,
-              model: modelName,
-              transport: provider.transport,
-              latencyMs,
-              timestamp: Date.now(),
-            });
-            QuotaTracker.recordUsage(
-              activeAccount.id,
-              usage.inputTokens + usage.outputTokens,
-            );
-            ProviderRegistry.recordAccountSuccess(activeAccount.id);
-            RequestLog.record({
-              requestId,
-              type: "success",
-              source: "router",
-              providerAccountId: activeAccount.id,
-              comboId: null,
-              model: modelName,
-              sourceFormat,
-              stream: true,
-              message: null,
-              latencyMs,
-            });
-          },
-        },
         sourceFormat,
+        stream,
+        tokenSaverEstimate,
+        includeUsage,
+        rawBody,
+        comboId: null,
+        cost: null,
+      });
+    } catch (err) {
+      lastError = err;
+      const message = errorMessage(err);
+      ProviderRegistry.recordAccountError(
+        account.id,
+        message,
+        classifyError(err),
+        retryAfterFloor(err),
       );
+      RequestLog.record({
+        requestId,
+        type: "error",
+        source: "router",
+        providerAccountId: account.id,
+        comboId: null,
+        model: modelName,
+        sourceFormat,
+        stream,
+        message,
+        latencyMs: Date.now() - startedAt,
+        retries: err instanceof ProviderError ? err.retries : undefined,
+      });
     }
-
-    // Non-streaming
-    const response = await adapter.send(
-      reqWithModel,
-      credential,
-      modelName,
-      provider.baseUrl,
-    );
-    const latencyMs = Date.now() - startedAt;
-    const responseBody = fromCanonical(response, sourceFormat);
-
-    UsageRecorder.record({
-      requestId,
-      providerAccountId: activeAccount.id,
-      comboId: null,
-      model: modelName,
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
-      status: "success",
-      latencyMs,
-      estimatedCost: 0,
-      requestBody: JSON.stringify(rawBody),
-      responseBody: JSON.stringify(responseBody),
-    });
-    EventBus.publish("request:complete", {
-      providerAccountId: activeAccount.id,
-      comboId: null,
-      model: modelName,
-      transport: provider.transport,
-      latencyMs,
-      timestamp: Date.now(),
-    });
-    QuotaTracker.recordUsage(
-      activeAccount.id,
-      response.usage.inputTokens + response.usage.outputTokens,
-    );
-    ProviderRegistry.recordAccountSuccess(activeAccount.id);
-    RequestLog.record({
-      requestId,
-      type: "success",
-      source: "router",
-      providerAccountId: activeAccount.id,
-      comboId: null,
-      model: modelName,
-      sourceFormat,
-      stream: false,
-      message: null,
-      latencyMs,
-    });
-
-    return {
-      status: 200,
-      body: responseBody,
-      headers: {
-        "Content-Type": "application/json",
-        "x-router-tokens-saved": String(tokenSaverEstimate),
-      },
-    };
-  } catch (err) {
-    const message = errorMessage(err);
-    ProviderRegistry.recordAccountError(activeAccount.id, message);
-    RequestLog.record({
-      requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: activeAccount.id,
-      comboId: null,
-      model: modelName,
-      sourceFormat,
-      stream,
-      message,
-      latencyMs: Date.now() - startedAt,
-    });
-    return {
-      status: 502,
-      body: formatErrorResponse(err, sourceFormat),
-      headers: {},
-    };
   }
+
+  const message = errorMessage(
+    lastError ??
+      new Error(`All accounts for provider "${provider.name}" failed`),
+  );
+  RequestLog.record({
+    requestId,
+    type: "error",
+    source: "router",
+    providerAccountId: null,
+    comboId: null,
+    model: modelName,
+    sourceFormat,
+    stream,
+    message: `All accounts failed: ${message}`,
+    latencyMs: null,
+  });
+  return {
+    status: 502,
+    body: formatErrorResponse(lastError ?? new Error(message), sourceFormat),
+    headers: {},
+  };
 }
 
 async function handleComboRoute(
@@ -463,151 +605,32 @@ async function handleComboRoute(
       continue;
     }
 
-    const adapter = getAdapter(provider.transport);
-    const credential = ProviderRegistry.getDecryptedCredential(account.id);
     const startedAt = Date.now();
-    const reqWithModel = { ...canonical, modelHint: member.modelName };
 
     try {
-      if (stream) {
-        const streamResult = await adapter.sendStream(
-          reqWithModel,
-          credential,
-          member.modelName,
-          provider.baseUrl,
-        );
-
-        return buildStreamResult(
-          streamResult,
-          {
-            modelName: member.modelName,
-            includeUsage,
-            tokenSaverEstimate,
-            startedAt,
-            rawBody,
-            providerAccountId: account.id,
-            comboId: combo.id,
-            onComplete: (usage, latencyMs, collectedChunks) => {
-              const responseBody = collectedChunks.map((c) => ({
-                role: "assistant" as const,
-                content: c.delta ?? "",
-                reasoning: c.reasoning,
-                toolCalls: c.toolCallStart
-                  ? [
-                      {
-                        id: c.toolCallStart.toolCallId,
-                        name: c.toolCallStart.toolName,
-                        arguments: "",
-                      },
-                    ]
-                  : undefined,
-              }));
-              UsageRecorder.record({
-                requestId,
-                providerAccountId: account.id,
-                comboId: combo.id,
-                model: member.modelName,
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                status: "success",
-                latencyMs,
-                estimatedCost: estimateCost(member, usage),
-                requestBody: JSON.stringify(rawBody),
-                responseBody: JSON.stringify(responseBody),
-              });
-              EventBus.publish("request:complete", {
-                providerAccountId: account.id,
-                comboId: combo.id,
-                model: member.modelName,
-                transport: provider.transport,
-                latencyMs,
-                timestamp: Date.now(),
-              });
-              QuotaTracker.recordUsage(
-                account.id,
-                usage.inputTokens + usage.outputTokens,
-              );
-              ProviderRegistry.recordAccountSuccess(account.id);
-              RequestLog.record({
-                requestId,
-                type: "success",
-                source: "router",
-                providerAccountId: account.id,
-                comboId: combo.id,
-                model: member.modelName,
-                sourceFormat,
-                stream: true,
-                message: null,
-                latencyMs,
-              });
-            },
-          },
-          sourceFormat,
-        );
-      }
-
-      // Non-streaming
-      const response = await adapter.send(
-        reqWithModel,
-        credential,
-        member.modelName,
-        provider.baseUrl,
-      );
-      const latencyMs = Date.now() - startedAt;
-      const responseBody = fromCanonical(response, sourceFormat);
-
-      UsageRecorder.record({
+      return await attemptAccount({
         requestId,
-        providerAccountId: account.id,
-        comboId: combo.id,
-        model: member.modelName,
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
-        status: "success",
-        latencyMs,
-        estimatedCost: estimateCost(member, response.usage),
-        requestBody: JSON.stringify(rawBody),
-        responseBody: JSON.stringify(responseBody),
-      });
-      EventBus.publish("request:complete", {
-        providerAccountId: account.id,
-        comboId: combo.id,
-        model: member.modelName,
-        transport: provider.transport,
-        latencyMs,
-        timestamp: Date.now(),
-      });
-      QuotaTracker.recordUsage(
-        account.id,
-        response.usage.inputTokens + response.usage.outputTokens,
-      );
-      ProviderRegistry.recordAccountSuccess(account.id);
-      RequestLog.record({
-        requestId,
-        type: "success",
-        source: "router",
-        providerAccountId: account.id,
-        comboId: combo.id,
-        model: member.modelName,
+        canonical,
+        account,
+        provider,
+        modelName: member.modelName,
         sourceFormat,
-        stream: false,
-        message: null,
-        latencyMs,
+        stream,
+        tokenSaverEstimate,
+        includeUsage,
+        rawBody,
+        comboId: combo.id,
+        cost: member,
       });
-
-      return {
-        status: 200,
-        body: responseBody,
-        headers: {
-          "Content-Type": "application/json",
-          "x-router-tokens-saved": String(tokenSaverEstimate),
-        },
-      };
     } catch (err) {
       excludedMemberIds.push(member.id);
-      QuotaTracker.markError(account.id, classifyError(err));
       const message = errorMessage(err);
-      ProviderRegistry.recordAccountError(account.id, message);
+      ProviderRegistry.recordAccountError(
+        account.id,
+        message,
+        classifyError(err),
+        retryAfterFloor(err),
+      );
       RequestLog.record({
         requestId,
         type: "error",
@@ -619,6 +642,7 @@ async function handleComboRoute(
         stream,
         message,
         latencyMs: Date.now() - startedAt,
+        retries: err instanceof ProviderError ? err.retries : undefined,
       });
     }
   }

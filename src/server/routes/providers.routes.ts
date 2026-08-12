@@ -1,5 +1,6 @@
 import type { ProviderTransport } from "../../db/schema";
 import { getDefaultModels } from "../providers/registry";
+import type { RetryConfig } from "../providers/retry";
 import * as ModelRegistry from "../services/model-registry.service";
 import * as ProviderRegistry from "../services/provider-registry.service";
 import * as RequestLog from "../services/request-log.service";
@@ -89,6 +90,60 @@ export const providersRoutes: Record<string, RouteHandler> = {
         latencyMs: null,
       });
       return Response.json(provider, { status: 201 });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
+    }
+  },
+
+  "PUT /api/providers/:id/retry-config": async (req, params) => {
+    const providerId = params?.id ?? "";
+    let body: { retryConfig?: RetryConfig | null };
+    try {
+      body = (await req.json()) as { retryConfig?: RetryConfig | null };
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    if (body.retryConfig === undefined) {
+      return Response.json(
+        {
+          error:
+            "retryConfig is required (object of status-code rules, or null to reset)",
+        },
+        { status: 400 },
+      );
+    }
+    if (
+      body.retryConfig !== null &&
+      (typeof body.retryConfig !== "object" || Array.isArray(body.retryConfig))
+    ) {
+      return Response.json(
+        { error: "retryConfig must be an object of status-code rules or null" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const provider = ProviderRegistry.updateProviderRetryConfig(
+        providerId,
+        body.retryConfig,
+      );
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: provider.retryConfig
+          ? `Retry policy for provider "${provider.name}" updated`
+          : `Retry policy for provider "${provider.name}" reset to defaults`,
+        latencyMs: null,
+      });
+      return Response.json(provider);
     } catch (err) {
       return Response.json(
         { error: err instanceof Error ? err.message : "Failed" },
@@ -296,11 +351,13 @@ export const providersRoutes: Record<string, RouteHandler> = {
     }
 
     const accounts = ProviderRegistry.listAccounts(providerId);
-    const account = accounts.find((a) => a.status === "active");
+    const account = accounts.find((a) =>
+      ProviderRegistry.isAccountAvailable(a),
+    );
     if (!account) {
       return Response.json(
         {
-          error: "Add an active connection before fetching models",
+          error: "Add an available connection before fetching models",
         },
         { status: 400 },
       );

@@ -1,6 +1,7 @@
 import {
   BoxesIcon,
   ChartNoAxesCombinedIcon,
+  DownloadIcon,
   GaugeIcon,
   KeyRoundIcon,
   Layers3Icon,
@@ -9,6 +10,7 @@ import {
   type LucideIcon,
   ScrollTextIcon,
   SlidersHorizontalIcon,
+  SparklesIcon,
   TerminalIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -27,6 +29,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ThemePicker } from "@/components/ui/theme-picker";
+import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { apiClient } from "@/lib/api-client";
 import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
 
@@ -147,6 +150,7 @@ export function AppSidebar({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [theme, setTheme] = useState<Theme | null>(null);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const updateInfo = useUpdateCheck();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -206,14 +210,25 @@ export function AppSidebar({
     }
   }
 
-  function renderModuleItems(modules: ModuleDefinition[]) {
+  function renderModuleItems(
+    modules: ModuleDefinition[],
+    showUpdateBadge?: boolean,
+  ) {
     return modules.map((module) => {
       const Icon = module.icon;
+      const isSettingsWithUpdate =
+        showUpdateBadge &&
+        module.id === "settings" &&
+        updateInfo.updateAvailable;
       return (
         <SidebarMenuItem key={module.id}>
           <SidebarMenuButton
             isActive={activeModule === module.id}
-            tooltip={module.label}
+            tooltip={
+              isSettingsWithUpdate
+                ? `${module.label} — v${updateInfo.latest} available`
+                : module.label
+            }
             asChild
           >
             <a href={module.path} onClick={(e) => handleNav(module.path, e)}>
@@ -221,6 +236,11 @@ export function AppSidebar({
               <span className="group-data-[collapsible=icon]:hidden">
                 {module.label}
               </span>
+              {isSettingsWithUpdate && (
+                <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-orange-500/90 text-[9px] font-bold text-white shadow-[0_0_6px] shadow-orange-500/50 group-data-[collapsible=icon]:hidden">
+                  {updateInfo.latest}
+                </span>
+              )}
             </a>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -248,7 +268,20 @@ export function AppSidebar({
                   </span>
                   <span className="flex items-center gap-1.5 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
                     <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
-                    gateway online
+                    {updateInfo.updateAvailable ? (
+                      <span className="flex items-center gap-1 text-orange-400">
+                        <SparklesIcon className="size-3" />v{updateInfo.latest}{" "}
+                        available
+                      </span>
+                    ) : (
+                      <>
+                        v{updateInfo.current ?? "..."}
+                        <span className="mx-0.5 text-sidebar-foreground/30">
+                          /
+                        </span>
+                        gateway online
+                      </>
+                    )}
                   </span>
                 </div>
               </a>
@@ -268,11 +301,24 @@ export function AppSidebar({
           <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40">
             Observability / system
           </SidebarGroupLabel>
-          <SidebarMenu>{renderModuleItems(secondaryModules)}</SidebarMenu>
+          <SidebarMenu>{renderModuleItems(secondaryModules, true)}</SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {updateInfo.updateAvailable && (
+            <SidebarMenuItem>
+              <div className="rounded-md border border-orange-500/30 bg-orange-500/10 px-3 py-2 group-data-[collapsible=icon]:hidden">
+                <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-orange-400">
+                  <DownloadIcon className="size-3" />
+                  Update available — v{updateInfo.latest}
+                </div>
+                <code className="block rounded bg-background/60 px-2 py-1 font-mono text-[10px] text-foreground/80">
+                  {updateInfo.updateCommand}
+                </code>
+              </div>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border/70 bg-sidebar-accent/20 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
               <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-sidebar-foreground/60">

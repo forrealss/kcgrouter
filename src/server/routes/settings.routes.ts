@@ -1,9 +1,105 @@
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as EncryptionHealth from "../services/encryption-health.service";
 import * as SettingsService from "../services/settings.service";
 import { getSupportedFilters } from "../services/token-saver.service";
 import type { RouteHandler } from "./types";
 
+// --- Version cache (refresh every 1 hour) ---
+let versionCache: {
+  current: string;
+  latest: string;
+  packageManager: string;
+  updateCommand: string;
+  fetchedAt: number;
+} | null = null;
+
+const VERSION_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getCurrentVersion(): string {
+  try {
+    const pkgPath = join(import.meta.dir, "../../../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function detectPackageManager(): {
+  name: string;
+  updateCmd: string;
+} {
+  try {
+    execSync("bun --version", { stdio: "pipe" });
+    return { name: "bun", updateCmd: "bun i -g kcgrouter" };
+  } catch {
+    return { name: "npm", updateCmd: "npm i -g kcgrouter" };
+  }
+}
+
+async function fetchLatestVersion(): Promise<string> {
+  try {
+    const res = await fetch("https://registry.npmjs.org/kcgrouter/latest", {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return "0.0.0";
+    const data = (await res.json()) as { version?: string };
+    return data.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function parseSemver(v: string): [number, number, number] {
+  const parts = v.split(".").map(Number);
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+}
+
+function isNewer(a: string, b: string): boolean {
+  const [a1, a2, a3] = parseSemver(a);
+  const [b1, b2, b3] = parseSemver(b);
+  if (b1 > a1) return true;
+  if (b1 === a1 && b2 > a2) return true;
+  if (b1 === a1 && b2 === a2 && b3 > a3) return true;
+  return false;
+}
+
+async function getVersionInfo() {
+  const now = Date.now();
+  if (versionCache && now - versionCache.fetchedAt < VERSION_CACHE_TTL) {
+    return versionCache;
+  }
+
+  const current = getCurrentVersion();
+  const latest = await fetchLatestVersion();
+  const pm = detectPackageManager();
+  const updateAvailable = isNewer(current, latest);
+
+  versionCache = {
+    current,
+    latest,
+    packageManager: pm.name,
+    updateCommand: updateAvailable ? pm.updateCmd : "",
+    fetchedAt: now,
+  };
+
+  return versionCache;
+}
+
 export const settingsRoutes: Record<string, RouteHandler> = {
+  "GET /api/settings/version": async () => {
+    const info = await getVersionInfo();
+    return Response.json({
+      current: info.current,
+      latest: info.latest,
+      updateAvailable: isNewer(info.current, info.latest),
+      packageManager: info.packageManager,
+      updateCommand: info.updateCommand,
+    });
+  },
+
   "GET /api/settings/theme": async () => {
     const theme = await SettingsService.getTheme();
     return Response.json({ theme });

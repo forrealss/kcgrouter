@@ -1,4 +1,5 @@
 import { getConfigPath, getPort, isValidPort, saveConfig } from "../config";
+import { removeStartup, setupStartup } from "../lib/startup";
 import {
   isRunning,
   restartDaemon,
@@ -40,6 +41,16 @@ export async function runCli(packageRoot: string) {
   if (args.includes("--tray") || args.includes("-t")) {
     await startTray(packageRoot);
     return;
+  }
+
+  if (args.includes("--setup-startup")) {
+    setupStartup();
+    process.exit(0);
+  }
+
+  if (args.includes("--remove-startup")) {
+    removeStartup();
+    process.exit(0);
   }
 
   // No flags — interactive menu
@@ -139,12 +150,14 @@ function showHelp() {
   Usage: kcgrouter [options]
 
   Options:
-    (no args)      Interactive menu
-    --daemon, -d   Run in background
-    --tray, -t     Run in system tray
-    --stop         Stop background process
-    --status, -s   Check if running
-    --port <port>  Set a custom port (saved to ~/.kcgrouter/config.json)
-    --help, -h     Show this help
+    (no args)          Interactive menu
+    --daemon, -d       Run in background
+    --tray, -t         Run in system tray
+    --stop             Stop background process
+    --status, -s       Check if running
+    --port <port>      Set a custom port (saved to ~/.kcgrouter/config.json)
+    --setup-startup    Register auto-start at login
+    --remove-startup   Unregister auto-start at login
+    --help, -h         Show this help
   `);
 }

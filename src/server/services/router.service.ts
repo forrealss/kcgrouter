@@ -200,6 +200,200 @@ function retryAfterFloor(err: unknown): number | undefined {
   return undefined;
 }
 
+/** Reconstruct a loggable assistant message from collected stream chunks. */
+function buildStreamResponseBody(chunks: CanonicalStreamChunk[]): unknown {
+  return chunks.map((c) => ({
+    role: "assistant" as const,
+    content: c.delta ?? "",
+    reasoning: c.reasoning,
+    toolCalls: c.toolCallStart
+      ? [
+          {
+            id: c.toolCallStart.toolCallId,
+            name: c.toolCallStart.toolName,
+            arguments: "",
+          },
+        ]
+      : undefined,
+  }));
+}
+
+interface RecordSuccessInput {
+  requestId: string;
+  account: ProviderRegistry.ProviderAccount;
+  provider: ProviderRegistry.Provider;
+  comboId: string | null;
+  modelName: string;
+  sourceFormat: SourceFormat;
+  stream: boolean;
+  latencyMs: number;
+  retries: number;
+  usage: { inputTokens: number; outputTokens: number };
+  estimatedCost: number;
+  requestBody: string;
+  responseBody: unknown;
+}
+
+/**
+ * Persist a successful attempt across every sink: usage history, the
+ * `request:complete` event, quota accounting, account health, and the request
+ * log. Shared verbatim by the streaming and non-streaming paths so the two
+ * cannot drift apart.
+ */
+function recordSuccess(input: RecordSuccessInput): void {
+  const {
+    requestId,
+    account,
+    provider,
+    comboId,
+    modelName,
+    sourceFormat,
+    stream,
+    latencyMs,
+    retries,
+    usage,
+    estimatedCost,
+    requestBody,
+    responseBody,
+  } = input;
+
+  UsageRecorder.record({
+    requestId,
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    status: "success",
+    latencyMs,
+    estimatedCost,
+    requestBody,
+    responseBody: JSON.stringify(responseBody),
+  });
+  EventBus.publish("request:complete", {
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    transport: provider.transport,
+    latencyMs,
+    retries,
+    timestamp: Date.now(),
+  });
+  QuotaTracker.recordUsage(account.id, usage.inputTokens + usage.outputTokens);
+  ProviderRegistry.recordAccountSuccess(account.id);
+  RequestLog.record({
+    requestId,
+    type: "success",
+    source: "router",
+    providerAccountId: account.id,
+    comboId,
+    model: modelName,
+    sourceFormat,
+    stream,
+    message: null,
+    latencyMs,
+    retries,
+  });
+}
+
+interface RecordAccountFailureInput {
+  requestId: string;
+  accountId: string;
+  comboId: string | null;
+  modelName: string;
+  sourceFormat: SourceFormat;
+  stream: boolean;
+  error: unknown;
+  startedAt: number;
+}
+
+/**
+ * Record a failed attempt against one account: mark the account's cooldown and
+ * log the error. Returns the human-readable message for the caller to surface
+ * if the whole failover chain is exhausted.
+ */
+function recordAccountFailure(input: RecordAccountFailureInput): string {
+  const {
+    requestId,
+    accountId,
+    comboId,
+    modelName,
+    sourceFormat,
+    stream,
+    error,
+    startedAt,
+  } = input;
+
+  const message = errorMessage(error);
+  ProviderRegistry.recordAccountError(
+    accountId,
+    message,
+    classifyError(error),
+    retryAfterFloor(error),
+  );
+  RequestLog.record({
+    requestId,
+    type: "error",
+    source: "router",
+    providerAccountId: accountId,
+    comboId,
+    model: modelName,
+    sourceFormat,
+    stream,
+    message,
+    latencyMs: Date.now() - startedAt,
+    retries: error instanceof ProviderError ? error.retries : undefined,
+  });
+  return message;
+}
+
+interface RoutingErrorInput {
+  requestId: string;
+  status: number;
+  error: unknown;
+  comboId: string | null;
+  modelName: string;
+  sourceFormat: SourceFormat;
+  stream: boolean;
+  message: string;
+}
+
+/**
+ * Build a non-account-attributable error response (unknown prefix/combo, no
+ * accounts, everything exhausted) and log it. Keeps the many early-return
+ * error branches in the route handlers to a single line each.
+ */
+function routingError(input: RoutingErrorInput): RouterResult {
+  const {
+    requestId,
+    status,
+    error,
+    comboId,
+    modelName,
+    sourceFormat,
+    stream,
+    message,
+  } = input;
+
+  RequestLog.record({
+    requestId,
+    type: "error",
+    source: "router",
+    providerAccountId: null,
+    comboId,
+    model: modelName,
+    sourceFormat,
+    stream,
+    message,
+    latencyMs: null,
+  });
+  return {
+    status,
+    body: formatErrorResponse(error, sourceFormat),
+    headers: {},
+  };
+}
+
 interface AccountAttemptParams {
   requestId: string;
   canonical: CanonicalRequest;
@@ -280,59 +474,20 @@ async function attemptAccount(
         comboId,
         retries,
         onComplete: (usage, latencyMs, collectedChunks) => {
-          const responseBody = collectedChunks.map((c) => ({
-            role: "assistant" as const,
-            content: c.delta ?? "",
-            reasoning: c.reasoning,
-            toolCalls: c.toolCallStart
-              ? [
-                  {
-                    id: c.toolCallStart.toolCallId,
-                    name: c.toolCallStart.toolName,
-                    arguments: "",
-                  },
-                ]
-              : undefined,
-          }));
-          UsageRecorder.record({
+          recordSuccess({
             requestId,
-            providerAccountId: account.id,
+            account,
+            provider,
             comboId,
-            model: modelName,
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            status: "success",
-            latencyMs,
-            estimatedCost: estimatedCost(usage),
-            requestBody: JSON.stringify(rawBody),
-            responseBody: JSON.stringify(responseBody),
-          });
-          EventBus.publish("request:complete", {
-            providerAccountId: account.id,
-            comboId,
-            model: modelName,
-            transport: provider.transport,
-            latencyMs,
-            retries,
-            timestamp: Date.now(),
-          });
-          QuotaTracker.recordUsage(
-            account.id,
-            usage.inputTokens + usage.outputTokens,
-          );
-          ProviderRegistry.recordAccountSuccess(account.id);
-          RequestLog.record({
-            requestId,
-            type: "success",
-            source: "router",
-            providerAccountId: account.id,
-            comboId,
-            model: modelName,
+            modelName,
             sourceFormat,
             stream: true,
-            message: null,
             latencyMs,
             retries,
+            usage,
+            estimatedCost: estimatedCost(usage),
+            requestBody: JSON.stringify(rawBody),
+            responseBody: buildStreamResponseBody(collectedChunks),
           });
         },
       },
@@ -352,45 +507,20 @@ async function attemptAccount(
   const latencyMs = Date.now() - startedAt;
   const responseBody = fromCanonical(response, sourceFormat);
 
-  UsageRecorder.record({
+  recordSuccess({
     requestId,
-    providerAccountId: account.id,
+    account,
+    provider,
     comboId,
-    model: modelName,
-    inputTokens: response.usage.inputTokens,
-    outputTokens: response.usage.outputTokens,
-    status: "success",
-    latencyMs,
-    estimatedCost: estimatedCost(response.usage),
-    requestBody: JSON.stringify(rawBody),
-    responseBody: JSON.stringify(responseBody),
-  });
-  EventBus.publish("request:complete", {
-    providerAccountId: account.id,
-    comboId,
-    model: modelName,
-    transport: provider.transport,
-    latencyMs,
-    retries,
-    timestamp: Date.now(),
-  });
-  QuotaTracker.recordUsage(
-    account.id,
-    response.usage.inputTokens + response.usage.outputTokens,
-  );
-  ProviderRegistry.recordAccountSuccess(account.id);
-  RequestLog.record({
-    requestId,
-    type: "success",
-    source: "router",
-    providerAccountId: account.id,
-    comboId,
-    model: modelName,
+    modelName,
     sourceFormat,
     stream: false,
-    message: null,
     latencyMs,
     retries,
+    usage: response.usage,
+    estimatedCost: estimatedCost(response.usage),
+    requestBody: JSON.stringify(rawBody),
+    responseBody,
   });
 
   return {
@@ -418,23 +548,16 @@ async function handlePrefixRoute(
   const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
   if (!provider) {
     const message = `Provider with prefix "${providerPrefix}" not found`;
-    RequestLog.record({
+    return routingError({
       requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: null,
+      status: 404,
+      error: new Error(message),
       comboId: null,
-      model: modelName,
+      modelName,
       sourceFormat,
       stream,
       message,
-      latencyMs: null,
     });
-    return {
-      status: 404,
-      body: formatErrorResponse(new Error(message), sourceFormat),
-      headers: {},
-    };
   }
 
   // Fail over across the provider's available accounts (skipping any that are
@@ -450,23 +573,16 @@ async function handlePrefixRoute(
     const message = noAccounts
       ? `No accounts found for provider "${provider.name}"`
       : `All accounts for provider "${provider.name}" are cooling down`;
-    RequestLog.record({
+    return routingError({
       requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: null,
+      status: noAccounts ? 404 : 503,
+      error: new Error(message),
       comboId: null,
-      model: modelName,
+      modelName,
       sourceFormat,
       stream,
       message,
-      latencyMs: null,
     });
-    return {
-      status: noAccounts ? 404 : 503,
-      body: formatErrorResponse(new Error(message), sourceFormat),
-      headers: {},
-    };
   }
 
   let lastError: unknown = null;
@@ -489,25 +605,15 @@ async function handlePrefixRoute(
       });
     } catch (err) {
       lastError = err;
-      const message = errorMessage(err);
-      ProviderRegistry.recordAccountError(
-        account.id,
-        message,
-        classifyError(err),
-        retryAfterFloor(err),
-      );
-      RequestLog.record({
+      recordAccountFailure({
         requestId,
-        type: "error",
-        source: "router",
-        providerAccountId: account.id,
+        accountId: account.id,
         comboId: null,
-        model: modelName,
+        modelName,
         sourceFormat,
         stream,
-        message,
-        latencyMs: Date.now() - startedAt,
-        retries: err instanceof ProviderError ? err.retries : undefined,
+        error: err,
+        startedAt,
       });
     }
   }
@@ -516,23 +622,16 @@ async function handlePrefixRoute(
     lastError ??
       new Error(`All accounts for provider "${provider.name}" failed`),
   );
-  RequestLog.record({
+  return routingError({
     requestId,
-    type: "error",
-    source: "router",
-    providerAccountId: null,
+    status: 502,
+    error: lastError ?? new Error(message),
     comboId: null,
-    model: modelName,
+    modelName,
     sourceFormat,
     stream,
     message: `All accounts failed: ${message}`,
-    latencyMs: null,
   });
-  return {
-    status: 502,
-    body: formatErrorResponse(lastError ?? new Error(message), sourceFormat),
-    headers: {},
-  };
 }
 
 async function handleComboRoute(
@@ -548,23 +647,16 @@ async function handleComboRoute(
   const combo = ComboEngine.getCombo(comboName);
   if (!combo) {
     const message = `Combo "${comboName}" not found`;
-    RequestLog.record({
+    return routingError({
       requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: null,
+      status: 404,
+      error: new Error(message),
       comboId: null,
-      model: comboName,
+      modelName: comboName,
       sourceFormat,
       stream,
       message,
-      latencyMs: null,
     });
-    return {
-      status: 404,
-      body: formatErrorResponse(new Error(message), sourceFormat),
-      headers: {},
-    };
   }
 
   const excludedMemberIds: string[] = [];
@@ -577,23 +669,16 @@ async function handleComboRoute(
 
     if (!member) {
       const message = "All combo members exhausted";
-      RequestLog.record({
+      return routingError({
         requestId,
-        type: "error",
-        source: "router",
-        providerAccountId: null,
+        status: 503,
+        error: new Error(message),
         comboId: combo.id,
-        model: comboName,
+        modelName: comboName,
         sourceFormat,
         stream,
         message,
-        latencyMs: null,
       });
-      return {
-        status: 503,
-        body: formatErrorResponse(new Error(message), sourceFormat),
-        headers: {},
-      };
     }
 
     const account = ProviderRegistry.getAccount(member.providerAccountId);
@@ -624,25 +709,15 @@ async function handleComboRoute(
       });
     } catch (err) {
       excludedMemberIds.push(member.id);
-      const message = errorMessage(err);
-      ProviderRegistry.recordAccountError(
-        account.id,
-        message,
-        classifyError(err),
-        retryAfterFloor(err),
-      );
-      RequestLog.record({
+      recordAccountFailure({
         requestId,
-        type: "error",
-        source: "router",
-        providerAccountId: account.id,
+        accountId: account.id,
         comboId: combo.id,
-        model: member.modelName,
+        modelName: member.modelName,
         sourceFormat,
         stream,
-        message,
-        latencyMs: Date.now() - startedAt,
-        retries: err instanceof ProviderError ? err.retries : undefined,
+        error: err,
+        startedAt,
       });
     }
   }
@@ -670,24 +745,16 @@ export async function handleChatRequest(
   try {
     canonical = toCanonical(input.rawBody, input.sourceFormat);
   } catch (err) {
-    const message = errorMessage(err);
-    RequestLog.record({
+    return routingError({
       requestId,
-      type: "error",
-      source: "router",
-      providerAccountId: null,
+      status: 400,
+      error: err,
       comboId: null,
-      model: input.targetSelector,
+      modelName: input.targetSelector,
       sourceFormat: input.sourceFormat,
       stream: input.stream,
-      message,
-      latencyMs: null,
+      message: errorMessage(err),
     });
-    return {
-      status: 400,
-      body: formatErrorResponse(err, input.sourceFormat),
-      headers: {},
-    };
   }
 
   // 1b. Log incoming request

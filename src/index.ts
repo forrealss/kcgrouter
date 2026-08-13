@@ -155,8 +155,12 @@ const server = serve({
       const pathname = url.pathname;
       const method = req.method;
 
-      // API routes — session auth (except login)
-      if (pathname !== "/api/auth/login") {
+      // Public API routes: login, and reading the theme (the login page needs
+      // the saved theme before a session exists). Everything else needs auth.
+      const isPublic =
+        pathname === "/api/auth/login" ||
+        (pathname === "/api/settings/theme" && method === "GET");
+      if (!isPublic) {
         const auth = authenticateSession(req);
         if (!auth.ok) return auth.response;
       }

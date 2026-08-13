@@ -7,6 +7,17 @@ import { changePassword } from "../services/settings.service";
 import type { RouteHandler } from "./types";
 
 export const authRoutes: Record<string, RouteHandler> = {
+  "GET /api/auth/session": () => {
+    // Reached only with a valid session cookie — the /api/* middleware
+    // short-circuits with 401 before this handler otherwise. Used by the
+    // frontend to distinguish authenticated vs unauthenticated, now that the
+    // theme endpoint is public.
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+
   "POST /api/auth/login": async (req) => {
     const body = (await req.json()) as { password?: string };
     if (!body.password) {

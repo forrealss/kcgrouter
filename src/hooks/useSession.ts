@@ -32,11 +32,19 @@ export function useSession() {
     setStatus("loading");
     setError(null);
 
+    // The theme is public so the login page can apply the saved preference;
+    // a failure here just falls back to the default (light) theme.
     try {
       const settings = await apiClient.get<ThemeResponse>(
         "/api/settings/theme",
       );
       setTheme(settings.theme);
+    } catch {
+      // ignore — keep the default theme
+    }
+
+    try {
+      await apiClient.get<{ ok: true }>("/api/auth/session");
       setStatus("authenticated");
     } catch (requestError) {
       if (

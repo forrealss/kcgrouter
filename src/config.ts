@@ -6,6 +6,8 @@ import { join } from "node:path";
 export interface AppConfig {
   /** Custom HTTP port for the server (defaults to 3000). */
   port?: number;
+  /** App version last recorded at startup (used to detect upgrades). */
+  version?: string;
 }
 
 export const DEFAULT_PORT = 3000;
@@ -89,4 +91,30 @@ export function saveConfig(partial: Partial<AppConfig>): AppConfig {
   const next = { ...loadConfig(), ...partial };
   writeFileSync(getConfigPath(), `${JSON.stringify(next, null, 2)}\n`);
   return next;
+}
+
+/**
+ * The running app version read from package.json ("0.0.0" when unreadable).
+ * Used on startup to detect that an upgrade just happened.
+ */
+export function getAppVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(join(import.meta.dir, "../package.json"), "utf-8"),
+    ) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+/** Version last recorded in config.json (undefined when never recorded). */
+export function getRecordedVersion(): string | undefined {
+  return loadConfig().version;
+}
+
+/** Persist a version to config.json (defaults to the running app version). */
+export function recordVersion(version: string = getAppVersion()): string {
+  saveConfig({ version });
+  return version;
 }

@@ -4,12 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_PORT,
+  getAppVersion,
   getConfigPath,
   getConfiguredPort,
   getPort,
+  getRecordedVersion,
   getServerPort,
   isValidPort,
   loadConfig,
+  recordVersion,
   saveConfig,
 } from "../config";
 
@@ -145,6 +148,37 @@ describe("app config", () => {
         saveConfig({ port: 8080 });
         process.env.PORT = "9090";
         expect(getServerPort()).toBe(9090);
+      });
+    });
+  });
+
+  describe("version upgrade tracking", () => {
+    test("getAppVersion returns a non-empty package.json version", () => {
+      withTempHome(() => {
+        expect(typeof getAppVersion()).toBe("string");
+        expect(getAppVersion().length).toBeGreaterThan(0);
+      });
+    });
+
+    test("getRecordedVersion is undefined when never recorded", () => {
+      withTempHome(() => {
+        expect(getRecordedVersion()).toBeUndefined();
+      });
+    });
+
+    test("recordVersion persists the version and preserves the port", () => {
+      withTempHome(() => {
+        saveConfig({ port: 8080 });
+        recordVersion("9.9.9");
+        expect(loadConfig()).toEqual({ port: 8080, version: "9.9.9" });
+        expect(getRecordedVersion()).toBe("9.9.9");
+      });
+    });
+
+    test("recordVersion defaults to the running app version", () => {
+      withTempHome(() => {
+        recordVersion();
+        expect(getRecordedVersion()).toBe(getAppVersion());
       });
     });
   });

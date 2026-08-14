@@ -5,6 +5,7 @@ import { createInterface as createLineInterface } from "node:readline/promises";
 import { spawn } from "bun";
 import {
   DEFAULT_PORT,
+  getAppVersion,
   getConfigPath,
   getConfiguredPort,
   getHome,
@@ -44,18 +45,6 @@ import {
   visibleWidth,
   WHITE,
 } from "./tui";
-
-function getVersion(): string {
-  try {
-    const pkg = readFileSync(
-      join(import.meta.dir, "../../package.json"),
-      "utf-8",
-    );
-    return JSON.parse(pkg).version;
-  } catch {
-    return "?";
-  }
-}
 
 function getPidInfo(): { pid: number; startedAt: number } | null {
   try {
@@ -356,7 +345,7 @@ function buildFrame(): string[] {
   const port = getPort();
   const runningNow = isRunning();
   const pidInfo = getPidInfo();
-  const version = getVersion();
+  const version = getAppVersion();
 
   let row = 0;
   const put = (line: string) => {

@@ -12,6 +12,7 @@ import {
   isValidPort,
   saveConfig,
 } from "../config";
+import { isStartupEnabled, removeStartup, setupStartup } from "../lib/startup";
 import { promptPortCentered } from "./cat-prompt";
 import {
   getProcessMemory,
@@ -47,7 +48,7 @@ import {
 function getVersion(): string {
   try {
     const pkg = readFileSync(
-      join(import.meta.dir, "../../../package.json"),
+      join(import.meta.dir, "../../package.json"),
       "utf-8",
     );
     return JSON.parse(pkg).version;
@@ -457,6 +458,17 @@ function buildOptions(runningNow: boolean): MenuOption[] {
       value: "port",
       hint: `Current: ${getPort()}`,
     },
+    isStartupEnabled()
+      ? {
+          label: "Disable Startup",
+          value: "startup-off",
+          hint: "Remove from OS auto-start",
+        }
+      : {
+          label: "Enable Startup",
+          value: "startup-on",
+          hint: "Start when OS boots",
+        },
     isTraySupported()
       ? {
           label: "Minimize",
@@ -518,6 +530,24 @@ function handleAction(value: string) {
       confirmSel = 0;
       paint(buildFrame());
       break;
+    case "startup-on": {
+      setupStartup();
+      pushMessage(
+        isStartupEnabled()
+          ? `${GREEN}Startup enabled${RESET} — KCG Router will start when the OS boots`
+          : `${RED}Could not enable startup${RESET}`,
+      );
+      break;
+    }
+    case "startup-off": {
+      removeStartup();
+      pushMessage(
+        isStartupEnabled()
+          ? `${RED}Could not disable startup${RESET}`
+          : `${GREEN}Startup disabled${RESET}`,
+      );
+      break;
+    }
     case "port":
       exitForPortChange();
       break;

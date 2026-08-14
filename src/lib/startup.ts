@@ -17,7 +17,7 @@ function findBun(): string | null {
   try {
     const cmd = isWin ? "where bun" : "which bun";
     const result = execSync(cmd, { stdio: "pipe" }).toString().trim();
-    return result.split("\n")[0].trim();
+    return result.split("\n")[0]?.trim() ?? null;
   } catch {
     return null;
   }
@@ -34,16 +34,26 @@ function getStartupDir(): string {
   );
 }
 
+/**
+ * mkdir with { recursive: true } throws EEXIST on Windows when the directory
+ * already exists (Bun bug). Guard with existsSync instead.
+ */
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Windows — Startup folder (no admin required)
 // ---------------------------------------------------------------------------
 
 function setupWindows(): void {
   const startupDir = getStartupDir();
-  mkdirSync(startupDir, { recursive: true });
+  ensureDir(startupDir);
 
   const scriptDir = join(KCGRouter_HOME, "scripts");
-  mkdirSync(scriptDir, { recursive: true });
+  ensureDir(scriptDir);
 
   const vbsPath = join(scriptDir, "kcgrouter-startup.vbs");
   writeFileSync(
@@ -51,21 +61,59 @@ function setupWindows(): void {
     `Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run "bun kcgrouter --daemon", 0, False\n`,
   );
 
-  const destPath = join(startupDir, "kcgrouter-startup.vbs");
-  copyFileSync(vbsPath, destPath);
-  console.log("Startup script placed in Windows Startup folder");
+  // Copy the app icon next to the scripts so the shortcut can use it (and it
+  // survives package updates/reinstalls).
+  const iconSrc = join(import.meta.dir, "..", "..", "assets", "icon.ico");
+  const iconPath = join(KCGRouter_HOME, "icon.ico");
+  if (existsSync(iconSrc)) {
+    copyFileSync(iconSrc, iconPath);
+  }
+
+  // Create a .lnk shortcut in the Startup folder — plain .vbs files always
+  // show a generic icon, shortcuts can carry a custom icon.
+  const lnkPath = join(startupDir, "kcgrouter.lnk");
+  const genVbsPath = join(scriptDir, "create-shortcut.vbs");
+  writeFileSync(
+    genVbsPath,
+    `Set WshShell = CreateObject("WScript.Shell")\n` +
+      `Set lnk = WshShell.CreateShortcut("${lnkPath}")\n` +
+      `lnk.TargetPath = "${vbsPath}"\n` +
+      `lnk.IconLocation = "${iconPath},0"\n` +
+      `lnk.Description = "KCG Router"\n` +
+      `lnk.WorkingDirectory = "${KCGRouter_HOME}"\n` +
+      `lnk.Save\n`,
+  );
+  try {
+    execSync(`wscript "${genVbsPath}"`, { stdio: "pipe" });
+  } finally {
+    try {
+      unlinkSync(genVbsPath);
+    } catch {}
+  }
+  console.log("Startup shortcut placed in Windows Startup folder");
 }
 
 function removeStartupWindows(): void {
-  const destPath = join(getStartupDir(), "kcgrouter-startup.vbs");
-  if (existsSync(destPath)) {
-    unlinkSync(destPath);
-    console.log("Startup script removed from Windows Startup folder");
+  // New installs use kcgrouter.lnk; older ones used kcgrouter-startup.vbs.
+  const startupDir = getStartupDir();
+  let removed = false;
+  for (const file of ["kcgrouter.lnk", "kcgrouter-startup.vbs"]) {
+    const path = join(startupDir, file);
+    if (existsSync(path)) {
+      unlinkSync(path);
+      removed = true;
+    }
+  }
+  if (removed) {
+    console.log("Startup shortcut removed from Windows Startup folder");
   } else {
-    console.log("No startup script found");
+    console.log("No startup shortcut found");
   }
   try {
     unlinkSync(join(KCGRouter_HOME, "scripts", "kcgrouter-startup.vbs"));
+  } catch {}
+  try {
+    unlinkSync(join(KCGRouter_HOME, "icon.ico"));
   } catch {}
 }
 
@@ -75,7 +123,7 @@ function removeStartupWindows(): void {
 
 function setupMacOS(): void {
   const plistDir = join(HOME, "Library", "LaunchAgents");
-  mkdirSync(plistDir, { recursive: true });
+  ensureDir(plistDir);
 
   const plistPath = join(plistDir, "com.kcgrouter.plist");
   const bunPath = findBun();
@@ -138,7 +186,7 @@ function removeStartupMacOS(): void {
 
 function setupLinux(): void {
   const autostartDir = join(HOME, ".config", "autostart");
-  mkdirSync(autostartDir, { recursive: true });
+  ensureDir(autostartDir);
 
   const desktopPath = join(autostartDir, "kcgrouter.desktop");
   const bunPath = findBun();
@@ -171,6 +219,31 @@ function removeStartupLinux(): void {
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+export function isStartupEnabled(): boolean {
+  try {
+    if (isWin) {
+      const startupDir = getStartupDir();
+      return (
+        existsSync(join(startupDir, "kcgrouter.lnk")) ||
+        existsSync(join(startupDir, "kcgrouter-startup.vbs"))
+      );
+    }
+    if (process.platform === "darwin") {
+      return existsSync(
+        join(HOME, "Library", "LaunchAgents", "com.kcgrouter.plist"),
+      );
+    }
+    if (process.platform === "linux") {
+      return existsSync(
+        join(HOME, ".config", "autostart", "kcgrouter.desktop"),
+      );
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 export function setupStartup(): void {
   try {

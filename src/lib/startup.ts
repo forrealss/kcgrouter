@@ -192,12 +192,20 @@ function setupLinux(): void {
   const bunPath = findBun();
   const cmd = bunPath ? `${bunPath} kcgrouter --daemon` : "kcgrouter --daemon";
 
+  // Copy the app icon so the autostart entry shows the KCG Router logo.
+  const iconSrc = join(import.meta.dir, "..", "..", "assets", "icon.png");
+  const iconPath = join(KCGRouter_HOME, "icon.png");
+  if (existsSync(iconSrc)) {
+    copyFileSync(iconSrc, iconPath);
+  }
+
   writeFileSync(
     desktopPath,
     `[Desktop Entry]
 Type=Application
 Name=KCG Router
 Exec=${cmd}
+Icon=${iconPath}
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -210,10 +218,13 @@ function removeStartupLinux(): void {
   const desktopPath = join(HOME, ".config", "autostart", "kcgrouter.desktop");
   if (!existsSync(desktopPath)) {
     console.log("No startup entry found");
-    return;
+  } else {
+    unlinkSync(desktopPath);
+    console.log("Startup entry removed (Linux XDG autostart)");
   }
-  unlinkSync(desktopPath);
-  console.log("Startup entry removed (Linux XDG autostart)");
+  try {
+    unlinkSync(join(KCGRouter_HOME, "icon.png"));
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------

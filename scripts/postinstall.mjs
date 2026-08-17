@@ -96,11 +96,17 @@ function setupMacOS() {
   mkdirSync(plistDir, { recursive: true });
 
   const plistPath = join(plistDir, "com.kcgrouter.plist");
+  const kcgrouterPath = findKcgrouterBin();
   const bunPath = findBun();
-  if (!bunPath) {
-    console.log("[postinstall] bun not found in PATH, skipping startup setup");
+  if (!kcgrouterPath && !bunPath) {
+    console.log("[postinstall] kcgrouter/bun not found, skipping startup setup");
     return;
   }
+  // launchd does not run the command through a shell, and `bun kcgrouter`
+  // cannot resolve globally installed binaries — use the absolute path.
+  const programArgs = kcgrouterPath
+    ? [kcgrouterPath, "--daemon"]
+    : [bunPath, "kcgrouter", "--daemon"];
 
   writeFileSync(
     plistPath,
@@ -112,9 +118,7 @@ function setupMacOS() {
     <string>com.kcgrouter</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${bunPath}</string>
-        <string>kcgrouter</string>
-        <string>--daemon</string>
+        ${programArgs.map((a) => `<string>${a}</string>`).join("\n        ")}
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -135,8 +139,13 @@ function setupLinux() {
   mkdirSync(autostartDir, { recursive: true });
 
   const desktopPath = join(autostartDir, "kcgrouter.desktop");
-  const bunPath = findBun();
-  const cmd = bunPath ? `${bunPath} kcgrouter --daemon` : "kcgrouter --daemon";
+  // `bun kcgrouter` cannot resolve globally installed binaries and the
+  // autostart environment has no guaranteed PATH — invoke the binary by its
+  // absolute path.
+  const kcgrouterPath = findKcgrouterBin();
+  const cmd = kcgrouterPath
+    ? `"${kcgrouterPath}" --daemon`
+    : "kcgrouter --daemon";
 
   writeFileSync(
     desktopPath,
@@ -149,7 +158,32 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 `,
   );
+  // XDG autostart entries must be executable, otherwise gnome-session and
+  // other desktop environments silently skip them. chmod is explicit because
+  // writeFileSync's mode option only applies to newly created files.
+  chmodSync(desktopPath, 0o755);
   console.log("[postinstall] Startup entry registered (Linux XDG autostart)");
+}
+
+function findKcgrouterBin() {
+  try {
+    const result = execSync("which kcgrouter", { stdio: "pipe" })
+      .toString()
+      .trim();
+    const bin = result
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
+    if (bin) return bin;
+  } catch {
+    // not on PATH — fall through to the bun bin dir
+  }
+  const bunPath = findBun();
+  if (bunPath) {
+    const candidate = join(dirname(bunPath), "kcgrouter");
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 function findBun() {

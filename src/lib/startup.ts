@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -7,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const HOME = homedir();
 const KCGRouter_HOME = process.env.KCGRouter_HOME || join(HOME, ".kcgrouter");
@@ -44,6 +45,33 @@ function findKcgrouterExe(): string | null {
   const bunPath = findBun();
   if (bunPath) {
     const candidate = join(bunPath, "..", "kcgrouter.exe");
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Resolve the kcgrouter executable path on Unix. `bun kcgrouter` does NOT
+ * work for globally installed binaries (bun only looks in cwd/node_modules),
+ * and the autostart environment does not guarantee kcgrouter on PATH, so
+ * the desktop entry must invoke the binary by its absolute path.
+ */
+function findKcgrouterBin(): string | null {
+  try {
+    const result = execSync("which kcgrouter", { stdio: "pipe" })
+      .toString()
+      .trim();
+    const bin = result
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
+    if (bin) return bin;
+  } catch {
+    // not on PATH — fall through to the bun bin dir
+  }
+  const bunPath = findBun();
+  if (bunPath) {
+    const candidate = join(dirname(bunPath), "kcgrouter");
     if (existsSync(candidate)) return candidate;
   }
   return null;
@@ -167,11 +195,17 @@ function setupMacOS(): void {
   ensureDir(plistDir);
 
   const plistPath = join(plistDir, "com.kcgrouter.plist");
+  const kcgrouterPath = findKcgrouterBin();
   const bunPath = findBun();
-  if (!bunPath) {
-    console.log("bun not found in PATH, skipping startup setup");
+  if (!kcgrouterPath && !bunPath) {
+    console.log("kcgrouter/bun not found, skipping startup setup");
     return;
   }
+  // launchd does not run the command through a shell, and `bun kcgrouter`
+  // cannot resolve globally installed binaries — use the absolute path.
+  const programArgs = kcgrouterPath
+    ? [kcgrouterPath, "--daemon"]
+    : [bunPath as string, "kcgrouter", "--daemon"];
 
   writeFileSync(
     plistPath,
@@ -183,9 +217,7 @@ function setupMacOS(): void {
     <string>com.kcgrouter</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${bunPath}</string>
-        <string>kcgrouter</string>
-        <string>--daemon</string>
+        ${programArgs.map((a) => `<string>${a}</string>`).join("\n        ")}
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -230,8 +262,13 @@ function setupLinux(): void {
   ensureDir(autostartDir);
 
   const desktopPath = join(autostartDir, "kcgrouter.desktop");
-  const bunPath = findBun();
-  const cmd = bunPath ? `${bunPath} kcgrouter --daemon` : "kcgrouter --daemon";
+  // `bun kcgrouter` cannot resolve globally installed binaries and the
+  // autostart environment has no guaranteed PATH — invoke the binary by its
+  // absolute path.
+  const kcgrouterPath = findKcgrouterBin();
+  const cmd = kcgrouterPath
+    ? `"${kcgrouterPath}" --daemon`
+    : "kcgrouter --daemon";
 
   // Copy the app icon so the autostart entry shows the KCG Router logo.
   const iconSrc = join(import.meta.dir, "..", "..", "assets", "icon.png");
@@ -252,6 +289,10 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 `,
   );
+  // XDG autostart entries must be executable, otherwise gnome-session and
+  // other desktop environments silently skip them. chmod is explicit because
+  // writeFileSync's mode option only applies to newly created files.
+  chmodSync(desktopPath, 0o755);
   console.log("Startup entry registered (Linux XDG autostart)");
 }
 

@@ -60,8 +60,12 @@ export function spawnDaemon(cwd: string): number | null {
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
   const isWin = process.platform === "win32";
-  const cmd = isWin ? "bun" : "nohup";
-  const args = isWin ? ["src/index.ts"] : ["bun", "src/index.ts"];
+  // process.execPath is the absolute path to the bun runtime, so the spawned
+  // daemon works even when launched from an autostart entry whose PATH does
+  // not include the bun bin directory.
+  const bunBin = process.execPath;
+  const cmd = isWin ? bunBin : "nohup";
+  const args = isWin ? ["src/index.ts"] : [bunBin, "src/index.ts"];
 
   const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {
@@ -85,10 +89,11 @@ export function spawnTrayDaemon(cwd: string): number | null {
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
   const isWin = process.platform === "win32";
-  const cmd = isWin ? "bun" : "nohup";
+  const bunBin = process.execPath;
+  const cmd = isWin ? bunBin : "nohup";
   const args = isWin
     ? ["bin/kcgrouter.ts", "--tray"]
-    : ["bun", "bin/kcgrouter.ts", "--tray"];
+    : [bunBin, "bin/kcgrouter.ts", "--tray"];
 
   const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {

@@ -1,4 +1,11 @@
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { spawn } from "bun";
 import { getHome, getPort } from "../config";
@@ -56,13 +63,15 @@ export function spawnDaemon(cwd: string): number | null {
   const cmd = isWin ? "bun" : "nohup";
   const args = isWin ? ["src/index.ts"] : ["bun", "src/index.ts"];
 
+  const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {
     cwd,
-    stdio: ["ignore", "ignore", "ignore"],
+    stdio: ["ignore", logFd, logFd],
     detached: true,
     windowsHide: true,
     env: { ...process.env, NODE_ENV: "production" },
   });
+  closeSync(logFd);
 
   writeFileSync(PID_FILE, String(child.pid));
   child.unref();
@@ -81,13 +90,15 @@ export function spawnTrayDaemon(cwd: string): number | null {
     ? ["bin/kcgrouter.ts", "--tray"]
     : ["bun", "bin/kcgrouter.ts", "--tray"];
 
+  const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {
     cwd,
-    stdio: ["ignore", "ignore", "ignore"],
+    stdio: ["ignore", logFd, logFd],
     detached: true,
     windowsHide: true,
     env: { ...process.env, NODE_ENV: "production" },
   });
+  closeSync(logFd);
 
   writeFileSync(TRAY_PID_FILE, String(child.pid));
   child.unref();

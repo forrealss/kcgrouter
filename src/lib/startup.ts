@@ -23,6 +23,32 @@ function findBun(): string | null {
   }
 }
 
+/**
+ * Resolve the kcgrouter executable path on Windows. `bun kcgrouter` does NOT
+ * work for globally installed binaries (bun only looks in cwd/node_modules),
+ * so the startup script must invoke the shim/binary directly.
+ */
+function findKcgrouterExe(): string | null {
+  try {
+    const result = execSync("where kcgrouter", { stdio: "pipe" })
+      .toString()
+      .trim();
+    const exe = result
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.toLowerCase().endsWith(".exe"));
+    if (exe) return exe;
+  } catch {
+    // not on PATH — fall through to the bun bin dir
+  }
+  const bunPath = findBun();
+  if (bunPath) {
+    const candidate = join(bunPath, "..", "kcgrouter.exe");
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function getStartupDir(): string {
   return join(
     process.env.APPDATA || join(HOME, "AppData", "Roaming"),
@@ -56,10 +82,25 @@ function setupWindows(): void {
   ensureDir(scriptDir);
 
   const vbsPath = join(scriptDir, "kcgrouter-startup.vbs");
+  const kcgrouterExe = findKcgrouterExe();
+  // Quote the command — user paths often contain spaces. Tray mode also
+  // starts the server daemon if it isn't running yet (see cli/index.ts).
+  const runCmd = kcgrouterExe
+    ? `"${kcgrouterExe}" --tray`
+    : "bunx kcgrouter --tray";
   writeFileSync(
     vbsPath,
-    `Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run "bun kcgrouter --daemon", 0, False\n`,
+    `Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run "${runCmd.replace(/"/g, '""')}", 0, False\n`,
   );
+
+  // Old versions dropped a plain .vbs directly in the Startup folder — remove
+  // it so only the .lnk entry remains.
+  const staleVbs = join(startupDir, "kcgrouter-startup.vbs");
+  if (existsSync(staleVbs)) {
+    try {
+      unlinkSync(staleVbs);
+    } catch {}
+  }
 
   // Copy the app icon next to the scripts so the shortcut can use it (and it
   // survives package updates/reinstalls).

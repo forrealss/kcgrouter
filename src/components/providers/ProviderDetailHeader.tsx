@@ -1,4 +1,9 @@
-import { ArrowLeftIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  KeyRoundIcon,
+  LayersIcon,
+  RotateCcwIcon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,23 +16,76 @@ import {
   resolveProviderHealth,
 } from "@/lib/provider-status";
 import { cn } from "@/lib/utils";
-import type { Provider, ProviderAccount } from "@/types/provider";
+import type {
+  Provider,
+  ProviderAccount,
+  ProviderModel,
+} from "@/types/provider";
 
 interface ProviderDetailHeaderProps {
   provider: Provider;
   accounts: ProviderAccount[];
+  models: ProviderModel[];
   lastError?: AccountErrorSummary | null;
+}
+
+type StatTone = "default" | "ok" | "warn";
+
+function StatCell({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone = "default",
+}: {
+  icon: typeof KeyRoundIcon;
+  label: string;
+  value: string;
+  hint: string;
+  tone?: StatTone;
+}) {
+  return (
+    <div className="flex items-center gap-3 bg-card px-5 py-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40 text-muted-foreground">
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <p className="flex items-baseline gap-1.5">
+          <span
+            className={cn(
+              "font-mono text-sm font-semibold tabular-nums tracking-tight",
+              tone === "ok" && "text-emerald-600 dark:text-emerald-400",
+              tone === "warn" && "text-amber-600 dark:text-amber-400",
+            )}
+          >
+            {value}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">{hint}</span>
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function ProviderDetailHeader({
   provider,
   accounts,
+  models,
   lastError,
 }: ProviderDetailHeaderProps) {
   const { navigate } = useRouter();
   const meta = transportMeta[provider.transport];
   const health = providerHealthMeta[resolveProviderHealth(accounts)];
   const HealthIcon = health.icon;
+
+  const activeAccounts = accounts.filter((a) => a.status === "active").length;
+  const enabledModels = models.filter((m) => m.enabled).length;
+  const retryOverrides = provider.retryConfig
+    ? Object.keys(provider.retryConfig).length
+    : 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -100,6 +158,35 @@ export function ProviderDetailHeader({
             </span>
           </div>
         </CardContent>
+
+        <div className="grid gap-px border-t border-border/60 bg-border/60 sm:grid-cols-3">
+          <StatCell
+            icon={KeyRoundIcon}
+            label="Connections"
+            value={`${activeAccounts}/${accounts.length}`}
+            hint="active"
+            tone={
+              accounts.length === 0
+                ? "default"
+                : activeAccounts === accounts.length
+                  ? "ok"
+                  : "warn"
+            }
+          />
+          <StatCell
+            icon={LayersIcon}
+            label="Models"
+            value={`${enabledModels}/${models.length}`}
+            hint="routable"
+            tone={enabledModels > 0 ? "ok" : "default"}
+          />
+          <StatCell
+            icon={RotateCcwIcon}
+            label="Retry policy"
+            value={retryOverrides > 0 ? String(retryOverrides) : "0"}
+            hint={retryOverrides > 0 ? "custom rules" : "using defaults"}
+          />
+        </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/60 bg-muted/20 px-5 py-2.5">
           <span className="text-xs text-muted-foreground">Call models as</span>

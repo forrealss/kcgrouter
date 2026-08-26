@@ -79,6 +79,20 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
             </div>
             <Skeleton className="h-9 w-28 rounded-lg" />
           </CardContent>
+          <div className="grid gap-px border-t border-border/60 bg-border/60 sm:grid-cols-3">
+            {["connections", "models", "retry"].map((key) => (
+              <div
+                key={key}
+                className="flex items-center gap-3 bg-card px-5 py-3"
+              >
+                <Skeleton className="size-8 rounded-lg" />
+                <div className="flex flex-col gap-1.5">
+                  <Skeleton className="h-2.5 w-20" />
+                  <Skeleton className="h-3.5 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
         <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
           <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
@@ -121,10 +135,11 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
       <ProviderDetailHeader
         provider={provider}
         accounts={accounts}
+        models={models}
         lastError={getLatestAccountError(accounts)}
       />
       <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
-        <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
+        <div className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-6 xl:col-span-2">
           <ProviderDetailConnections
             provider={provider}
             accounts={accounts}

@@ -148,6 +148,10 @@ export function useProviderDetail(providerId: string) {
   }
 
   async function handleToggleModel(model: ProviderModel) {
+    const optimistic = !model.enabled;
+    setModels((prev) =>
+      prev.map((m) => (m.id === model.id ? { ...m, enabled: optimistic } : m)),
+    );
     try {
       const result = await apiClient.patch<{ enabled: boolean }>(
         `/api/providers/models/${encodeURIComponent(model.id)}/toggle`,
@@ -157,8 +161,13 @@ export function useProviderDetail(providerId: string) {
           m.id === model.id ? { ...m, enabled: result.enabled } : m,
         ),
       );
-    } catch {
-      // ignore
+    } catch (err) {
+      setModels((prev) =>
+        prev.map((m) =>
+          m.id === model.id ? { ...m, enabled: model.enabled } : m,
+        ),
+      );
+      toast.error(getApiErrorMessage(err));
     }
   }
 

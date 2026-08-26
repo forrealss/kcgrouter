@@ -88,7 +88,7 @@ export function FetchModelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Import Models</DialogTitle>
           <DialogDescription>
@@ -96,8 +96,8 @@ export function FetchModelsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-h-0 flex-col gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="relative flex-1">
               <SearchIcon
                 data-icon="inline-start"
@@ -123,7 +123,7 @@ export function FetchModelsDialog({
             </Button>
           </div>
 
-          <div className="max-h-80 overflow-y-auto rounded-md border">
+          <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-md border sm:max-h-80">
             {candidates.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
                 The provider returned no models.

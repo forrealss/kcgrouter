@@ -1,6 +1,7 @@
-import { RotateCcwIcon, SaveIcon } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { InfoIcon, RotateCcwIcon, SaveIcon } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,14 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  formatRetryRule,
+  formatWorstCase,
+  RETRY_STATUSES,
+} from "@/lib/retry-defaults";
+import { cn } from "@/lib/utils";
 import type { RetryConfig } from "@/types/provider";
 
 interface RetryConfigDialogProps {
@@ -28,9 +29,6 @@ interface RetryConfigDialogProps {
   onSave: (config: RetryConfig | null) => Promise<boolean>;
 }
 
-/** Status codes shown in the editor (the ones the global config retries). */
-const STATUS_ROWS = [429, 502, 503, 504] as const;
-
 type DraftRule = { attempts: string; delaySec: string };
 
 function ruleToDraft(
@@ -39,13 +37,13 @@ function ruleToDraft(
   if (!rule) return { attempts: "", delaySec: "" };
   return {
     attempts: String(rule.attempts),
-    delaySec: String(Math.round(rule.delayMs / 1000)),
+    delaySec: String(rule.delayMs / 1000),
   };
 }
 
 function configToDraft(config: RetryConfig | null): Record<number, DraftRule> {
   return Object.fromEntries(
-    STATUS_ROWS.map((status) => [status, ruleToDraft(config?.[status])]),
+    RETRY_STATUSES.map(({ status }) => [status, ruleToDraft(config?.[status])]),
   );
 }
 
@@ -69,6 +67,14 @@ export function RetryConfigDialog({
     }
   }, [open, config]);
 
+  const overriddenCount = useMemo(
+    () =>
+      RETRY_STATUSES.filter(
+        ({ status }) => (draft[status]?.attempts ?? "").trim() !== "",
+      ).length,
+    [draft],
+  );
+
   function handleOpenChange(nextOpen: boolean) {
     if (isSaving) return;
     onOpenChange(nextOpen);
@@ -85,16 +91,24 @@ export function RetryConfigDialog({
     }));
   }
 
+  /** Drop a single row back to the global default. */
+  function clearRule(status: number) {
+    setDraft((current) => ({
+      ...current,
+      [status]: { attempts: "", delaySec: "" },
+    }));
+    setError(null);
+  }
+
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const next: RetryConfig = {};
-    for (const status of STATUS_ROWS) {
+    for (const { status } of RETRY_STATUSES) {
       const rule = draft[status] ?? { attempts: "", delaySec: "" };
       const attempts =
         rule.attempts.trim() === "" ? NaN : Number(rule.attempts);
-      const delaySec =
-        rule.delaySec.trim() === "" ? NaN : Number(rule.delaySec);
+      const delaySec = rule.delaySec.trim() === "" ? 0 : Number(rule.delaySec);
       if (!Number.isFinite(attempts)) continue; // blank row = not overridden
       if (!Number.isInteger(attempts) || attempts < 0 || attempts > 20) {
         setError(
@@ -134,94 +148,186 @@ export function RetryConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Retry policy — {providerName}</DialogTitle>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 gap-1 border-b border-border/60 bg-muted/20 px-5 py-4 pr-12">
+          <DialogTitle className="text-base">Retry policy</DialogTitle>
           <DialogDescription>
-            Blank rows use the global default.
+            How{" "}
+            <span className="font-medium text-foreground">{providerName}</span>{" "}
+            handles upstream failures before falling over to the next
+            connection.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSave}>
-          <FieldGroup className="gap-3">
-            <div className="flex flex-col gap-2">
-              {STATUS_ROWS.map((status) => (
+
+        <form onSubmit={handleSave} className="flex min-h-0 flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-5 py-2.5">
+            <p className="text-xs text-muted-foreground">
+              Leave a row untouched to keep the default.
+            </p>
+            <Badge
+              variant={overriddenCount > 0 ? "secondary" : "outline"}
+              className="font-mono text-[11px] tabular-nums"
+            >
+              {overriddenCount} custom
+            </Badge>
+          </div>
+
+          <div className="scrollbar-subtle flex min-h-0 flex-1 flex-col divide-y divide-border/60 overflow-y-auto overscroll-contain">
+            {RETRY_STATUSES.map(({ status, reason, note, fallback }) => {
+              const rule = draft[status] ?? { attempts: "", delaySec: "" };
+              const isCustom = rule.attempts.trim() !== "";
+              const attempts = Number(rule.attempts);
+              const delaySec =
+                rule.delaySec.trim() === "" ? 0 : Number(rule.delaySec);
+              const effective =
+                isCustom && Number.isFinite(attempts)
+                  ? { attempts, delayMs: delaySec * 1000 }
+                  : fallback;
+
+              return (
                 <div
                   key={status}
-                  className="grid grid-cols-[auto_1fr_1fr] items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5"
+                  className={cn(
+                    "relative px-5 py-3 transition-colors",
+                    "before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
+                    isCustom
+                      ? "bg-primary/[0.04] before:bg-primary/70"
+                      : "before:bg-transparent",
+                  )}
                 >
-                  <span className="w-12 font-mono text-sm font-semibold tabular-nums">
-                    {status}
-                  </span>
-                  <Field className="gap-1">
-                    <FieldLabel htmlFor={`retry-attempts-${status}`}>
-                      Attempts
-                    </FieldLabel>
-                    <Input
-                      id={`retry-attempts-${status}`}
-                      type="number"
-                      min={0}
-                      max={20}
-                      step={1}
-                      value={draft[status]?.attempts ?? ""}
-                      onChange={(event) =>
-                        updateRule(status, { attempts: event.target.value })
-                      }
-                      placeholder="default"
-                      disabled={isSaving}
-                      className="h-8 font-mono text-xs"
-                    />
-                  </Field>
-                  <Field className="gap-1">
-                    <FieldLabel htmlFor={`retry-delay-${status}`}>
-                      Delay (s)
-                    </FieldLabel>
-                    <Input
-                      id={`retry-delay-${status}`}
-                      type="number"
-                      min={0}
-                      max={3600}
-                      step={0.5}
-                      value={draft[status]?.delaySec ?? ""}
-                      onChange={(event) =>
-                        updateRule(status, { delaySec: event.target.value })
-                      }
-                      placeholder="default"
-                      disabled={isSaving}
-                      className="h-8 font-mono text-xs"
-                    />
-                  </Field>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-mono text-sm font-semibold tabular-nums">
+                      {status}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {reason}
+                    </span>
+                    {isCustom ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        className="ml-auto text-muted-foreground hover:text-foreground"
+                        onClick={() => clearRule(status)}
+                        disabled={isSaving}
+                      >
+                        Use default
+                      </Button>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="ml-auto text-[11px] font-normal text-muted-foreground"
+                      >
+                        Default
+                      </Badge>
+                    )}
+                  </div>
+
+                  <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
+
+                  <div className="mt-2.5 grid grid-cols-[1fr_1fr] gap-2">
+                    <div>
+                      <label
+                        htmlFor={`retry-attempts-${status}`}
+                        className="text-[11px] uppercase tracking-wide text-muted-foreground"
+                      >
+                        Retries
+                      </label>
+                      <NumberInput
+                        id={`retry-attempts-${status}`}
+                        className="mt-1"
+                        value={rule.attempts}
+                        onValueChange={(next) =>
+                          updateRule(status, { attempts: next })
+                        }
+                        min={0}
+                        max={20}
+                        step={1}
+                        fallback={fallback.attempts}
+                        placeholder={String(fallback.attempts)}
+                        disabled={isSaving}
+                        aria-label={`Retries for status ${status}`}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`retry-delay-${status}`}
+                        className="text-[11px] uppercase tracking-wide text-muted-foreground"
+                      >
+                        Delay
+                      </label>
+                      <NumberInput
+                        id={`retry-delay-${status}`}
+                        className="mt-1"
+                        value={rule.delaySec}
+                        onValueChange={(next) =>
+                          updateRule(status, {
+                            delaySec: next,
+                            // A row only counts as overridden when `attempts`
+                            // is filled in, so touching the delay alone would
+                            // be silently dropped on save. Promote the row.
+                            ...(isCustom
+                              ? {}
+                              : { attempts: String(fallback.attempts) }),
+                          })
+                        }
+                        min={0}
+                        max={3600}
+                        step={0.5}
+                        fallback={fallback.delayMs / 1000}
+                        placeholder={String(fallback.delayMs / 1000)}
+                        unit="s"
+                        disabled={isSaving || effective.attempts === 0}
+                        aria-label={`Delay in seconds for status ${status}`}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="mt-2 font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {formatRetryRule(effective.attempts, effective.delayMs)}
+                    <span aria-hidden> · </span>
+                    {formatWorstCase(effective.attempts, effective.delayMs)}
+                  </p>
                 </div>
-              ))}
+              );
+            })}
+          </div>
+
+          <div className="shrink-0">
+            <div className="flex gap-2 border-t border-border/60 bg-muted/20 px-5 py-3">
+              <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Delays are jittered ±25% to avoid retry storms. An upstream{" "}
+                <code className="rounded border border-border/60 bg-background/70 px-1 font-mono text-[10px]">
+                  Retry-After
+                </code>{" "}
+                header always wins over the configured delay.
+              </p>
             </div>
 
-            <Field>
-              <FieldDescription className="text-[11px]">
-                429 → none · 502 → 3× @ 3s · 503 → 3× @ 2s · 504 → 2× @ 3s.
-                Jittered ±25%; upstream{" "}
-                <code className="text-[10px]">Retry-After</code> wins.
-              </FieldDescription>
-            </Field>
-
             {error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Retry policy could not be saved</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="px-5 pt-4">
+                <Alert variant="destructive">
+                  <AlertTitle>Retry policy could not be saved</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              </div>
             ) : null}
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-border/60 px-5 py-4 sm:justify-between">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={() => void handleReset()}
                 disabled={isSaving}
+                className="text-muted-foreground hover:text-foreground"
               >
                 {isSaving ? (
                   <Spinner data-icon="inline-start" />
                 ) : (
                   <RotateCcwIcon data-icon="inline-start" />
                 )}
-                Reset to defaults
+                Reset all to defaults
               </Button>
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? (
@@ -232,7 +338,7 @@ export function RetryConfigDialog({
                 Save policy
               </Button>
             </DialogFooter>
-          </FieldGroup>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

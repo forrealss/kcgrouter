@@ -119,6 +119,11 @@ export function ProviderDetailModels({
     provider.transport === "qoder";
   const hasConnection = accounts.length > 0;
 
+  /**
+   * Sorted by name only — never by `enabled`. Sorting on the toggled field
+   * would reorder the list mid-click, making it look like a different row
+   * flipped than the one the user pressed.
+   */
   const visibleModels = useMemo(() => {
     const q = query.trim().toLowerCase();
     return models
@@ -131,10 +136,7 @@ export function ProviderDetailModels({
           model.modelName.toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => {
-        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-        return a.modelName.localeCompare(b.modelName);
-      });
+      .sort((a, b) => a.modelName.localeCompare(b.modelName));
   }, [models, filter, query]);
 
   async function handleAddModel() {
@@ -161,14 +163,14 @@ export function ProviderDetailModels({
       <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-5 py-4">
         <CardTitle className="flex items-center gap-2 text-base">
           Models
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-normal tabular-nums text-muted-foreground">
+          <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-xs font-normal tabular-nums text-muted-foreground">
             {models.length}
           </span>
         </CardTitle>
         <CardDescription>
           {models.length === 0
             ? "Register the models this provider should expose."
-            : `${enabledCount} enabled and routable right now.`}
+            : `${enabledCount} of ${models.length} routable right now.`}
         </CardDescription>
         <CardAction className="flex flex-wrap items-center gap-2">
           {canFetchModels && onFetchModels ? (
@@ -204,68 +206,68 @@ export function ProviderDetailModels({
         </CardAction>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4 px-5 py-4">
-        {isAddModelOpen ? (
-          <form
-            className="flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/5 p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleAddModel();
-            }}
-          >
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="flex-1">
-                <label
-                  htmlFor="new-model-id"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  Model ID
-                </label>
-                <Input
-                  id="new-model-id"
-                  placeholder="gpt-4o"
-                  value={newModelId}
-                  onChange={(e) => setNewModelId(e.target.value)}
-                  className="mt-1 font-mono text-sm"
-                />
-              </div>
-              <div className="flex-1">
-                <label
-                  htmlFor="new-model-name"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  Display name
-                </label>
-                <Input
-                  id="new-model-name"
-                  placeholder="GPT-4o"
-                  value={newModelName}
-                  onChange={(e) => setNewModelName(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <Button
-                type="submit"
-                size="sm"
-                className="self-end"
-                disabled={
-                  isAddingModel || !newModelId.trim() || !newModelName.trim()
-                }
+      {isAddModelOpen ? (
+        <form
+          className="flex flex-col gap-3 border-b border-primary/20 bg-primary/5 px-5 py-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleAddModel();
+          }}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex-1">
+              <label
+                htmlFor="new-model-id"
+                className="text-xs font-medium text-muted-foreground"
               >
-                {isAddingModel ? <Spinner data-icon="inline-start" /> : null}
-                Add model
-              </Button>
+                Model ID
+              </label>
+              <Input
+                id="new-model-id"
+                placeholder="gpt-4o"
+                value={newModelId}
+                onChange={(e) => setNewModelId(e.target.value)}
+                className="mt-1 font-mono text-sm"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Requests will route as{" "}
-              <code className="font-mono">
-                {provider.prefix}/{newModelId.trim() || "model-id"}
-              </code>
-            </p>
-          </form>
-        ) : null}
+            <div className="flex-1">
+              <label
+                htmlFor="new-model-name"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Display name
+              </label>
+              <Input
+                id="new-model-name"
+                placeholder="GPT-4o"
+                value={newModelName}
+                onChange={(e) => setNewModelName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              className="self-end"
+              disabled={
+                isAddingModel || !newModelId.trim() || !newModelName.trim()
+              }
+            >
+              {isAddingModel ? <Spinner data-icon="inline-start" /> : null}
+              Add model
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Requests will route as{" "}
+            <code className="font-mono">
+              {provider.prefix}/{newModelId.trim() || "model-id"}
+            </code>
+          </p>
+        </form>
+      ) : null}
 
-        {models.length === 0 ? (
+      {models.length === 0 ? (
+        <CardContent className="px-5 py-4">
           <Empty className="gap-4 border border-dashed bg-muted/10 p-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -281,193 +283,240 @@ export function ProviderDetailModels({
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
-        ) : (
-          <>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative sm:max-w-64">
-                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search models"
-                  aria-label="Search models"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="pl-8 text-sm"
-                />
-              </div>
-              <Tabs
-                value={filter}
-                onValueChange={(value) => setFilter(value as ModelFilter)}
-              >
-                <TabsList>
-                  <TabsTrigger value="all" className="text-xs">
-                    All {models.length}
-                  </TabsTrigger>
-                  <TabsTrigger value="enabled" className="text-xs">
-                    Enabled {enabledCount}
-                  </TabsTrigger>
-                  <TabsTrigger value="disabled" className="text-xs">
-                    Disabled {models.length - enabledCount}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+        </CardContent>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 border-b border-border/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative sm:max-w-64 sm:flex-1">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search models"
+                aria-label="Search models"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-8 text-sm"
+              />
             </div>
+            <Tabs
+              value={filter}
+              onValueChange={(value) => setFilter(value as ModelFilter)}
+            >
+              <TabsList>
+                <TabsTrigger value="all" className="gap-1.5 text-xs">
+                  All
+                  <span className="font-mono tabular-nums opacity-70">
+                    {models.length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="enabled" className="gap-1.5 text-xs">
+                  On
+                  <span className="font-mono tabular-nums opacity-70">
+                    {enabledCount}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="disabled" className="gap-1.5 text-xs">
+                  Off
+                  <span className="font-mono tabular-nums opacity-70">
+                    {models.length - enabledCount}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-            {visibleModels.length === 0 ? (
+          {visibleModels.length === 0 ? (
+            <CardContent className="px-5 py-4">
               <p className="rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                No models match “{query}”.
+                {query.trim()
+                  ? `No models match “${query.trim()}”.`
+                  : filter === "enabled"
+                    ? "No models are enabled yet."
+                    : "Every model is enabled."}
               </p>
-            ) : (
-              <TooltipProvider delayDuration={200}>
-                <ul className="flex flex-col divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70">
-                  {visibleModels.map((model) => {
-                    const routeId = `${provider.prefix}/${model.modelId}`;
-                    const isTesting = testingModelId === model.id;
-                    const testStatus = modelTestStatus[model.id];
+            </CardContent>
+          ) : (
+            <TooltipProvider delayDuration={200}>
+              <ul className="scrollbar-subtle flex max-h-[34rem] flex-col divide-y divide-border/60 overflow-y-auto">
+                {visibleModels.map((model) => {
+                  const routeId = `${provider.prefix}/${model.modelId}`;
+                  const isTesting = testingModelId === model.id;
+                  const testStatus = modelTestStatus[model.id];
 
-                    return (
-                      <li
-                        key={model.id}
-                        className={cn(
-                          "group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/25",
-                          !model.enabled && "bg-muted/10",
-                        )}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                  return (
+                    <li
+                      key={model.id}
+                      className={cn(
+                        "group relative flex items-center gap-3 py-2.5 pl-5 pr-3 transition-colors",
+                        "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:transition-colors",
+                        model.enabled
+                          ? "before:bg-emerald-500/80 hover:bg-emerald-500/[0.04] dark:before:shadow-[0_0_8px] dark:before:shadow-emerald-500/60"
+                          : "bg-muted/30 before:bg-transparent hover:bg-muted/50",
+                      )}
+                    >
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label
+                            htmlFor={`model-toggle-${model.id}`}
+                            className={cn(
+                              "flex shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border px-2 py-1.5 transition-colors",
+                              model.enabled
+                                ? "border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15"
+                                : "border-border bg-muted/60 hover:bg-muted",
+                            )}
+                          >
                             <Switch
+                              id={`model-toggle-${model.id}`}
                               checked={model.enabled}
                               onCheckedChange={() => onToggleModel(model)}
                               aria-label={`${model.enabled ? "Disable" : "Enable"} ${model.modelName}`}
+                              className="data-[state=checked]:border-emerald-600 data-[state=checked]:bg-emerald-500"
                             />
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "w-6 font-mono text-[11px] font-semibold tracking-wide",
+                                model.enabled
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {model.enabled ? "ON" : "OFF"}
+                            </span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {model.enabled
+                            ? "Routable — click to stop routing this model"
+                            : "Not routable — click to start routing this model"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-medium",
+                            !model.enabled && "text-muted-foreground",
+                          )}
+                        >
+                          {model.modelName}
+                        </p>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <p
+                            className="truncate font-mono text-xs text-muted-foreground"
+                            title={routeId}
+                          >
+                            {routeId}
+                          </p>
+                          <CopyButton
+                            value={routeId}
+                            label="model ID"
+                            className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                          />
+                        </div>
+                      </div>
+
+                      {model.contextLength ? (
+                        <Badge
+                          variant="outline"
+                          className="hidden shrink-0 font-mono text-[11px] font-normal tabular-nums text-muted-foreground sm:inline-flex"
+                        >
+                          {formatContext(model.contextLength)}
+                        </Badge>
+                      ) : null}
+
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleTestModel(model)}
+                              disabled={isTesting || !hasConnection}
+                            >
+                              {isTesting ? (
+                                <Spinner className="size-4" />
+                              ) : testStatus?.status === "ok" ? (
+                                <CheckCircleIcon className="size-4 text-emerald-500" />
+                              ) : testStatus?.status === "error" ? (
+                                <XCircleIcon className="size-4 text-destructive" />
+                              ) : (
+                                <FlaskConicalIcon className="size-4" />
+                              )}
+                              <span className="sr-only">
+                                Test {model.modelName}
+                              </span>
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {model.enabled
-                              ? "Enabled — stop routing to this model"
-                              : "Disabled — start routing to this model"}
+                            {!hasConnection
+                              ? "Add a connection first"
+                              : testStatus?.status === "ok"
+                                ? "Last test succeeded"
+                                : testStatus?.status === "error"
+                                  ? (testStatus.message ?? "Last test failed")
+                                  : "Send a probe request to this model"}
                           </TooltipContent>
                         </Tooltip>
 
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              "truncate text-sm font-medium",
-                              !model.enabled && "text-muted-foreground",
-                            )}
-                          >
-                            {model.modelName}
-                          </p>
-                          <div className="flex min-w-0 items-center gap-1">
-                            <p
-                              className="truncate font-mono text-xs text-muted-foreground"
-                              title={routeId}
-                            >
-                              {routeId}
-                            </p>
-                            <CopyButton
-                              value={routeId}
-                              label="model ID"
-                              className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-                            />
-                          </div>
-                        </div>
-
-                        {model.contextLength ? (
-                          <Badge
-                            variant="outline"
-                            className="hidden shrink-0 text-[11px] font-normal text-muted-foreground sm:inline-flex"
-                          >
-                            {formatContext(model.contextLength)}
-                          </Badge>
-                        ) : null}
-
-                        <div className="flex shrink-0 items-center gap-1">
+                        <AlertDialog>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => handleTestModel(model)}
-                                disabled={isTesting || !hasConnection}
-                              >
-                                {isTesting ? (
-                                  <Spinner className="size-4" />
-                                ) : testStatus?.status === "ok" ? (
-                                  <CheckCircleIcon className="size-4 text-emerald-500" />
-                                ) : testStatus?.status === "error" ? (
-                                  <XCircleIcon className="size-4 text-destructive" />
-                                ) : (
-                                  <FlaskConicalIcon className="size-4" />
-                                )}
-                                <span className="sr-only">
-                                  Test {model.modelName}
-                                </span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {!hasConnection
-                                ? "Add a connection first"
-                                : testStatus?.status === "ok"
-                                  ? "Last test succeeded"
-                                  : testStatus?.status === "error"
-                                    ? (testStatus.message ?? "Last test failed")
-                                    : "Send a probe request to this model"}
-                            </TooltipContent>
-                          </Tooltip>
-
-                          <AlertDialog>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                  >
-                                    <Trash2Icon className="size-4" />
-                                    <span className="sr-only">
-                                      Delete {model.modelName}
-                                    </span>
-                                  </Button>
-                                </AlertDialogTrigger>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete model</TooltipContent>
-                            </Tooltip>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Delete {model.modelName}?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Requests to{" "}
-                                  <code className="font-mono">{routeId}</code>{" "}
-                                  will stop resolving. You can add it back
-                                  later.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Keep it</AlertDialogCancel>
-                                <AlertDialogAction
-                                  variant="destructive"
-                                  onClick={() => onDeleteModel(model.id)}
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 >
-                                  Delete model
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </TooltipProvider>
-            )}
-          </>
-        )}
-      </CardContent>
+                                  <Trash2Icon className="size-4" />
+                                  <span className="sr-only">
+                                    Delete {model.modelName}
+                                  </span>
+                                </Button>
+                              </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete model</TooltipContent>
+                          </Tooltip>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Delete {model.modelName}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Requests to{" "}
+                                <code className="font-mono">{routeId}</code>{" "}
+                                will stop resolving. You can add it back later.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep it</AlertDialogCancel>
+                              <AlertDialogAction
+                                variant="destructive"
+                                onClick={() => onDeleteModel(model.id)}
+                              >
+                                Delete model
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {visibleModels.length !== models.length ? (
+                <div className="border-t border-border/60 bg-muted/20 px-5 py-2">
+                  <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {visibleModels.length} of {models.length} shown
+                  </p>
+                </div>
+              ) : null}
+            </TooltipProvider>
+          )}
+        </>
+      )}
 
       {canFetchModels &&
       onFetchModels &&

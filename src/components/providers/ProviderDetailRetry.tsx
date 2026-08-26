@@ -11,30 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatRetryRule, RETRY_STATUSES } from "@/lib/retry-defaults";
 import { cn } from "@/lib/utils";
 import type { Provider, RetryConfig } from "@/types/provider";
-
-/** Status codes the global retry policy handles, with what each one means. */
-const STATUS_ROWS = [
-  { status: 429, reason: "Rate limited" },
-  { status: 502, reason: "Bad gateway" },
-  { status: 503, reason: "Unavailable" },
-  { status: 504, reason: "Gateway timeout" },
-] as const;
-
-const DEFAULT_LABELS: Record<number, string> = {
-  429: "Fail over immediately",
-  502: "3 retries, 3s apart",
-  503: "3 retries, 2s apart",
-  504: "2 retries, 3s apart",
-};
-
-function formatRule(attempts: number, delayMs: number): string {
-  if (attempts === 0) return "Fail over immediately";
-  const seconds = delayMs / 1000;
-  const delay = seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1);
-  return `${attempts} ${attempts === 1 ? "retry" : "retries"}, ${delay}s apart`;
-}
 
 interface ProviderDetailRetryProps {
   provider: Provider;
@@ -57,7 +36,10 @@ export function ProviderDetailRetry({
           <CardTitle className="flex items-center gap-2 text-base">
             Retry policy
             {overrideCount > 0 ? (
-              <Badge variant="secondary" className="text-[11px]">
+              <Badge
+                variant="secondary"
+                className="font-mono text-[11px] tabular-nums"
+              >
                 {overrideCount} custom
               </Badge>
             ) : null}
@@ -78,14 +60,21 @@ export function ProviderDetailRetry({
           </CardAction>
         </CardHeader>
 
-        <CardContent className="px-5 py-2">
+        <CardContent className="px-0 py-0">
           <dl className="divide-y divide-border/60">
-            {STATUS_ROWS.map(({ status, reason }) => {
+            {RETRY_STATUSES.map(({ status, reason, fallback }) => {
               const rule = provider.retryConfig?.[status];
+              const effective = rule ?? fallback;
               return (
                 <div
                   key={status}
-                  className="flex items-center justify-between gap-3 py-2.5"
+                  className={cn(
+                    "relative flex items-center justify-between gap-3 px-5 py-2.5",
+                    "before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
+                    rule
+                      ? "bg-primary/[0.04] before:bg-primary/70"
+                      : "before:bg-transparent",
+                  )}
                 >
                   <dt className="flex min-w-0 items-baseline gap-2">
                     <span className="font-mono text-sm font-medium tabular-nums">
@@ -97,15 +86,13 @@ export function ProviderDetailRetry({
                   </dt>
                   <dd
                     className={cn(
-                      "shrink-0 text-xs",
+                      "shrink-0 font-mono text-[11px] tabular-nums",
                       rule
                         ? "font-medium text-foreground"
                         : "text-muted-foreground",
                     )}
                   >
-                    {rule
-                      ? formatRule(rule.attempts, rule.delayMs)
-                      : DEFAULT_LABELS[status]}
+                    {formatRetryRule(effective.attempts, effective.delayMs)}
                   </dd>
                 </div>
               );

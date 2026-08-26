@@ -1,8 +1,10 @@
 import {
   ActivityIcon,
   BoxesIcon,
+  KeyRoundIcon,
   PlusIcon,
   RefreshCwIcon,
+  SearchIcon,
   ServerIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -25,20 +27,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useProviders } from "@/hooks/useProviders";
 import { useRouter } from "@/hooks/useRouter";
 import { getLatestAccountError } from "@/lib/provider-errors";
+import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
+import type { Provider, ProviderAccount } from "@/types/provider";
 
 function InventoryMetric({
   label,
   value,
+  hint,
   icon: Icon,
   tone = "neutral",
 }: {
   label: string;
   value: string;
+  hint?: string;
   icon: typeof ServerIcon;
   tone?: "neutral" | "ok" | "bad";
 }) {
@@ -61,9 +68,64 @@ function InventoryMetric({
         <p className="truncate font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
-        <p className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
-          {value}
+        <p className="flex items-baseline gap-1.5">
+          <span className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
+            {value}
+          </span>
+          {hint ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {hint}
+            </span>
+          ) : null}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function ProviderGroup({
+  title,
+  providers,
+  accountsFor,
+  onOpen,
+  onDelete,
+}: {
+  title: string;
+  providers: Provider[];
+  accountsFor: (providerId: string) => ProviderAccount[];
+  onOpen: (providerId: string) => void;
+  onDelete?: () => void;
+}) {
+  if (providers.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+          {title}
+        </h3>
+        <span className="h-px flex-1 bg-border/60" aria-hidden />
+        <Badge
+          variant="secondary"
+          className="font-mono text-[10px] tabular-nums"
+        >
+          {providers.length}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {providers.map((provider) => {
+          const providerAccounts = accountsFor(provider.id);
+          return (
+            <ProviderCard
+              key={provider.id}
+              provider={provider}
+              accounts={providerAccounts}
+              onClick={() => onOpen(provider.id)}
+              onDelete={onDelete}
+              lastError={getLatestAccountError(providerAccounts)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -74,9 +136,8 @@ export function ProvidersPage() {
     useProviders();
   const { navigate } = useRouter();
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-  const builtinProviders = providers?.filter((p) => p.isBuiltin) ?? [];
-  const customProviders = providers?.filter((p) => !p.isBuiltin) ?? [];
   const inventory = useMemo(() => {
     const allAccounts = Object.values(accounts).flatMap(
       (state) => state.accounts ?? [],
@@ -90,16 +151,39 @@ export function ProvidersPage() {
     };
   }, [accounts]);
 
-  function handleProviderClick(providerId: string) {
-    navigate(`/providers/${providerId}`);
-  }
+  const filtered = useMemo(() => {
+    if (!providers) return null;
+    const q = query.trim().toLowerCase();
+    if (!q) return providers;
+    return providers.filter(
+      (provider) =>
+        provider.name.toLowerCase().includes(q) ||
+        provider.prefix.toLowerCase().includes(q) ||
+        provider.baseUrl.toLowerCase().includes(q) ||
+        transportMeta[provider.transport].label.toLowerCase().includes(q),
+    );
+  }, [providers, query]);
+
+  const builtinProviders = filtered?.filter((p) => p.isBuiltin) ?? [];
+  const customProviders = filtered?.filter((p) => !p.isBuiltin) ?? [];
+  const accountsFor = (providerId: string) =>
+    accounts[providerId]?.accounts ?? [];
 
   return (
     <section className="flex min-w-0 flex-col gap-5">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Upstream endpoints and their connections.
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative sm:max-w-72 sm:flex-1">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search providers"
+            aria-label="Search providers"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="pl-8"
+            disabled={!providers || providers.length === 0}
+          />
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -124,21 +208,35 @@ export function ProvidersPage() {
       <EncryptionMismatchAlert />
 
       <Card className="!py-0 overflow-hidden">
-        <div className="grid gap-px bg-border/60 sm:grid-cols-3 [&>*]:bg-card">
+        <div className="grid gap-px bg-border/60 sm:grid-cols-2 lg:grid-cols-4 [&>*]:bg-card">
           <InventoryMetric
             label="Providers"
             value={String(providers?.length ?? 0)}
+            hint="upstreams"
             icon={ServerIcon}
           />
           <InventoryMetric
-            label="Active connections"
+            label="Connections"
+            value={String(inventory.connections)}
+            hint="credentials"
+            icon={KeyRoundIcon}
+          />
+          <InventoryMetric
+            label="Active"
             value={`${inventory.active}/${inventory.connections}`}
+            hint="serving traffic"
             icon={ActivityIcon}
-            tone="ok"
+            tone={
+              inventory.connections > 0 &&
+              inventory.active === inventory.connections
+                ? "ok"
+                : "neutral"
+            }
           />
           <InventoryMetric
             label="Errors"
             value={String(inventory.errors)}
+            hint={inventory.errors > 0 ? "need attention" : "all clear"}
             icon={TriangleAlertIcon}
             tone={inventory.errors > 0 ? "bad" : "neutral"}
           />
@@ -163,6 +261,7 @@ export function ProvidersPage() {
             <ProviderCardSkeleton />
             <ProviderCardSkeleton />
             <ProviderCardSkeleton />
+            <ProviderCardSkeleton />
           </div>
         ) : null
       ) : providers.length === 0 ? (
@@ -183,60 +282,42 @@ export function ProvidersPage() {
             </Button>
           </EmptyContent>
         </Empty>
+      ) : filtered && filtered.length === 0 ? (
+        <Empty className="min-h-48 border border-dashed bg-card/60">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <SearchIcon />
+            </EmptyMedia>
+            <EmptyTitle>No providers match “{query.trim()}”</EmptyTitle>
+            <EmptyDescription>
+              Searches cover name, prefix, base URL, and transport.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setQuery("")}
+            >
+              Clear search
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-6">
-          {builtinProviders.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  Built-in transports
-                </h3>
-                <Badge variant="secondary" className="font-mono text-[10px]">
-                  {builtinProviders.length}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {builtinProviders.map((provider) => (
-                  <ProviderCard
-                    key={provider.id}
-                    provider={provider}
-                    accounts={accounts[provider.id]?.accounts ?? []}
-                    onClick={() => handleProviderClick(provider.id)}
-                    lastError={getLatestAccountError(
-                      accounts[provider.id]?.accounts ?? [],
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {customProviders.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  Custom upstreams
-                </h3>
-                <Badge variant="secondary" className="font-mono text-[10px]">
-                  {customProviders.length}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {customProviders.map((provider) => (
-                  <ProviderCard
-                    key={provider.id}
-                    provider={provider}
-                    accounts={accounts[provider.id]?.accounts ?? []}
-                    onClick={() => handleProviderClick(provider.id)}
-                    onDelete={refreshProviders}
-                    lastError={getLatestAccountError(
-                      accounts[provider.id]?.accounts ?? [],
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <ProviderGroup
+            title="Built-in transports"
+            providers={builtinProviders}
+            accountsFor={accountsFor}
+            onOpen={(id) => navigate(`/providers/${id}`)}
+          />
+          <ProviderGroup
+            title="Custom upstreams"
+            providers={customProviders}
+            accountsFor={accountsFor}
+            onOpen={(id) => navigate(`/providers/${id}`)}
+            onDelete={refreshProviders}
+          />
         </div>
       )}
 
@@ -244,6 +325,7 @@ export function ProvidersPage() {
         open={isProviderDialogOpen}
         onOpenChange={setIsProviderDialogOpen}
         onSaved={() => refreshProviders()}
+        existingProviders={providers ?? []}
       />
     </section>
   );

@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { useSseEvent, useSseStatus } from "@/lib/sse-bus";
 import type {
   ConnectionStatus,
   LogsStats,
@@ -67,15 +68,15 @@ export function useLogs() {
     void loadLogs();
   }, [loadLogs]);
 
-  useEffect(() => {
-    const eventSource = new EventSource("/api/events");
-    const onLogNew = () => {
-      setLiveAnnouncement(
-        `New log entry received at ${new Date().toLocaleTimeString("en-US")}.`,
-      );
-      void loadLogs(false);
-    };
-    const onAccountCooldown = (e: MessageEvent) => {
+  const onLogNew = useCallback(() => {
+    setLiveAnnouncement(
+      `New log entry received at ${new Date().toLocaleTimeString("en-US")}.`,
+    );
+    void loadLogs(false);
+  }, [loadLogs]);
+
+  const onAccountCooldown = useCallback(
+    (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data) as {
           message?: string;
@@ -91,25 +92,25 @@ export function useLogs() {
         // ignore malformed frames
       }
       void loadLogs(false);
-    };
-    const onAccountRecovered = () => {
-      setLiveAnnouncement(
-        `Account cooldown expired at ${new Date().toLocaleTimeString("en-US")}.`,
-      );
-      void loadLogs(false);
-    };
+    },
+    [loadLogs],
+  );
 
-    setConnectionStatus("connecting");
-    eventSource.addEventListener("log:new", onLogNew);
-    eventSource.addEventListener("account:cooldown", onAccountCooldown);
-    eventSource.addEventListener("account:recovered", onAccountRecovered);
-    eventSource.onopen = () => setConnectionStatus("live");
-    eventSource.onerror = () => setConnectionStatus("offline");
-
-    return () => {
-      eventSource.close();
-    };
+  const onAccountRecovered = useCallback(() => {
+    setLiveAnnouncement(
+      `Account cooldown expired at ${new Date().toLocaleTimeString("en-US")}.`,
+    );
+    void loadLogs(false);
   }, [loadLogs]);
+
+  useSseEvent("log:new", onLogNew);
+  useSseEvent("account:cooldown", onAccountCooldown);
+  useSseEvent("account:recovered", onAccountRecovered);
+
+  const sseStatus = useSseStatus();
+  useEffect(() => {
+    setConnectionStatus(sseStatus);
+  }, [sseStatus]);
 
   async function handleOpenLog(log: RequestLog) {
     if (log.type !== "request" && log.type !== "success") return;

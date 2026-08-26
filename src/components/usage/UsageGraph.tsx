@@ -34,6 +34,13 @@ const ZOOM_KEY = "ug-zoom-level";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
+// Small overshoot so the cat "pops" in with a little bounce instead of
+// just scaling up linearly.
+const easeOutBack = (t: number) => {
+  const c1 = 1.7;
+  const c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+};
 
 function randomPath(
   hx: number,
@@ -69,71 +76,112 @@ function bezierPoint(
   return { x, y, ang: Math.atan2(dy, dx) };
 }
 
+/**
+ * A single gentle S-curve from the hub to a node — like a loose cable
+ * swaying once, not a taut straight line and not a tight zigzag. Built as
+ * one smooth cubic bezier with two control points offset to opposite sides
+ * of the midline, so the line eases out one way then back the other.
+ */
 function wavyPath(
   hx: number,
   hy: number,
   ex: number,
   ey: number,
-  waves: number,
-  amp: number,
+  swayAmp: number,
 ): string {
   const dx = ex - hx,
     dy = ey - hy;
   const dist = Math.hypot(dx, dy) || 1;
   const nx = -dy / dist,
     ny = dx / dist;
-  const steps = waves * 10;
-  let d = `M ${hx.toFixed(2)} ${hy.toFixed(2)}`;
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const bx = hx + dx * t,
-      by = hy + dy * t;
-    const off = Math.sin(t * Math.PI * 2 * waves) * amp;
-    d += ` L ${(bx + nx * off).toFixed(2)} ${(by + ny * off).toFixed(2)}`;
-  }
-  return d;
+  // control points at 1/3 and 2/3 along the line, bowed to opposite sides
+  const c1x = hx + dx * 0.33 + nx * swayAmp;
+  const c1y = hy + dy * 0.33 + ny * swayAmp;
+  const c2x = hx + dx * 0.67 - nx * swayAmp;
+  const c2y = hy + dy * 0.67 - ny * swayAmp;
+  return `M ${hx.toFixed(2)} ${hy.toFixed(2)} C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${ex.toFixed(2)} ${ey.toFixed(2)}`;
 }
 
+/**
+ * Chibi-style delivery cat: oversized round head, big eyes with pupils and a
+ * highlight dot, whiskers, small paws, and a longer expressive tail. Drawn
+ * on a 64x64 canvas (bigger head-to-body ratio than the old design).
+ */
 function catSVG(color: string): string {
   return `<div class="ug-cat-rot">
   <div class="ug-laser-lead"><div class="ug-laser-tail"></div><div class="ug-laser-dot"></div></div>
-  <svg viewBox="0 0 54 54" width="54" height="54">
-    <g class="ug-leg ug-leg-fl" style="transform-origin:50% 0%"><rect x="15" y="20" width="3.2" height="11" rx="1.6" fill="var(--ug-cat-leg)"/></g>
-    <g class="ug-leg ug-leg-fr" style="transform-origin:50% 0%"><rect x="34" y="20" width="3.2" height="11" rx="1.6" fill="var(--ug-cat-leg)"/></g>
-    <g class="ug-leg ug-leg-bl" style="transform-origin:50% 0%"><rect x="16" y="30" width="3.2" height="12" rx="1.6" fill="var(--ug-cat-leg-dark)"/></g>
-    <g class="ug-leg ug-leg-br" style="transform-origin:50% 0%"><rect x="33" y="30" width="3.2" height="12" rx="1.6" fill="var(--ug-cat-leg-dark)"/></g>
-    <g class="ug-tail"><path d="M27 41 C27 47, 33 49, 36 45" stroke="${color}" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+  <svg viewBox="0 0 64 64" width="64" height="64">
+    <ellipse class="ug-cat-shadow" cx="32" cy="53" rx="12" ry="3"/>
+    <g class="ug-leg ug-leg-fl" style="transform-origin:50% 0%"><rect x="20" y="38" width="4" height="10" rx="2" fill="var(--ug-cat-leg)"/></g>
+    <g class="ug-leg ug-leg-fr" style="transform-origin:50% 0%"><rect x="40" y="38" width="4" height="10" rx="2" fill="var(--ug-cat-leg)"/></g>
+    <g class="ug-leg ug-leg-bl" style="transform-origin:50% 0%"><rect x="17" y="41" width="4.2" height="10" rx="2.1" fill="var(--ug-cat-leg-dark)"/></g>
+    <g class="ug-leg ug-leg-br" style="transform-origin:50% 0%"><rect x="43" y="41" width="4.2" height="10" rx="2.1" fill="var(--ug-cat-leg-dark)"/></g>
+    <g class="ug-tail"><path d="M40 43 C48 43, 53 38, 51 30 C50 25, 45 25, 45 30" stroke="${color}" stroke-width="4" fill="none" stroke-linecap="round"/></g>
     <g class="ug-cat-body">
-      <ellipse cx="27" cy="30" rx="10.5" ry="13" fill="var(--ug-cat-fill)" stroke="${color}" stroke-width="1.4"/>
-      <path d="M20 15 L18 8 L24.5 12 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.1"/>
-      <path d="M34 15 L36 8 L29.5 12 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.1"/>
-      <circle cx="27" cy="16" r="8.4" fill="var(--ug-cat-fill-darker)" stroke="${color}" stroke-width="1.4"/>
-      <g class="ug-eyes">
-        <circle cx="24" cy="15" r="1.5" fill="${color}"/>
-        <circle cx="30" cy="15" r="1.5" fill="${color}"/>
+      <!-- body: small round belly, mostly hidden behind the oversized head -->
+      <ellipse cx="32" cy="42" rx="13" ry="10" fill="var(--ug-cat-fill)" stroke="${color}" stroke-width="1.4"/>
+      <!-- ears -->
+      <path d="M18 20 L14 8 L26 16 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.2"/>
+      <path d="M18.5 17.5 L16.5 11 L23 15.5 Z" fill="var(--ug-cat-fill-darker)"/>
+      <path d="M46 20 L50 8 L38 16 Z" fill="var(--ug-cat-fill-dark)" stroke="${color}" stroke-width="1.2"/>
+      <path d="M45.5 17.5 L47.5 11 L41 15.5 Z" fill="var(--ug-cat-fill-darker)"/>
+      <!-- oversized round head -->
+      <circle cx="32" cy="26" r="16" fill="var(--ug-cat-fill-darker)" stroke="${color}" stroke-width="1.5"/>
+      <!-- whiskers -->
+      <g class="ug-whiskers" stroke="${color}" stroke-width="0.8" stroke-linecap="round" opacity="0.7">
+        <path d="M15 27 L6 25" />
+        <path d="M15 30 L6 30" />
+        <path d="M15 33 L6 35" />
+        <path d="M49 27 L58 25" />
+        <path d="M49 30 L58 30" />
+        <path d="M49 33 L58 35" />
       </g>
-      <path d="M25.6 18.6 q1.4 1.4 2.8 0" stroke="${color}" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <!-- big eyes with pupils + highlight -->
+      <g class="ug-eyes">
+        <circle cx="25.5" cy="25" r="4.2" fill="white" fill-opacity="0.92"/>
+        <circle cx="38.5" cy="25" r="4.2" fill="white" fill-opacity="0.92"/>
+        <circle cx="26.3" cy="26" r="2.5" fill="${color}"/>
+        <circle cx="39.3" cy="26" r="2.5" fill="${color}"/>
+        <circle cx="25.2" cy="24.3" r="0.9" fill="white"/>
+        <circle cx="38.2" cy="24.3" r="0.9" fill="white"/>
+      </g>
+      <!-- tiny nose + mouth -->
+      <path d="M31 30.5 L33 30.5 L32 32 Z" fill="${color}" opacity="0.85"/>
+      <path d="M29 33.5 q3 2.4 6 0" stroke="${color}" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <!-- blush -->
+      <circle cx="21" cy="30" r="2.1" fill="${color}" opacity="0.18"/>
+      <circle cx="43" cy="30" r="2.1" fill="${color}" opacity="0.18"/>
     </g>
+    <!-- front paws peeking below the body -->
+    <ellipse cx="26" cy="49" rx="3.4" ry="2.6" fill="var(--ug-cat-fill)" stroke="${color}" stroke-width="1"/>
+    <ellipse cx="38" cy="49" rx="3.4" ry="2.6" fill="var(--ug-cat-fill)" stroke="${color}" stroke-width="1"/>
   </svg></div>`;
 }
 
 import "./UsageGraph.css";
 
-function transportIcon(transport: string): string {
-  switch (transport) {
-    case "openai":
-      return "◎";
-    case "anthropic":
-      return "✳";
-    case "gemini":
-      return "✦";
-    case "kiro":
-      return "◆";
-    case "command-code":
-      return "⌘";
-    default:
-      return "●";
+const TRANSPORT_LOGO: Record<string, string> = {
+  openai: "/images/providers/openai.svg",
+  anthropic: "/images/providers/anthropic.svg",
+  kiro: "/images/providers/kiro.svg",
+  "command-code": "/images/providers/command-code.svg",
+  mimo: "/images/providers/xiaomimimo.svg",
+  qoder: "/images/providers/qoder.svg",
+};
+
+/**
+ * Real provider logo where an asset exists, otherwise a small glyph
+ * fallback (gemini has no bundled icon). Wrapped in an `.ug-logo-bg` chip
+ * so single-color/black logos (Anthropic, Command Code) stay legible
+ * against the dark node background.
+ */
+function transportIconHtml(transport: string): string {
+  const logo = TRANSPORT_LOGO[transport];
+  if (logo) {
+    return `<span class="ug-logo-bg"><img src="${logo}" alt="" class="ug-logo-img" /></span>`;
   }
+  const glyph = transport === "gemini" ? "✦" : "●";
+  return `<span class="ug-ico-text">${glyph}</span>`;
 }
 
 function readZoom(): number {
@@ -151,10 +199,16 @@ function readZoom(): number {
 interface NodeMapEntry {
   el: HTMLDivElement;
   pathEl: SVGPathElement;
+  pathD: string;
   px: number;
   py: number;
   color: string;
+  particles: HTMLDivElement[];
 }
+
+const PARTICLE_COUNT = 3;
+const PARTICLE_DURATIONS_MS = [2000, 2500, 3000];
+const PARTICLE_DELAYS_MS = [0, 800, 1600];
 
 export function UsageGraph({ height }: { height?: number } = {}) {
   const { nodes, loading, error, reload, onRequest } = useUsageGraph();
@@ -247,13 +301,17 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     };
   }, [pan.x, pan.y]);
 
-  // cleanup edge timers on unmount
+  // cleanup edge timers + any live particle dots on unmount
   useEffect(() => {
     return () => {
       for (const timer of edgeTimersRef.current.values()) {
         clearTimeout(timer);
       }
       edgeTimersRef.current.clear();
+      for (const entry of nodeMapRef.current.values()) {
+        for (const dot of entry.particles) dot.remove();
+        entry.particles = [];
+      }
     };
   }, []);
 
@@ -277,16 +335,44 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     svg.setAttribute("preserveAspectRatio", "none");
     wrap.appendChild(svg);
 
-    // hub
+    // a handful of faint drifting dots for ambient atmosphere — purely
+    // decorative, positioned randomly and never touched again after this
+    for (let i = 0; i < 4; i++) {
+      const dot = document.createElement("div");
+      dot.className = "ug-bg-particle";
+      const size = 2 + Math.random() * 2;
+      dot.style.width = `${size}px`;
+      dot.style.height = `${size}px`;
+      dot.style.left = `${10 + Math.random() * 80}%`;
+      dot.style.top = `${10 + Math.random() * 80}%`;
+      dot.style.setProperty("--ug-drift-x", `${(Math.random() - 0.5) * 16}px`);
+      dot.style.setProperty("--ug-drift-y", `${(Math.random() - 0.5) * 24}px`);
+      dot.style.animationDuration = `${8 + Math.random() * 4}s`;
+      dot.style.animationDelay = `${Math.random() * 4}s`;
+      wrap.appendChild(dot);
+    }
+
+    // hub — heartbeat rings pulse outward continuously; paw print replaces
+    // the emoji for consistent rendering across platforms.
     const hubEl = document.createElement("div");
     hubEl.className = "ug-node ug-hub";
     hubEl.style.left = `${HUB.x}%`;
     hubEl.style.top = `${HUB.y}%`;
     hubEl.style.setProperty("--ug-nc", "#f5a623");
-    hubEl.innerHTML = `<div class="ug-hub-text">
-      <div class="ug-hub-emoji">🐾</div>
-      <div class="ug-hub-sub">KCG Router</div>
-    </div>`;
+    hubEl.innerHTML = `
+      <span class="ug-hub-ring ug-ring-1"></span>
+      <span class="ug-hub-ring ug-ring-2"></span>
+      <span class="ug-hub-ring ug-ring-3"></span>
+      <div class="ug-hub-text">
+        <svg class="ug-hub-paw" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <ellipse cx="12" cy="16.5" rx="5.2" ry="4.4"/>
+          <ellipse cx="5.4" cy="10.2" rx="2.4" ry="3"/>
+          <ellipse cx="18.6" cy="10.2" rx="2.4" ry="3"/>
+          <ellipse cx="8.6" cy="5.6" rx="2.1" ry="2.7"/>
+          <ellipse cx="15.4" cy="5.6" rx="2.1" ry="2.7"/>
+        </svg>
+        <div class="ug-hub-sub">KCG Router</div>
+      </div>`;
     wrap.appendChild(hubEl);
 
     // nodes + edges
@@ -302,7 +388,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       el.style.top = `${py}%`;
       el.style.setProperty("--ug-nc", n.color);
       el.innerHTML = `<div class="ug-row">
-        <div class="ug-ico"><span class="ug-ico-text">${transportIcon(n.transport)}</span></div>
+        <div class="ug-ico">${transportIconHtml(n.transport)}</div>
         <div><div class="ug-lb">${n.label}</div><div class="ug-sb">${n.sub}</div></div>
       </div>`;
       wrap.appendChild(el);
@@ -311,11 +397,14 @@ export function UsageGraph({ height }: { height?: number } = {}) {
         "http://www.w3.org/2000/svg",
         "path",
       );
+      // slight per-edge variance so cables don't all sway identically
+      const sway = 6 + Math.random() * 4;
+      const pathD = wavyPath(HUB.x, HUB.y, px, py, sway);
       path.setAttribute(
         "class",
         `ug-edge-line${muted ? " ug-edge-muted" : ""}`,
       );
-      path.setAttribute("d", wavyPath(HUB.x, HUB.y, px, py, 6, 2.2));
+      path.setAttribute("d", pathD);
       path.setAttribute("stroke", n.color);
       svg.appendChild(path);
 
@@ -323,9 +412,11 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       nodeMapRef.current.set(n.id, {
         el,
         pathEl: path,
+        pathD,
         px,
         py,
         color: n.color,
+        particles: [],
       });
     }
   }, [nodes, loading, error]);
@@ -342,6 +433,10 @@ export function UsageGraph({ height }: { height?: number } = {}) {
     function spawnCat(nodeId: string) {
       const info = nodeMapRef.current.get(nodeId);
       if (!info) return;
+      // captured as a plain string so nested closures don't need to
+      // re-narrow `info` (TS doesn't carry narrowing across function
+      // declaration boundaries).
+      const catColor = info.color;
       const wrap = graphWrapRef.current;
       if (!wrap) return;
       const rW = wrap.offsetWidth;
@@ -366,27 +461,58 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       const rot = cat.querySelector<HTMLElement>(".ug-cat-rot");
       if (rot) rot.style.transform = "rotate(90deg)";
 
+      const CAT_HALF = 32;
       const place = (x: number, y: number, sc: number, op: number) => {
-        cat.style.transform = `translate(${x - 27}px,${y - 27}px) scale(${sc})`;
+        cat.style.transform = `translate(${x - CAT_HALF}px,${y - CAT_HALF}px) scale(${sc})`;
         cat.style.opacity = String(op);
       };
+
+      // faint afterimage dropped periodically while walking
+      let lastTrailAt = 0;
+      function dropTrail(x: number, y: number, angleDeg: number) {
+        const now = performance.now();
+        if (now - lastTrailAt < 90) return;
+        lastTrailAt = now;
+        const trail = document.createElement("div");
+        trail.className = "ug-trail";
+        trail.style.transform = `translate(${x - CAT_HALF}px,${y - CAT_HALF}px) rotate(${angleDeg}deg)`;
+        // strip the laser-pointer overlay so afterimages don't stack red dots
+        trail.innerHTML = catSVG(catColor).replace(
+          /<div class="ug-laser-lead">.*?<\/div><\/div>/s,
+          "",
+        );
+        wrap?.appendChild(trail);
+        trail.addEventListener("animationend", () => trail.remove(), {
+          once: true,
+        });
+        setTimeout(() => trail.remove(), 600);
+      }
 
       function laserImpact(x: number, y: number) {
         const fx = document.createElement("div");
         fx.className = "ug-impact ug-impact-play";
         fx.style.left = `${x}px`;
         fx.style.top = `${y}px`;
+        fx.style.setProperty("--ug-impact-color", catColor);
+        fx.innerHTML = `
+          <div class="ug-impact-core"></div>
+          <div class="ug-impact-ring ug-ir-1"></div>
+          <div class="ug-impact-ring ug-ir-2"></div>
+          <div class="ug-impact-ring ug-ir-3"></div>
+          <div class="ug-sparkle" style="--ug-sx:16px;--ug-sy:-12px"></div>
+          <div class="ug-sparkle" style="--ug-sx:-16px;--ug-sy:-10px"></div>
+          <div class="ug-sparkle" style="--ug-sx:14px;--ug-sy:13px"></div>
+          <div class="ug-sparkle" style="--ug-sx:-13px;--ug-sy:14px"></div>`;
         wrap?.appendChild(fx);
         const cleanup = () => fx.remove();
-        fx.addEventListener("animationend", cleanup, { once: true });
-        setTimeout(cleanup, 600);
+        setTimeout(cleanup, 700);
       }
 
       const T0 = performance.now();
-      const POP = 180;
+      const POP = 220;
       const pop = (now: number) => {
         const t = Math.min(1, (now - T0) / POP);
-        place(hx, hy, 0.4 + 0.6 * easeOut(t), t);
+        place(hx, hy, 0.3 + 0.75 * easeOutBack(t), Math.min(1, t * 1.4));
         if (t < 1) requestAnimationFrame(pop);
         else walk();
       };
@@ -399,8 +525,8 @@ export function UsageGraph({ height }: { height?: number } = {}) {
           const t = Math.min(1, (now - t0) / dur);
           const e = easeOut(t);
           const p = bezierPoint(e, hx, hy, cx, cy, ex, ey);
-          if (rot)
-            rot.style.transform = `rotate(${(p.ang * 180) / Math.PI + 90}deg)`;
+          const angleDeg = (p.ang * 180) / Math.PI + 90;
+          if (rot) rot.style.transform = `rotate(${angleDeg}deg)`;
           let scale = 1,
             op = 1;
           if (t > ENTER_AT) {
@@ -409,6 +535,7 @@ export function UsageGraph({ height }: { height?: number } = {}) {
             op = 1 - 0.45 * et;
           }
           place(p.x, p.y, scale, op);
+          if (t < 0.85) dropTrail(p.x, p.y, angleDeg);
           if (t < 1) requestAnimationFrame(step);
           else vanish(p.x, p.y, scale, op);
         };
@@ -463,6 +590,30 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       if (info) info.el.classList.remove("ug-streaming");
     }
 
+    // Small glowing dots that ride the same wavy path as the edge line,
+    // giving the "data flowing" feel real motion instead of just a dash
+    // offset animation.
+    function spawnEdgeParticles(info: NodeMapEntry) {
+      if (info.particles.length > 0) return;
+      const wrap = graphWrapRef.current;
+      if (!wrap) return;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const dot = document.createElement("div");
+        dot.className = "ug-edge-particle";
+        dot.style.setProperty("--ug-nc", info.color);
+        dot.style.offsetPath = `path("${info.pathD}")`;
+        dot.style.animationDuration = `${PARTICLE_DURATIONS_MS[i] ?? 2500}ms`;
+        dot.style.animationDelay = `${PARTICLE_DELAYS_MS[i] ?? 0}ms`;
+        wrap.appendChild(dot);
+        info.particles.push(dot);
+      }
+    }
+
+    function clearEdgeParticles(info: NodeMapEntry) {
+      for (const dot of info.particles) dot.remove();
+      info.particles = [];
+    }
+
     sendCatRef.current = (nodeId: string) => {
       const info = nodeMapRef.current.get(nodeId);
       if (!info) return;
@@ -474,15 +625,17 @@ export function UsageGraph({ height }: { height?: number } = {}) {
       );
       info.el.classList.add("ug-streaming");
 
-      // activate edge animation
+      // activate edge animation + particle flow
       if (info.pathEl && !info.pathEl.classList.contains("ug-edge-muted")) {
         info.pathEl.classList.add("ug-active");
+        spawnEdgeParticles(info);
         const existing = edgeTimersRef.current.get(nodeId);
         if (existing) clearTimeout(existing);
         edgeTimersRef.current.set(
           nodeId,
           setTimeout(() => {
             info.pathEl.classList.remove("ug-active");
+            clearEdgeParticles(info);
             edgeTimersRef.current.delete(nodeId);
           }, EDGE_ACTIVE_MS),
         );

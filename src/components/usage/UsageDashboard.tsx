@@ -34,6 +34,7 @@ import {
 import { UsageGraph } from "@/components/usage/UsageGraph";
 import { useUsage } from "@/hooks/useUsage";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { useSseEvent } from "@/lib/sse-bus";
 import type { UsageRecord } from "@/types/usage";
 
 // ─── formatters ──────────────────────────────────────────────────────────────
@@ -207,42 +208,40 @@ export function UsageDashboard() {
     void loadRecords();
   }, [loadRecords]);
 
-  // realtime: subscribe to SSE request:complete events
-  useEffect(() => {
-    const es = new EventSource("/api/events");
-    es.addEventListener("request:complete", (e: MessageEvent) => {
-      try {
-        const data: {
-          providerAccountId: string;
-          comboId: string | null;
-          model: string;
-          transport: string;
-          latencyMs: number;
-          retries?: number;
-          timestamp: number;
-        } = JSON.parse(e.data);
+  // realtime: subscribe to request:complete on the shared SSE connection
+  const onRequestComplete = useCallback((e: MessageEvent) => {
+    try {
+      const data: {
+        providerAccountId: string;
+        comboId: string | null;
+        model: string;
+        transport: string;
+        latencyMs: number;
+        retries?: number;
+        timestamp: number;
+      } = JSON.parse(e.data);
 
-        const newRecord: UsageRecord = {
-          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: new Date(data.timestamp).toISOString(),
-          providerAccountId: data.providerAccountId,
-          comboId: data.comboId,
-          model: data.model,
-          inputTokens: 0,
-          outputTokens: 0,
-          status: "success",
-          latencyMs: data.latencyMs,
-          retries: data.retries ?? 0,
-          estimatedCost: 0,
-        };
+      const newRecord: UsageRecord = {
+        id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: new Date(data.timestamp).toISOString(),
+        providerAccountId: data.providerAccountId,
+        comboId: data.comboId,
+        model: data.model,
+        inputTokens: 0,
+        outputTokens: 0,
+        status: "success",
+        latencyMs: data.latencyMs,
+        retries: data.retries ?? 0,
+        estimatedCost: 0,
+      };
 
-        setRecords((prev) => [newRecord, ...prev].slice(0, 50));
-      } catch {
-        // ignore parse errors
-      }
-    });
-    return () => es.close();
+      setRecords((prev) => [newRecord, ...prev].slice(0, 50));
+    } catch {
+      // ignore parse errors
+    }
   }, []);
+
+  useSseEvent("request:complete", onRequestComplete);
 
   useEffect(() => {
     const el = graphContainerRef.current;

@@ -1,259 +1,98 @@
-import {
-  ActivityIcon,
-  BoxesIcon,
-  CoinsIcon,
-  GaugeIcon,
-  HourglassIcon,
-  Layers3Icon,
-  RefreshCwIcon,
-  ServerIcon,
-  SignalIcon,
-  ZapIcon,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertsSection } from "@/components/dashboard/AlertsSection";
+import { CombosTopologyCard } from "@/components/dashboard/CombosTopologyCard";
+import { HealthSection } from "@/components/dashboard/HealthSection";
+import { LiveActivityCard } from "@/components/dashboard/LiveActivityCard";
+import { ProviderStatusTable } from "@/components/dashboard/ProviderStatusTable";
+import { QuotaTrackerCard } from "@/components/dashboard/QuotaTrackerCard";
+import { RouterStatsCard } from "@/components/dashboard/RouterStatsCard";
+import { TokenSaverCard } from "@/components/dashboard/TokenSaverCard";
+import { VolumeSpendCard } from "@/components/dashboard/VolumeSpendCard";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { UsageGraph } from "@/components/usage/UsageGraph";
 import { useCombos } from "@/hooks/useCombos";
+import { useDashboardActivity } from "@/hooks/useDashboardActivity";
+import { useEncryptionHealth } from "@/hooks/useEncryptionHealth";
 import { useProviders } from "@/hooks/useProviders";
 import { useQuota } from "@/hooks/useQuota";
-import { useRouter } from "@/hooks/useRouter";
-import { useUsage } from "@/hooks/useUsage";
-import { apiClient } from "@/lib/api-client";
-import { transportMeta } from "@/lib/provider-meta";
+import { useTokenSaver } from "@/hooks/useTokenSaver";
+import { useUpdateCheck } from "@/hooks/useUpdateCheck";
+import { useUsageSummary } from "@/hooks/useUsageSummary";
+import { type SseStatus, useSseStatus } from "@/lib/sse-bus";
 import { cn } from "@/lib/utils";
-import type { AccountStatus } from "@/types/provider";
-import type { UsageRecord } from "@/types/usage";
+import type { ProviderUsageData } from "@/types/quota";
 
-// ─── formatters ──────────────────────────────────────────────────────────────
-const numFmt = new Intl.NumberFormat("en-US");
-const costFmt = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 4,
-});
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
-// ─── status LED ──────────────────────────────────────────────────────────────
-const statusLed: Record<AccountStatus, { dot: string; label: string }> = {
-  active: {
-    dot: "bg-emerald-500 shadow-[0_0_6px_var(--tw-shadow-color)] shadow-emerald-500/70",
-    label: "Active",
-  },
-  error: {
-    dot: "bg-destructive shadow-[0_0_6px_var(--tw-shadow-color)] shadow-destructive/70",
-    label: "Error",
-  },
-  expired: { dot: "bg-muted-foreground/50", label: "Expired" },
+const sseMeta: Record<SseStatus, { label: string; dot: string }> = {
+  live: { label: "LIVE", dot: "bg-chart-3 animate-pulse" },
+  connecting: { label: "CONNECTING", dot: "bg-chart-4 animate-pulse" },
+  offline: { label: "OFFLINE", dot: "bg-destructive" },
 };
 
-function StatusLed({ status }: { status: AccountStatus }) {
-  const s = statusLed[status];
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("block size-2 rounded-full", s.dot)} />
-      <span className="text-xs text-muted-foreground">{s.label}</span>
-    </span>
-  );
-}
-
-// ─── system status strip metric ─────────────────────────────────────────────
-function SysMetric({
-  label,
-  value,
-  icon: Icon,
-  loading,
-  tone,
-}: {
-  label: string;
-  value: string;
-  icon: React.ComponentType<{ className?: string }>;
-  loading?: boolean;
-  tone?: "ok" | "warn" | "bad";
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
-      <span
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-md border",
-          tone === "ok" &&
-            "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-          tone === "warn" &&
-            "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-          tone === "bad" &&
-            "border-destructive/30 bg-destructive/10 text-destructive",
-          !tone && "border-border bg-muted/50 text-muted-foreground",
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="flex flex-col min-w-0">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">
-          {label}
-        </span>
-        {loading ? (
-          <Skeleton className="h-5 w-16 mt-0.5" />
-        ) : (
-          <span className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
-            {value}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── packet log row (recent activity, terminal style) ───────────────────────
-function LogRow({ record }: { record: UsageRecord }) {
-  const ok = record.status === "success";
-  return (
-    <div className="flex items-center gap-2 py-1 font-mono text-[11px] leading-relaxed">
-      <span className="text-muted-foreground/70 shrink-0">
-        {timeFmt.format(new Date(record.timestamp))}
-      </span>
-      <span
-        className={cn(
-          "shrink-0 font-semibold",
-          ok ? "text-emerald-500" : "text-destructive",
-        )}
-      >
-        {ok ? "OK " : "ERR"}
-      </span>
-      <span className="truncate flex-1 text-foreground/90">{record.model}</span>
-      {record.retries ? (
-        <span
-          className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-semibold text-amber-600 dark:text-amber-400"
-          title={`Saved by ${record.retries} in-place retr${record.retries === 1 ? "y" : "ies"}`}
-        >
-          RTY {record.retries}×
-        </span>
-      ) : null}
-      <span className="text-muted-foreground/70 shrink-0 tabular-nums">
-        {numFmt.format(record.inputTokens + record.outputTokens)}tok
-      </span>
-      <span className="text-muted-foreground/70 shrink-0 tabular-nums w-14 text-right">
-        {record.latencyMs}ms
-      </span>
-    </div>
-  );
-}
-
-/** Remaining cooldown in seconds, or 0 when not cooling down. */
-function cooldownRemainingSeconds(cooldownUntil: string | null): number {
-  if (!cooldownUntil) return 0;
-  const ms = new Date(cooldownUntil).getTime() - Date.now();
-  return ms > 0 ? Math.ceil(ms / 1000) : 0;
-}
-
-interface DashboardRetryStats {
-  totalRetries: number;
-  retriedRequests: number;
-  coolingDown: number;
-}
-
-// ─── main dashboard ──────────────────────────────────────────────────────────
+/**
+ * Dashboard landing page. Ordered to answer "is my gateway healthy right
+ * now, and what has it been doing?" top to bottom:
+ *   1. Critical alerts (encryption mismatch, pending update)
+ *   2. Account health (benched / failing / expired accounts, or a quiet
+ *      "all healthy" strip)
+ *   3. Network graph + live activity feed
+ *   4. Volume & spend, alongside token saver + router behaviour
+ *   5. Provider connection table, combo topology, upstream quota
+ */
 export function DashboardPage() {
-  const { navigate } = useRouter();
-  const { providers, accounts } = useProviders();
-  const { combos } = useCombos();
-  const { summary } = useUsage();
-  const { accounts: quotaAccounts } = useQuota();
+  const {
+    providers,
+    accounts,
+    isLoading: providersLoading,
+    error: providersError,
+  } = useProviders();
+  const {
+    combos,
+    membersByCombo,
+    isLoading: combosLoading,
+    error: combosError,
+  } = useCombos();
+  const {
+    summary,
+    isLoading: summaryLoading,
+    error: summaryError,
+  } = useUsageSummary();
+  const {
+    accounts: quotaAccounts,
+    providerUsage,
+    isLoading: quotaLoading,
+    isLoadingUsage,
+    error: quotaError,
+    loadProviderUsage,
+  } = useQuota();
+  const { health: encryptionHealth } = useEncryptionHealth();
+  const {
+    settings: tokenSaverSettings,
+    isLoading: tokenSaverLoading,
+    loadError: tokenSaverError,
+  } = useTokenSaver();
+  const update = useUpdateCheck();
+  const activity = useDashboardActivity();
+  const sseStatus = useSseStatus();
 
-  const [records, setRecords] = useState<UsageRecord[]>([]);
-  const [recordsLoading, setRecordsLoading] = useState(true);
-  const [retryStats, setRetryStats] = useState<DashboardRetryStats | null>(
-    null,
-  );
   const mainRowRef = useRef<HTMLDivElement>(null);
-  const [graphH, setGraphH] = useState(360);
+  const [rowH, setRowH] = useState(360);
+  const [hasFetchedUpstream, setHasFetchedUpstream] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .get<UsageRecord[]>("/api/usage/history?limit=20")
-      .then((data) => {
-        if (!cancelled) setRecords(data);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setRecordsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // `/api/quota/usage` fans out sequential calls to every upstream provider,
+  // so it stays behind an explicit action instead of firing on every visit.
+  const handleFetchUpstream = useCallback(() => {
+    setHasFetchedUpstream(true);
+    void loadProviderUsage();
+  }, [loadProviderUsage]);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .get<DashboardRetryStats>("/api/dashboard/stats")
-      .then((data) => {
-        if (!cancelled) setRetryStats(data);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const es = new EventSource("/api/events");
-    es.addEventListener("request:complete", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data) as {
-          providerAccountId: string;
-          model: string;
-          transport: string;
-          latencyMs: number;
-          retries?: number;
-          timestamp: number;
-        };
-        const newRecord: UsageRecord = {
-          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: new Date(data.timestamp).toISOString(),
-          providerAccountId: data.providerAccountId,
-          comboId: null,
-          model: data.model,
-          inputTokens: 0,
-          outputTokens: 0,
-          status: "success",
-          latencyMs: data.latencyMs,
-          retries: data.retries ?? 0,
-          estimatedCost: 0,
-        };
-        setRecords((prev) => [newRecord, ...prev].slice(0, 20));
-      } catch {}
-    });
-    return () => es.close();
-  }, []);
-
-  // ── responsive height for graph + log row ────────────────────────────────
+  // Responsive height shared by the network graph and live activity feed.
   useEffect(() => {
     const el = mainRowRef.current;
     if (!el) return;
     const calc = () => {
       const w = el.offsetWidth;
-      setGraphH(
+      setRowH(
         w < 640
           ? Math.floor(w * 0.62)
           : w < 1024
@@ -267,7 +106,6 @@ export function DashboardPage() {
     return () => ro.disconnect();
   }, []);
 
-  // ── flattened list of all accounts with provider ref, for the port table ──
   const allAccounts = useMemo(() => {
     if (!providers) return [];
     return providers.flatMap((p) => {
@@ -276,48 +114,35 @@ export function DashboardPage() {
     });
   }, [providers, accounts]);
 
-  // Re-render once per second while any account is cooling down, so the
-  // COOLDOWN countdown in the port table ticks live. The interval tears
-  // itself down as soon as every cooldown has expired.
-  const [, setCooldownTick] = useState(0);
-  useEffect(() => {
-    const cooling = allAccounts.some(
-      (x) => cooldownRemainingSeconds(x.account.cooldownUntil) > 0,
+  const accountById = useMemo(() => {
+    const map = new Map(
+      allAccounts.map((row) => [row.account.id, row.account]),
     );
-    if (!cooling) return;
-    const timer = setInterval(() => {
-      setCooldownTick((t) => t + 1);
-      const stillCooling = allAccounts.some(
-        (x) => cooldownRemainingSeconds(x.account.cooldownUntil) > 0,
-      );
-      if (!stillCooling) clearInterval(timer);
-    }, 1000);
-    return () => clearInterval(timer);
+    return (id: string) => map.get(id);
   }, [allAccounts]);
 
-  const activeCount = useMemo(
-    () => allAccounts.filter((x) => x.account.status === "active").length,
-    [allAccounts],
-  );
-  const errorCount = useMemo(
-    () => allAccounts.filter((x) => x.account.status === "error").length,
-    [allAccounts],
-  );
+  // Display labels come from the already-loaded provider/account data rather
+  // than re-fetching the whole provider tree just to build a lookup.
+  const accountLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const { account, provider } of allAccounts) {
+      map.set(account.id, `${provider.name} — ${account.label}`);
+    }
+    return map;
+  }, [allAccounts]);
 
-  const totalRequests = useMemo(() => {
-    if (!summary) return 0;
-    return summary.byProvider.reduce((a, p) => a + p.requestCount, 0);
-  }, [summary]);
+  const accountLabel = useCallback(
+    (accountId: string) => accountLabels.get(accountId) ?? accountId,
+    [accountLabels],
+  );
 
   const usageByAccount = useMemo(() => {
     const map = new Map<string, { requestCount: number; tokens: number }>();
-    if (summary) {
-      for (const p of summary.byProvider) {
-        map.set(p.providerAccountId, {
-          requestCount: p.requestCount,
-          tokens: p.inputTokens + p.outputTokens,
-        });
-      }
+    for (const p of summary?.byProvider ?? []) {
+      map.set(p.providerAccountId, {
+        requestCount: p.requestCount,
+        tokens: p.inputTokens + p.outputTokens,
+      });
     }
     return map;
   }, [summary]);
@@ -335,292 +160,145 @@ export function DashboardPage() {
     return map;
   }, [quotaAccounts]);
 
+  const quotaUsageByAccount = useMemo(() => {
+    const map = new Map<string, ProviderUsageData>();
+    for (const u of providerUsage ?? []) map.set(u.accountId, u);
+    return map;
+  }, [providerUsage]);
+
+  const recentTimestamps = useMemo(
+    () => activity.logs.map((l) => l.timestamp),
+    [activity.logs],
+  );
+
+  const status = sseMeta[sseStatus];
+
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      {/* ── Page Header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">System Status</h2>
-          <p className="text-sm text-muted-foreground">
-            Connections, routes, and live traffic.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
-            <span className="block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            LIVE
-          </Badge>
-        </div>
+      {/* ── Live status ─────────────────────────────────────────────
+          The app shell already renders the page title, so this row only
+          carries the connection indicator. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Provider connections, combo routes, and real-time request traffic.
+        </p>
+        <Badge
+          variant="outline"
+          className="gap-1.5 font-mono text-[11px]"
+          title={
+            sseStatus === "offline"
+              ? "Event stream disconnected — figures may be stale"
+              : undefined
+          }
+        >
+          <span
+            className={cn("block size-1.5 rounded-full", status.dot)}
+            aria-hidden
+          />
+          <span aria-live="polite">{status.label}</span>
+        </Badge>
       </div>
 
-      {/* ── System Status Strip ────────────────────────────────────── */}
-      <Card className="!py-0 overflow-hidden">
-        <div className="grid min-w-0 grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-4 [&>*]:bg-card">
-          <SysMetric
-            label="Providers"
-            value={numFmt.format(providers?.length ?? 0)}
-            icon={ServerIcon}
-            loading={!providers}
-            tone="ok"
-          />
-          <SysMetric
-            label="Active"
-            value={`${numFmt.format(activeCount)}/${numFmt.format(allAccounts.length)}`}
-            icon={SignalIcon}
-            loading={!providers}
-            tone={errorCount > 0 ? "warn" : "ok"}
-          />
-          <SysMetric
-            label="Combos"
-            value={numFmt.format(combos?.length ?? 0)}
-            icon={Layers3Icon}
-            loading={!combos}
-          />
-          <SysMetric
-            label="Requests"
-            value={numFmt.format(totalRequests)}
-            icon={ZapIcon}
-            loading={!summary}
-          />
-          <SysMetric
-            label="Est. cost"
-            value={costFmt.format(summary?.totalCost ?? 0)}
-            icon={CoinsIcon}
-            loading={!summary}
-          />
-          <SysMetric
-            label="Errors"
-            value={numFmt.format(errorCount)}
-            icon={GaugeIcon}
-            loading={!providers}
-            tone={errorCount > 0 ? "bad" : "ok"}
-          />
-          <SysMetric
-            label="Retries"
-            value={numFmt.format(retryStats?.totalRetries ?? 0)}
-            icon={RefreshCwIcon}
-            loading={!retryStats}
-            tone={(retryStats?.totalRetries ?? 0) > 0 ? "warn" : "ok"}
-          />
-          <SysMetric
-            label="Cooldown"
-            value={numFmt.format(retryStats?.coolingDown ?? 0)}
-            icon={HourglassIcon}
-            loading={!retryStats}
-            tone={(retryStats?.coolingDown ?? 0) > 0 ? "bad" : "ok"}
-          />
-        </div>
-      </Card>
+      {/* ── Critical alerts ───────────────────────────────────────── */}
+      <AlertsSection
+        encryptionHealth={encryptionHealth}
+        version={{
+          current: update.current,
+          latest: update.latest,
+          updateAvailable: update.updateAvailable,
+          updateCommand: update.updateCommand,
+        }}
+      />
 
-      {/* ── Main: Router Graph + Packet Log ──────────────────────────── */}
+      {/* ── Health headline ───────────────────────────────────────── */}
+      <HealthSection
+        accounts={allAccounts}
+        isLoading={providersLoading}
+        error={providersError}
+        providerCount={providers?.length ?? 0}
+        comboCount={combos.length}
+      />
+
+      {/* ── Network graph + live activity ─────────────────────────── */}
       <div ref={mainRowRef} className="grid min-w-0 gap-4 lg:grid-cols-5">
         <Card
-          className="min-w-0 !py-0 overflow-hidden lg:col-span-3"
-          style={{ height: graphH }}
+          className="min-w-0 overflow-hidden !py-0 lg:col-span-3"
+          style={{ height: rowH }}
         >
-          <CardContent className="p-0 h-full">
-            <UsageGraph height={graphH} />
+          <CardContent className="h-full p-0">
+            <UsageGraph height={rowH} />
           </CardContent>
         </Card>
-
-        <Card
-          className="min-w-0 !py-0 gap-0 overflow-hidden lg:col-span-2"
-          style={{ height: graphH }}
-        >
-          <CardHeader className="px-4 pt-4 pb-2 flex-row items-center justify-between shrink-0">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ActivityIcon className="size-4" />
-              Packet Log
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 p-0">
-            <section
-              aria-label="Packet log"
-              className="scrollbar-subtle h-full overflow-y-auto bg-muted/30 px-4 pb-4 pt-2 font-mono dark:bg-black/80"
-            >
-              {recordsLoading ? (
-                <div className="flex flex-col gap-2 py-1">
-                  {Array.from({ length: 6 }).map((_v, i) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                    <Skeleton key={`log-${i}`} className="h-3.5 w-full" />
-                  ))}
-                </div>
-              ) : records.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No activity yet
-                </p>
-              ) : (
-                records.map((r) => (
-                  <div key={r.id} className="motion-safe:animate-trace-in">
-                    <LogRow record={r} />
-                  </div>
-                ))
-              )}
-            </section>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <LiveActivityCard
+            logs={activity.logs}
+            isLoading={activity.isLoading}
+            error={activity.error}
+            freshIds={activity.freshIds}
+            height={rowH}
+          />
+        </div>
       </div>
 
-      {/* ── Port Table: provider account status/load/quota ────────────── */}
-      <Card className="!py-0 gap-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BoxesIcon className="size-4 text-muted-foreground" />
-            Connections
-          </CardTitle>
-          <CardAction>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => navigate("/providers")}
-            >
-              Providers <span className="ml-0.5">→</span>
-            </button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="p-0">
-          {allAccounts.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-              No provider accounts configured yet
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[28%]">Account</TableHead>
-                  <TableHead className="w-[18%]">Transport</TableHead>
-                  <TableHead className="w-[12%]">Status</TableHead>
-                  <TableHead className="w-[12%] text-right">Requests</TableHead>
-                  <TableHead className="w-[15%] text-right">
-                    Tokens Used
-                  </TableHead>
-                  <TableHead className="w-[15%]">Quota</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="font-mono">
-                {allAccounts.map(({ account, provider }) => {
-                  const meta = transportMeta[provider.transport];
-                  const usage = usageByAccount.get(account.id);
-                  const quotaPct = quotaByAccount.get(account.id);
-                  return (
-                    <TableRow key={account.id}>
-                      <TableCell className="font-mono text-[13px]">
-                        <div className="flex flex-col">
-                          <span className="truncate">{account.label}</span>
-                          <span className="text-xs text-muted-foreground font-mono truncate">
-                            {provider.name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn("font-normal", meta.accentClassName)}
-                        >
-                          {meta.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusLed status={account.status} />
-                          {cooldownRemainingSeconds(account.cooldownUntil) >
-                          0 ? (
-                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
-                              COOLDOWN ·{" "}
-                              {cooldownRemainingSeconds(account.cooldownUntil)}s
-                            </span>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums text-sm">
-                        {numFmt.format(usage?.requestCount ?? 0)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums text-sm">
-                        {numFmt.format(usage?.tokens ?? 0)}
-                      </TableCell>
-                      <TableCell>
-                        {quotaPct === undefined ? (
-                          <span className="text-xs text-muted-foreground">
-                            Unlimited
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Progress
-                              value={quotaPct}
-                              className="h-1.5 flex-1"
-                            />
-                            <span className="text-xs font-mono text-muted-foreground w-9 text-right shrink-0">
-                              {quotaPct}%
-                            </span>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── Volume & spend, token saver, router behaviour ───────────
+          items-stretch keeps both columns the same height, so neither side
+          leaves an empty gap below it. */}
+      <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-3">
+        <div className="min-w-0 xl:col-span-2">
+          <VolumeSpendCard
+            summary={summary}
+            isLoading={summaryLoading}
+            error={summaryError}
+            recentTimestamps={recentTimestamps}
+            accountLabel={accountLabel}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TokenSaverCard
+            settings={tokenSaverSettings}
+            isLoading={tokenSaverLoading}
+            error={tokenSaverError}
+          />
+          <RouterStatsCard
+            stats={activity.stats}
+            statsError={activity.statsError}
+            errorRatePct={activity.errorRatePct}
+            latencyP50={activity.latencyP50}
+            latencyP95={activity.latencyP95}
+            sampleSize={activity.sampleSize}
+            isLoading={activity.isLoading}
+          />
+        </div>
+      </div>
 
-      {/* ── Combo Routing Table ─────────────────────────────────────── */}
-      <Card className="!py-0 gap-0 overflow-hidden">
-        <CardHeader className="px-5 pt-4 pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers3Icon className="size-4 text-muted-foreground" />
-            Combo Routes
-          </CardTitle>
-          <CardAction>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => navigate("/combos")}
-            >
-              Combos <span className="ml-0.5">→</span>
-            </button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!combos || combos.length === 0 ? (
-            <p className="px-5 py-6 text-center text-sm text-muted-foreground">
-              No combos configured yet
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40%]">Name</TableHead>
-                  <TableHead className="w-[25%]">Targets</TableHead>
-                  <TableHead className="w-[20%]">Strategy</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="font-mono">
-                {combos.map((combo) => (
-                  <TableRow key={combo.id}>
-                    <TableCell className="font-mono text-[13px]">
-                      {combo.name}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm tabular-nums">
-                      {combo.memberCount}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="font-mono text-[10px]"
-                      >
-                        {combo.strategy === "fallback"
-                          ? "FALLBACK"
-                          : "ROUND-ROBIN"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── Provider connection status ─────────────────────────────── */}
+      <ProviderStatusTable
+        rows={allAccounts}
+        usageByAccount={usageByAccount}
+        quotaByAccount={quotaByAccount}
+        isLoading={providersLoading}
+        error={providersError}
+      />
+
+      {/* ── Combo routing topology ────────────────────────────────── */}
+      <CombosTopologyCard
+        combos={combos}
+        membersByCombo={membersByCombo}
+        accountById={accountById}
+        isLoading={combosLoading}
+        error={combosError}
+      />
+
+      {/* ── Upstream quota ─────────────────────────────────────────── */}
+      <QuotaTrackerCard
+        accounts={quotaAccounts}
+        usageByAccount={quotaUsageByAccount}
+        isLoading={quotaLoading}
+        error={quotaError}
+        isFetchingUpstream={isLoadingUsage}
+        hasFetchedUpstream={hasFetchedUpstream}
+        onFetchUpstream={handleFetchUpstream}
+      />
     </div>
   );
 }

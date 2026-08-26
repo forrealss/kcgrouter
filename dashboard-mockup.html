@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KCG Router — Control Room</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style type="text/tailwindcss">
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.99 0.003 264);
+  --foreground: oklch(0.2 0.03 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.03 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.03 264);
+  --primary: oklch(0.53 0.22 264);
+  --primary-foreground: oklch(0.99 0.005 264);
+  --secondary: oklch(0.95 0.015 264);
+  --secondary-foreground: oklch(0.3 0.05 264);
+  --muted: oklch(0.96 0.01 264);
+  --muted-foreground: oklch(0.5 0.03 264);
+  --accent: oklch(0.94 0.04 292);
+  --accent-foreground: oklch(0.3 0.08 292);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0.91 0.012 264);
+  --input: oklch(0.91 0.012 264);
+  --ring: oklch(0.53 0.22 264 / 50%);
+  --chart-1: oklch(0.53 0.22 264);
+  --chart-2: oklch(0.65 0.2 300);
+  --chart-3: oklch(0.7 0.17 190);
+  --chart-4: oklch(0.75 0.18 60);
+  --chart-5: oklch(0.62 0.24 20);
+  --sidebar: oklch(0.98 0.003 264);
+  --sidebar-foreground: oklch(0.2 0.03 264);
+  --sidebar-primary: oklch(0.53 0.22 264);
+  --sidebar-primary-foreground: oklch(0.99 0.005 264);
+  --sidebar-accent: oklch(0.93 0.02 264);
+  --sidebar-accent-foreground: oklch(0.2 0.03 264);
+  --sidebar-border: oklch(0 0 0 / 8%);
+}
+
+.dark {
+  --background: oklch(0.17 0.025 264);
+  --foreground: oklch(0.95 0.01 264);
+  --card: oklch(0.22 0.025 264);
+  --card-foreground: oklch(0.95 0.01 264);
+  --popover: oklch(0.22 0.025 264);
+  --popover-foreground: oklch(0.95 0.01 264);
+  --primary: oklch(0.68 0.19 264);
+  --primary-foreground: oklch(0.15 0.02 264);
+  --secondary: oklch(0.28 0.03 264);
+  --secondary-foreground: oklch(0.95 0.01 264);
+  --muted: oklch(0.26 0.025 264);
+  --muted-foreground: oklch(0.68 0.02 264);
+  --accent: oklch(0.3 0.06 292);
+  --accent-foreground: oklch(0.93 0.02 292);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.68 0.19 264 / 55%);
+  --chart-1: oklch(0.68 0.19 264);
+  --chart-2: oklch(0.72 0.18 300);
+  --chart-3: oklch(0.75 0.16 190);
+  --chart-4: oklch(0.78 0.17 60);
+  --chart-5: oklch(0.68 0.22 20);
+  --sidebar: oklch(0.13 0.02 264);
+  --sidebar-foreground: oklch(0.93 0.015 264);
+  --sidebar-primary: oklch(0.68 0.19 264);
+  --sidebar-primary-foreground: oklch(0.99 0.005 264);
+  --sidebar-accent: oklch(0.22 0.04 264);
+  --sidebar-accent-foreground: oklch(0.95 0.01 264);
+  --sidebar-border: oklch(1 0 0 / 10%);
+}
+
+body { background: var(--background); color: var(--foreground); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+@keyframes rowin { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.rowin { animation: rowin .35s ease-out; }
+@keyframes pulsedot { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.pulsedot { animation: pulsedot 1.8s ease-in-out infinite; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="flex min-h-screen">
+
+  <!-- SECTION: sidebar -->
+  <!-- shadcn: Sidebar > SidebarContent/SidebarMenu (or Sheet on mobile) -->
+  <aside class="hidden lg:flex w-[240px] shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+    <div class="h-14 flex items-center gap-2 px-4 border-b border-sidebar-border">
+      <span class="grid size-7 place-items-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+        <i data-lucide="route" class="size-4"></i>
+      </span>
+      <span class="font-semibold tracking-tight">KCG Router</span>
+    </div>
+    <nav id="nav" class="flex-1 overflow-y-auto p-3 space-y-6 text-sm"></nav>
+    <!-- shadcn: Separator + Button variant="ghost" -->
+    <div class="border-t border-sidebar-border p-3 space-y-1">
+      <button onclick="toggleTheme()" class="w-full flex items-center gap-2 rounded-md px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm">
+        <i data-lucide="sun-moon" class="size-4"></i> <span id="themeLabel">Light mode</span>
+      </button>
+      <button class="w-full flex items-center gap-2 rounded-md px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm">
+        <i data-lucide="log-out" class="size-4"></i> Log out
+      </button>
+    </div>
+  </aside>
+
+  <div class="flex-1 min-w-0 flex flex-col">
+
+    <!-- SECTION: top bar -->
+    <!-- custom: app header (sticky) -->
+    <header class="sticky top-0 z-30 h-14 shrink-0 border-b border-border bg-background/85 backdrop-blur flex items-center gap-3 px-4 md:px-6">
+      <div class="leading-tight min-w-0">
+        <div class="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mono">KCG / control room</div>
+        <div class="text-sm font-semibold truncate">Dashboard</div>
+      </div>
+      <div class="ml-auto flex items-center gap-3">
+        <!-- shadcn: Badge variant="outline" -->
+        <span class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs">
+          <span class="size-1.5 rounded-full bg-chart-3 pulsedot"></span> Ready
+        </span>
+        <button onclick="toggleTheme()" class="grid size-8 place-items-center rounded-md border border-border hover:bg-secondary">
+          <i data-lucide="sun-moon" class="size-4"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-[1700px] mx-auto p-4 md:p-6 space-y-6">
+
+      <!-- SECTION: critical alerts (encryption / version) -->
+      <!-- shadcn: Alert variant="destructive" — rendered only when mismatch true -->
+      <div id="alerts" class="space-y-3"></div>
+
+      <!-- SECTION: health headline -->
+      <!-- shadcn: Card > CardHeader + CardTitle + CardAction -->
+      <section id="healthSection" class="rounded-xl border border-border bg-card text-card-foreground overflow-hidden"></section>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+        <!-- SECTION: traffic + cost -->
+        <!-- shadcn: Card -->
+        <section class="xl:col-span-2 rounded-xl border border-border bg-card text-card-foreground p-5">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold">Volume &amp; spend</h2>
+              <p class="text-xs text-muted-foreground" id="rangeLabel"></p>
+            </div>
+            <!-- shadcn: Button variant="ghost" size="sm" asChild (deep link) -->
+            <a href="#usage" class="text-xs inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 hover:bg-secondary">
+              Usage <i data-lucide="arrow-up-right" class="size-3.5"></i>
+            </a>
+          </div>
+          <div id="usageTotals" class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+          <!-- custom: bucketed bar chart (client-side from request history slice) -->
+          <div class="mt-5">
+            <div class="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Requests per hour</span>
+              <span class="mono" id="bucketNote"></span>
+            </div>
+            <div id="trafficChart" class="mt-2"></div>
+          </div>
+          <!-- custom: stacked share bar per account -->
+          <div class="mt-5">
+            <div class="text-xs text-muted-foreground mb-2">Token share by account</div>
+            <div id="shareBar" class="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"></div>
+            <div id="shareLegend" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs"></div>
+          </div>
+        </section>
+
+        <!-- SECTION: token saver + router stats -->
+        <div class="space-y-6">
+          <!-- shadcn: Card -->
+          <section id="tokenSaver" class="rounded-xl border border-border bg-card text-card-foreground p-5"></section>
+          <!-- shadcn: Card > Table -->
+          <section id="routerStats" class="rounded-xl border border-border bg-card text-card-foreground p-5"></section>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <!-- SECTION: live activity -->
+        <!-- shadcn: Card > Table (TableHeader/TableBody/TableRow/TableCell) -->
+        <section class="xl:col-span-2 rounded-xl border border-border bg-card text-card-foreground overflow-hidden">
+          <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+            <div>
+              <h2 class="font-semibold flex items-center gap-2">
+                Live activity
+                <span class="size-1.5 rounded-full bg-chart-3 pulsedot"></span>
+              </h2>
+              <p class="text-xs text-muted-foreground">Streaming from the router event feed · last 2000 log rows retained</p>
+            </div>
+            <a href="#logs" class="text-xs inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 hover:bg-secondary">
+              Logs <i data-lucide="arrow-up-right" class="size-3.5"></i>
+            </a>
+          </div>
+          <div class="max-h-[460px] overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead class="sticky top-0 bg-card">
+                <tr class="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th class="font-medium px-5 py-2">Time</th>
+                  <th class="font-medium px-3 py-2">Model</th>
+                  <th class="font-medium px-3 py-2 hidden md:table-cell">Account</th>
+                  <th class="font-medium px-3 py-2 text-right">Latency</th>
+                  <th class="font-medium px-5 py-2 text-right hidden sm:table-cell">Retries</th>
+                </tr>
+              </thead>
+              <tbody id="logBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SECTION: routing topology -->
+        <!-- shadcn: Card -->
+        <section class="rounded-xl border border-border bg-card text-card-foreground overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 class="font-semibold">Combos</h2>
+            <a href="#combos" class="text-xs inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 hover:bg-secondary">
+              Manage <i data-lucide="arrow-up-right" class="size-3.5"></i>
+            </a>
+          </div>
+          <div id="combos" class="divide-y divide-border"></div>
+        </section>
+      </div>
+
+      <!-- SECTION: quota tracker -->
+      <!-- shadcn: Card > Progress -->
+      <section class="rounded-xl border border-border bg-card text-card-foreground overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div>
+            <h2 class="font-semibold">Upstream quota</h2>
+            <p class="text-xs text-muted-foreground">Only kiro, command-code and qoder report quota</p>
+          </div>
+          <a href="#quota" class="text-xs inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 hover:bg-secondary">
+            Quota tracker <i data-lucide="arrow-up-right" class="size-3.5"></i>
+          </a>
+        </div>
+        <div id="quota" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-px bg-border"></div>
+      </section>
+
+      <p class="text-[11px] text-muted-foreground pb-4">
+        Charts are bucketed client-side from a limited slice of request history; error rate reflects the recent log window only.
+      </p>
+    </main>
+  </div>
+</div>
+
+<!-- SECTION: dataset state switcher (mockup only) -->
+<!-- custom: floating scenario switcher — not part of the real app -->
+<div class="fixed bottom-4 right-4 z-40 flex items-center gap-1 rounded-full border border-border bg-popover p-1 shadow-lg text-xs">
+  <span class="pl-2 pr-1 text-muted-foreground mono">state</span>
+  <button data-scenario="normal" class="scn rounded-full px-3 py-1.5">normal</button>
+  <button data-scenario="empty" class="scn rounded-full px-3 py-1.5">empty</button>
+  <button data-scenario="degraded" class="scn rounded-full px-3 py-1.5">degraded</button>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ data */
+const BASE = {
+  version: { current: "0.9.4", latest: "0.9.6", updateAvailable: true, packageManager: "bun", updateCommand: "bun add -g kcgrouter" },
+  encryptionHealth: { mismatch: false, checked: 12, undecryptable: 0, accounts: { checked: 9, undecryptable: 0 }, apiKeys: { checked: 3, undecryptable: 0 } },
+  stats: { totalRetries: 47, retriedRequests: 19, coolingDown: 1 },
+  tokenSaver: { enabled: true, totalTokensSaved: 3184920, filters: [{ name: "tool_result compression", active: true }], cavemanEnabled: false, ponytailEnabled: true, ponytailLevel: "medium" },
+  usageSummary: {
+    rangeLabel: "Last 30 days",
+    totalInputTokens: 8421337, totalOutputTokens: 1204882, totalCost: 12.4471,
+    byProvider: [
+      { providerAccountId: "acct_a1", inputTokens: 4210110, outputTokens: 602441, cost: 0, requestCount: 1284 },
+      { providerAccountId: "acct_b2", inputTokens: 2105055, outputTokens: 301220, cost: 8.2210, requestCount: 642 },
+      { providerAccountId: "acct_c3", inputTokens: 1052527, outputTokens: 150610, cost: 4.2261, requestCount: 321 },
+      { providerAccountId: "acct_d4", inputTokens: 1053645, outputTokens: 150611, cost: 0, requestCount: 198 },
+      { providerAccountId: "acct_e5", inputTokens: 0, outputTokens: 0, cost: 0, requestCount: 0 },
+    ],
+  },
+  providers: [
+    { id: "p1", name: "Kiro", transport: "kiro", baseUrl: "https://codewhisperer.us-east-1.amazonaws.com", isBuiltin: true, prefix: "kiro", accountCount: 3, createdAt: "2026-05-02T09:10:00Z" },
+    { id: "p2", name: "OpenAI", transport: "openai", baseUrl: "https://api.openai.com/v1", isBuiltin: true, prefix: "oai", accountCount: 2, createdAt: "2026-05-02T09:12:00Z" },
+    { id: "p3", name: "Anthropic", transport: "anthropic", baseUrl: "https://api.anthropic.com", isBuiltin: true, prefix: "ant", accountCount: 2, createdAt: "2026-05-04T11:00:00Z" },
+    { id: "p4", name: "Gemini", transport: "gemini", baseUrl: "https://generativelanguage.googleapis.com", isBuiltin: true, prefix: "gem", accountCount: 1, createdAt: "2026-06-01T08:00:00Z" },
+    { id: "p5", name: "Qoder", transport: "qoder", baseUrl: "https://api.qoder.dev", isBuiltin: false, prefix: "qod", accountCount: 1, createdAt: "2026-07-19T16:40:00Z" },
+  ],
+  accounts: [
+    { id: "acct_a1", providerId: "p1", label: "kiro-main", status: "active", quotaLimitTokens: null, lastUsedAt: "-2m", lastError: null, lastErrorAt: null, cooldownUntil: null, backoffLevel: 0 },
+    { id: "acct_a2", providerId: "p1", label: "kiro-backup", status: "active", quotaLimitTokens: 5000000, lastUsedAt: "-31m", lastError: null, lastErrorAt: null, cooldownUntil: null, backoffLevel: 0 },
+    { id: "acct_b2", providerId: "p2", label: "oai-personal", status: "error", quotaLimitTokens: null, lastUsedAt: "-6m", lastError: "429 Too Many Requests: rate limit exceeded for gpt-4o-mini (org-9x2)", lastErrorAt: "-4m", cooldownUntil: "+96s", backoffLevel: 4 },
+    { id: "acct_b3", providerId: "p2", label: "oai-team", status: "active", quotaLimitTokens: null, lastUsedAt: "-12m", lastError: null, lastErrorAt: null, cooldownUntil: null, backoffLevel: 0 },
+    { id: "acct_c3", providerId: "p3", label: "ant-primary", status: "active", quotaLimitTokens: null, lastUsedAt: "-1m", lastError: "529 overloaded_error", lastErrorAt: "-52m", cooldownUntil: null, backoffLevel: 3 },
+    { id: "acct_c4", providerId: "p3", label: "ant-legacy", status: "expired", quotaLimitTokens: null, lastUsedAt: "-9d", lastError: "401 authentication_error: OAuth refresh token revoked", lastErrorAt: "-9d", cooldownUntil: null, backoffLevel: 0 },
+    { id: "acct_d4", providerId: "p4", label: "gemini-free", status: "active", quotaLimitTokens: 2000000, lastUsedAt: "-18m", lastError: null, lastErrorAt: null, cooldownUntil: null, backoffLevel: 0 },
+    { id: "acct_e5", providerId: "p5", label: "qoder-trial", status: "active", quotaLimitTokens: null, lastUsedAt: null, lastError: null, lastErrorAt: null, cooldownUntil: null, backoffLevel: 0 },
+  ],
+  combos: [
+    { id: "cb1", name: "default-chain", strategy: "fallback", memberCount: 4, roundRobinCursor: 0, members: [
+      { providerAccountId: "acct_a1", modelName: "kiro-claude-sonnet-4", priority: 1, inputCostPer1M: 0, outputCostPer1M: 0 },
+      { providerAccountId: "acct_c3", modelName: "claude-sonnet-4", priority: 2, inputCostPer1M: 3, outputCostPer1M: 15 },
+      { providerAccountId: "acct_b3", modelName: "gpt-4o-mini", priority: 3, inputCostPer1M: 0.15, outputCostPer1M: 0.6 },
+      { providerAccountId: "acct_d4", modelName: "gemini-2.0-flash", priority: 4, inputCostPer1M: 0, outputCostPer1M: 0 } ] },
+    { id: "cb2", name: "cheap-spread", strategy: "round_robin", memberCount: 3, roundRobinCursor: 2, members: [
+      { providerAccountId: "acct_b2", modelName: "gpt-4o-mini", priority: 1, inputCostPer1M: 0.15, outputCostPer1M: 0.6 },
+      { providerAccountId: "acct_d4", modelName: "gemini-2.0-flash", priority: 1, inputCostPer1M: 0, outputCostPer1M: 0 },
+      { providerAccountId: "acct_a2", modelName: "kiro-claude-sonnet-4", priority: 1, inputCostPer1M: 0, outputCostPer1M: 0 } ] },
+    { id: "cb3", name: "solo-anthropic", strategy: "fallback", memberCount: 1, roundRobinCursor: 0, members: [
+      { providerAccountId: "acct_c3", modelName: "claude-sonnet-4", priority: 1, inputCostPer1M: 3, outputCostPer1M: 15 } ] },
+  ],
+  quota: [
+    { providerAccountId: "acct_a1", providerName: "Kiro", transport: "kiro", available: true, quotaState: { tokensUsed: 4812559, requestCount: 1284 },
+      plan: "Kiro Pro", quotas: [ { name: "agentic_request", used: 412, total: 1000, resetAt: "in 3h 12m" }, { name: "5-hour", used: 88, total: 200, resetAt: "in 1h 04m" }, { name: "weekly", used: 2740, total: 5000, resetAt: "in 4d" } ] },
+    { providerAccountId: "acct_a2", providerName: "Kiro", transport: "kiro", available: true, quotaState: { tokensUsed: 991204, requestCount: 233 },
+      plan: "Kiro Free", quotas: [ { name: "agentic_request", used: 47, total: 50, resetAt: "in 3h 12m" }, { name: "weekly", used: 180, total: 500, resetAt: "in 4d" } ] },
+    { providerAccountId: "acct_e5", providerName: "Qoder", transport: "qoder", available: false, quotaState: { tokensUsed: 0, requestCount: 0 },
+      plan: "Qoder Trial", quotas: [ { name: "credit", used: 0, total: 300, resetAt: "in 30d" } ] },
+  ],
+  logs: [
+    ["-0m","success","claude-sonnet-4","ant-primary","Anthropic",842,0,null],
+    ["-1m","success","kiro-claude-sonnet-4","kiro-main","Kiro",1180,0,null],
+    ["-2m","error","gpt-4o-mini","oai-personal","OpenAI",311,2,"429 Too Many Requests: rate limit exceeded for gpt-4o-mini (org-9x2)"],
+    ["-3m","success","gemini-2.0-flash","gemini-free","Gemini",402,0,null],
+    ["-4m","success","kiro-claude-sonnet-4","kiro-main","Kiro",2260,1,null],
+    ["-6m","success","claude-sonnet-4","ant-primary","Anthropic",9400,0,null],
+    ["-8m","success","gpt-4o-mini","oai-team","OpenAI",180,0,null],
+    ["-9m","error","claude-sonnet-4","ant-primary","Anthropic",1522,1,"529 overloaded_error: upstream is temporarily overloaded, retry after backoff"],
+    ["-11m","success","gemini-2.0-flash","gemini-free","Gemini",520,0,null],
+    ["-13m","success","kiro-claude-sonnet-4","kiro-backup","Kiro",1704,0,null],
+    ["-15m","success","claude-sonnet-4","ant-primary","Anthropic",3311,0,null],
+    ["-18m","success","gpt-4o-mini","oai-team","OpenAI",244,0,null],
+    ["-21m","error","claude-sonnet-4","ant-legacy","Anthropic",96,3,"401 authentication_error: OAuth refresh token revoked"],
+    ["-24m","success","kiro-claude-sonnet-4","kiro-main","Kiro",1990,0,null],
+    ["-27m","success","gemini-2.0-flash","gemini-free","Gemini",388,0,null],
+    ["-31m","success","kiro-claude-sonnet-4","kiro-backup","Kiro",2410,0,null],
+    ["-36m","success","claude-sonnet-4","ant-primary","Anthropic",4120,1,null],
+    ["-42m","success","gpt-4o-mini","oai-team","OpenAI",205,0,null],
+    ["-48m","success","kiro-claude-sonnet-4","kiro-main","Kiro",1330,0,null],
+    ["-55m","success","gemini-2.0-flash","gemini-free","Gemini",470,0,null],
+  ].map(([t,type,model,accountLabel,providerName,latencyMs,retries,message]) => ({
+    timestamp: t, type, source: "router", model, sourceFormat: type === "error" ? "openai" : "anthropic",
+    stream: true, message, latencyMs, retries, accountLabel, providerName,
+  })),
+};
+
+const EMPTY = {
+  ...BASE,
+  encryptionHealth: { mismatch: false, checked: 0, undecryptable: 0, accounts: { checked: 0, undecryptable: 0 }, apiKeys: { checked: 0, undecryptable: 0 } },
+  stats: { totalRetries: 0, retriedRequests: 0, coolingDown: 0 },
+  tokenSaver: { ...BASE.tokenSaver, enabled: false, totalTokensSaved: 0 },
+  usageSummary: { rangeLabel: "Last 30 days", totalInputTokens: 0, totalOutputTokens: 0, totalCost: 0, byProvider: [] },
+  providers: [], accounts: [], combos: [], quota: [], logs: [],
+};
+
+const DEGRADED = JSON.parse(JSON.stringify(BASE));
+DEGRADED.encryptionHealth = { mismatch: true, checked: 12, undecryptable: 7, accounts: { checked: 9, undecryptable: 6 }, apiKeys: { checked: 3, undecryptable: 1 } };
+DEGRADED.stats = { totalRetries: 318, retriedRequests: 141, coolingDown: 3 };
+DEGRADED.accounts = DEGRADED.accounts.map((a, i) => {
+  if (i === 0) return { ...a, status: "error", backoffLevel: 6, cooldownUntil: "+180s", lastError: "500 internal_error: upstream returned an empty stream", lastErrorAt: "-1m" };
+  if (i === 3) return { ...a, status: "error", backoffLevel: 2, cooldownUntil: "+24s", lastError: "429 Too Many Requests: token bucket exhausted", lastErrorAt: "-2m" };
+  if (i === 6) return { ...a, status: "expired", lastError: "401 authentication_error: API key disabled", lastErrorAt: "-3h" };
+  return a;
+});
+DEGRADED.logs = DEGRADED.logs.map((l, i) => i % 3 === 0
+  ? { ...l, type: "error", message: l.message || "500 internal_error: upstream returned an empty stream", retries: 2 }
+  : l);
+
+const SCENARIOS = { normal: BASE, empty: EMPTY, degraded: DEGRADED };
+let DATA = BASE;
+
+/* ------------------------------------------------------------- utilities */
+const $ = (s) => document.querySelector(s);
+const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+const nf = new Intl.NumberFormat("en-US");
+const compact = (n) => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : nf.format(n);
+const usd = (n) => "$" + n.toFixed(4).replace(/0+$/, "").replace(/\.$/, ".00");
+const CHART = ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"];
+
+// relative offsets like "-12m" / "+96s" resolved against page load
+const T0 = Date.now();
+function resolveTime(s) {
+  if (!s) return null;
+  const m = /^([+-])(\d+)([smhd])$/.exec(s);
+  if (!m) return null;
+  const mult = { s: 1e3, m: 6e4, h: 36e5, d: 864e5 }[m[3]];
+  return T0 + (m[1] === "-" ? -1 : 1) * Number(m[2]) * mult;
+}
+const clock = (ts) => new Date(ts).toLocaleTimeString("en-GB", { hour12: false });
+function ago(ts) {
+  if (!ts) return "never";
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+}
+const accountById = (id) => DATA.accounts.find((a) => a.id === id);
+const providerOf = (acct) => DATA.providers.find((p) => p.id === acct?.providerId);
+const labelFor = (id) => { const a = accountById(id); return a ? a.label : id; };
+
+/* ---------------------------------------------------------------- render */
+const NAV = [
+  ["Operations", [["Dashboard","layout-dashboard",true],["Providers","server",false],["Combos","git-branch",false],["Usage","bar-chart-3",false],["Quota Tracker","gauge",false],["Token Saver","scissors",false],["CLI Tools","terminal",false]]],
+  ["Observability", [["Logs","scroll-text",false],["Settings","settings",false]]],
+];
+function renderNav() {
+  $("#nav").innerHTML = NAV.map(([group, items]) => `
+    <div>
+      <div class="px-3 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">${group}</div>
+      ${items.map(([name, icon, active]) => `
+        <a href="#${name.toLowerCase().replace(/ /g,"-")}" class="flex items-center gap-2.5 rounded-md px-3 py-2 ${active ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium" : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}">
+          <i data-lucide="${icon}" class="size-4"></i>${name}
+        </a>`).join("")}
+    </div>`).join("");
+}
+
+function renderAlerts() {
+  const box = $("#alerts"); box.innerHTML = "";
+  const eh = DATA.encryptionHealth;
+  if (eh.mismatch) {
+    box.append(el(`
+      <!-- shadcn: Alert variant="destructive" -->
+      <div class="rounded-xl border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-3">
+        <i data-lucide="shield-alert" class="size-5 text-destructive shrink-0 mt-0.5"></i>
+        <div class="min-w-0">
+          <div class="font-semibold text-destructive">Encryption key mismatch</div>
+          <p class="text-sm text-foreground/90 mt-1">
+            ${eh.undecryptable} of ${eh.checked} stored secrets can no longer be decrypted
+            (${eh.accounts.undecryptable}/${eh.accounts.checked} accounts, ${eh.apiKeys.undecryptable}/${eh.apiKeys.checked} API keys).
+            Requests through those credentials will fail until they are re-entered.
+          </p>
+          <a href="#settings" class="mt-3 inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-background">
+            Fix in Settings <i data-lucide="arrow-right" class="size-3.5"></i>
+          </a>
+        </div>
+      </div>`));
+  }
+  const v = DATA.version;
+  if (v.updateAvailable) {
+    box.append(el(`
+      <!-- shadcn: Alert -->
+      <div class="rounded-xl border border-border bg-muted/40 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        <i data-lucide="arrow-up-circle" class="size-4 text-chart-4"></i>
+        <span>Update available — <span class="mono">${v.current}</span> → <span class="mono text-foreground font-medium">${v.latest}</span></span>
+        <code class="mono ml-auto rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">${v.updateCommand}</code>
+      </div>`));
+  }
+}
+
+function renderHealth() {
+  const accts = DATA.accounts;
+  const benched = accts.filter((a) => a.status === "error" && resolveTime(a.cooldownUntil) > Date.now());
+  const erroring = accts.filter((a) => a.status === "error" && !benched.includes(a));
+  const expired = accts.filter((a) => a.status === "expired");
+  const degrading = accts.filter((a) => a.status === "active" && a.backoffLevel > 0);
+  const healthy = accts.filter((a) => a.status === "active" && a.backoffLevel === 0);
+  const problems = [...benched, ...erroring, ...expired, ...degrading];
+
+  if (!accts.length) {
+    $("#healthSection").innerHTML = `
+      <!-- shadcn: Empty (empty state) -->
+      <div class="p-10 text-center">
+        <span class="mx-auto grid size-12 place-items-center rounded-xl bg-secondary"><i data-lucide="server" class="size-6 text-muted-foreground"></i></span>
+        <h2 class="mt-4 text-lg font-semibold">No providers yet</h2>
+        <p class="mt-1 text-sm text-muted-foreground max-w-md mx-auto">Add a provider account, then group accounts into a combo so the router has somewhere to send requests.</p>
+        <a href="#providers" class="mt-5 inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          <i data-lucide="plus" class="size-4"></i> Add a provider
+        </a>
+      </div>`;
+    lucide.createIcons(); return;
+  }
+
+  const ok = problems.length === 0;
+  const head = `
+    <div class="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-border">
+      <span class="grid size-10 place-items-center rounded-xl ${ok ? "bg-chart-3/15 text-chart-3" : "bg-destructive/10 text-destructive"}">
+        <i data-lucide="${ok ? "shield-check" : "triangle-alert"}" class="size-5"></i>
+      </span>
+      <div class="min-w-0">
+        <h2 class="font-semibold leading-tight">${ok ? "All accounts healthy" : `${problems.length} account${problems.length > 1 ? "s" : ""} need attention`}</h2>
+        <p class="text-xs text-muted-foreground mono">
+          ${healthy.length}/${accts.length} active · ${DATA.providers.length} providers · ${DATA.combos.length} combos
+        </p>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="#providers" class="text-xs inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 hover:bg-secondary">Providers <i data-lucide="arrow-up-right" class="size-3.5"></i></a>
+      </div>
+    </div>`;
+
+  const problemRows = problems.map((a) => {
+    const p = providerOf(a);
+    const cd = resolveTime(a.cooldownUntil);
+    const kind = a.status === "expired" ? "expired" : cd > Date.now() ? "benched" : "erroring";
+    const tone = kind === "benched" ? "chart-4" : "destructive";
+    return `
+      <!-- shadcn: Alert variant="destructive" (per failing account) -->
+      <div class="px-5 py-4 flex flex-col md:flex-row md:items-start gap-3 border-l-2 border-${tone}">
+        <div class="md:w-56 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="size-2 rounded-full bg-${tone}"></span>
+            <span class="font-medium mono text-sm">${a.label}</span>
+          </div>
+          <div class="mt-1 text-xs text-muted-foreground">${p?.name ?? "—"} · <span class="mono">${p?.transport ?? ""}</span></div>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <!-- shadcn: Badge variant="outline" -->
+            <span class="rounded-full border border-${tone}/40 bg-${tone}/10 px-2 py-0.5 text-${tone} font-medium">
+              ${kind === "benched" ? "cooling down" : kind === "expired" ? "expired — needs action" : "failing"}
+            </span>
+            ${a.backoffLevel > 0 ? `<span class="rounded-full border border-border px-2 py-0.5 mono">backoff L${a.backoffLevel}/8</span>` : ""}
+            ${cd > Date.now() ? `<span class="mono text-${tone}" data-countdown="${cd}">—</span>` : ""}
+            <span class="text-muted-foreground mono">last error ${ago(resolveTime(a.lastErrorAt))}</span>
+          </div>
+          ${a.lastError ? `<p class="mono mt-2 rounded-md bg-muted/60 px-3 py-2 text-xs leading-relaxed break-words">${a.lastError}</p>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  const healthyStrip = `
+    <div class="px-5 py-3 flex flex-wrap items-center gap-2 ${problems.length ? "border-t border-border" : ""}">
+      <span class="text-xs text-muted-foreground mr-1">Healthy</span>
+      ${healthy.map((a) => `
+        <!-- shadcn: Badge variant="outline" + Tooltip -->
+        <span title="last used ${ago(resolveTime(a.lastUsedAt))}" class="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs mono">
+          <span class="size-1.5 rounded-full bg-chart-3"></span>${a.label}
+        </span>`).join("") || `<span class="text-xs text-muted-foreground">none</span>`}
+    </div>`;
+
+  $("#healthSection").innerHTML = head + `<div class="divide-y divide-border">${problemRows}</div>` + healthyStrip;
+  lucide.createIcons();
+}
+
+function renderUsage() {
+  const u = DATA.usageSummary;
+  $("#rangeLabel").textContent = `${u.rangeLabel} · totals from the usage store`;
+  const priced = u.byProvider.some((b) => b.cost > 0);
+  const reqs = u.byProvider.reduce((s, b) => s + b.requestCount, 0);
+  const totals = [
+    ["Input tokens", compact(u.totalInputTokens), nf.format(u.totalInputTokens)],
+    ["Output tokens", compact(u.totalOutputTokens), nf.format(u.totalOutputTokens)],
+    ["Requests", nf.format(reqs), u.rangeLabel.toLowerCase()],
+    ["Cost", priced ? "$" + u.totalCost.toFixed(4) : "—", priced ? "priced members only" : "no pricing configured"],
+  ];
+  $("#usageTotals").innerHTML = totals.map(([k, v, sub], i) => `
+    <!-- custom: stat (Card-less, hierarchy via type scale) -->
+    <div class="${i === 3 ? "" : ""}">
+      <div class="text-[11px] uppercase tracking-wide text-muted-foreground">${k}</div>
+      <div class="mono text-2xl font-semibold mt-0.5 ${i === 3 && priced ? "text-primary" : ""}">${v}</div>
+      <div class="text-[11px] text-muted-foreground mono truncate">${sub}</div>
+    </div>`).join("");
+
+  // hourly buckets from the log window
+  const buckets = new Array(12).fill(0);
+  DATA.logs.forEach((l) => {
+    const t = resolveTime(l.timestamp);
+    if (t == null) return;
+    const mins = Math.round((Date.now() - t) / 60000);
+    const idx = 11 - Math.min(11, Math.floor(mins / 5));
+    if (idx >= 0) buckets[idx]++;
+  });
+  const max = Math.max(1, ...buckets);
+  $("#bucketNote").textContent = DATA.logs.length ? "last 60 min · 5-min buckets" : "no data";
+  $("#trafficChart").innerHTML = `
+    <!-- custom: bar chart (swap for recharts BarChart) -->
+    <svg viewBox="0 0 240 60" preserveAspectRatio="none" class="w-full h-[80px]">
+      ${buckets.map((v, i) => {
+        const h = (v / max) * 52;
+        return `<rect x="${i * 20 + 3}" y="${56 - h}" width="14" height="${Math.max(h, 1.5)}" rx="3" class="fill-chart-1 ${i === 11 ? "" : "opacity-70"}"></rect>`;
+      }).join("")}
+      <line x1="0" y1="57.5" x2="240" y2="57.5" class="stroke-border" stroke-width="1"></line>
+    </svg>`;
+
+  const rows = u.byProvider.filter((b) => b.inputTokens + b.outputTokens > 0);
+  const total = rows.reduce((s, b) => s + b.inputTokens + b.outputTokens, 0) || 1;
+  $("#shareBar").innerHTML = rows.map((b, i) => {
+    const pct = ((b.inputTokens + b.outputTokens) / total) * 100;
+    return `<div class="bg-${CHART[i % 5]} h-full" style="width:${pct}%"></div>`;
+  }).join("") || `<div class="h-full w-full bg-muted"></div>`;
+  $("#shareLegend").innerHTML = u.byProvider.map((b, i) => {
+    const pct = ((b.inputTokens + b.outputTokens) / total) * 100;
+    return `
+      <div class="flex items-center gap-2">
+        <span class="size-2 rounded-full bg-${CHART[i % 5]}"></span>
+        <span class="mono truncate">${labelFor(b.providerAccountId)}</span>
+        <span class="ml-auto mono text-muted-foreground">${nf.format(b.requestCount)} req · ${pct.toFixed(1)}%</span>
+      </div>`;
+  }).join("") || `<span class="text-muted-foreground">No usage recorded yet.</span>`;
+}
+
+function renderTokenSaver() {
+  const t = DATA.tokenSaver;
+  $("#tokenSaver").innerHTML = `
+    <!-- shadcn: Card > CardHeader + CardAction(Switch) -->
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="font-semibold flex items-center gap-2"><i data-lucide="scissors" class="size-4 text-chart-2"></i> Token Saver</h2>
+        <p class="text-xs text-muted-foreground">Cumulative, all-time</p>
+      </div>
+      <!-- shadcn: Badge -->
+      <span class="rounded-full px-2 py-0.5 text-xs ${t.enabled ? "bg-chart-3/15 text-chart-3" : "bg-muted text-muted-foreground"}">${t.enabled ? "on" : "off"}</span>
+    </div>
+    <div class="mono text-3xl font-semibold mt-4">${compact(t.totalTokensSaved)}</div>
+    <div class="text-xs text-muted-foreground mono">${nf.format(t.totalTokensSaved)} tokens saved</div>
+    <div class="mt-4 flex flex-wrap gap-1.5 text-xs">
+      ${t.filters.map((f) => `<span class="rounded-full border border-border px-2 py-0.5 mono ${f.active ? "" : "opacity-50"}">${f.name}</span>`).join("")}
+      ${t.ponytailEnabled ? `<span class="rounded-full border border-border px-2 py-0.5 mono">ponytail: ${t.ponytailLevel}</span>` : ""}
+      ${t.cavemanEnabled ? `<span class="rounded-full border border-border px-2 py-0.5 mono">caveman</span>` : ""}
+    </div>`;
+  lucide.createIcons();
+}
+
+function renderRouterStats() {
+  const s = DATA.stats;
+  const errs = DATA.logs.filter((l) => l.type === "error").length;
+  const rate = DATA.logs.length ? (errs / DATA.logs.length) * 100 : 0;
+  const lat = DATA.logs.map((l) => l.latencyMs).sort((a, b) => a - b);
+  const p = (q) => lat.length ? lat[Math.min(lat.length - 1, Math.floor(lat.length * q))] : 0;
+  $("#routerStats").innerHTML = `
+    <h2 class="font-semibold">Router behaviour</h2>
+    <p class="text-xs text-muted-foreground">Retries since start · latency &amp; error rate from the recent log window (${DATA.logs.length} rows)</p>
+    <!-- shadcn: Table (compact, label/value) -->
+    <dl class="mt-4 divide-y divide-border text-sm">
+      ${[
+        ["Retries", `${nf.format(s.totalRetries)} across ${nf.format(s.retriedRequests)} requests`, ""],
+        ["Cooling down", `${s.coolingDown} account${s.coolingDown === 1 ? "" : "s"}`, s.coolingDown ? "text-chart-4" : ""],
+        ["Error rate", `${rate.toFixed(1)}%`, rate > 10 ? "text-destructive" : ""],
+        ["Latency p50 / p95", `${nf.format(p(0.5))} / ${nf.format(p(0.95))} ms`, ""],
+      ].map(([k, v, cls]) => `
+        <div class="flex items-center justify-between gap-3 py-2.5">
+          <dt class="text-muted-foreground">${k}</dt>
+          <dd class="mono font-medium ${cls}">${v}</dd>
+        </div>`).join("")}
+    </dl>`;
+}
+
+function renderCombos() {
+  const box = $("#combos");
+  if (!DATA.combos.length) {
+    box.innerHTML = `<!-- shadcn: Empty --><div class="p-8 text-center text-sm text-muted-foreground">No combos yet — create one to route traffic.</div>`;
+    return;
+  }
+  box.innerHTML = DATA.combos.map((c) => `
+    <!-- custom: combo topology row -->
+    <div class="p-5">
+      <div class="flex items-center gap-2">
+        <span class="font-medium mono">${c.name}</span>
+        <!-- shadcn: Badge variant="outline" -->
+        <span class="rounded-full border border-border px-2 py-0.5 text-[11px] mono">${c.strategy}</span>
+        <span class="ml-auto text-xs text-muted-foreground mono">${c.memberCount} target${c.memberCount > 1 ? "s" : ""}</span>
+      </div>
+      <ol class="mt-3 space-y-1.5">
+        ${c.members.map((m, i) => {
+          const a = accountById(m.providerAccountId);
+          const bad = a && a.status !== "active";
+          const cur = c.strategy === "round_robin" && i === c.roundRobinCursor;
+          return `
+            <li class="flex items-center gap-2 text-xs">
+              <span class="mono w-5 shrink-0 text-muted-foreground">${c.strategy === "fallback" ? "#" + m.priority : cur ? "▸" : "·"}</span>
+              <span class="size-1.5 shrink-0 rounded-full ${bad ? "bg-destructive" : "bg-chart-3"}"></span>
+              <span class="mono truncate">${labelFor(m.providerAccountId)}</span>
+              <span class="text-muted-foreground mono truncate">${m.modelName}</span>
+              <span class="ml-auto shrink-0 mono text-muted-foreground">${m.inputCostPer1M || m.outputCostPer1M ? `$${m.inputCostPer1M}/$${m.outputCostPer1M} per 1M` : "unpriced"}</span>
+            </li>`;
+        }).join("")}
+      </ol>
+    </div>`).join("");
+}
+
+function renderQuota() {
+  const box = $("#quota");
+  if (!DATA.quota.length) {
+    box.innerHTML = `<!-- shadcn: Empty --><div class="bg-card p-8 text-center text-sm text-muted-foreground">No quota-reporting accounts configured.</div>`;
+    return;
+  }
+  box.innerHTML = DATA.quota.map((q) => `
+    <!-- shadcn: Card > Progress (per quota window) -->
+    <div class="bg-card p-5">
+      <div class="flex items-center gap-2">
+        <span class="mono font-medium text-sm">${labelFor(q.providerAccountId)}</span>
+        <span class="rounded-full border border-border px-2 py-0.5 text-[11px] mono">${q.plan}</span>
+        ${q.available ? "" : `<span class="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">unavailable</span>`}
+      </div>
+      <div class="text-[11px] text-muted-foreground mono mt-1">${q.providerName} · ${q.transport} · ${compact(q.quotaState.tokensUsed)} tokens lifetime · ${nf.format(q.quotaState.requestCount)} req</div>
+      <div class="mt-4 space-y-3">
+        ${q.quotas.map((w) => {
+          const pct = Math.min(100, (w.used / w.total) * 100);
+          const tone = pct >= 90 ? "destructive" : pct >= 70 ? "chart-4" : "chart-1";
+          return `
+            <div>
+              <div class="flex items-baseline justify-between text-xs">
+                <span class="mono">${w.name}</span>
+                <span class="mono text-muted-foreground">${nf.format(w.used)} / ${nf.format(w.total)} · resets ${w.resetAt}</span>
+              </div>
+              <div class="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div class="h-full rounded-full bg-${tone}" style="width:${pct}%"></div>
+              </div>
+            </div>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+}
+
+/* --------------------------------------------------------------- log feed */
+function logRow(l, isNew) {
+  const err = l.type === "error";
+  const ts = resolveTime(l.timestamp) ?? Date.now();
+  const tr = el(`
+    <tr class="border-t border-border align-top ${isNew ? "rowin" : ""} ${err ? "bg-destructive/5" : ""}">
+      <td class="px-5 py-2.5 mono text-xs whitespace-nowrap">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="size-1.5 rounded-full ${err ? "bg-destructive" : "bg-chart-3"}"></span>${clock(ts)}
+        </span>
+      </td>
+      <td class="px-3 py-2.5 mono text-xs">
+        ${l.model}
+        ${err && l.message ? `<div class="mono mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-[11px] leading-relaxed text-destructive break-words max-w-[42ch]">${l.message}</div>` : ""}
+      </td>
+      <td class="px-3 py-2.5 mono text-xs hidden md:table-cell text-muted-foreground">${l.accountLabel}<span class="opacity-60"> · ${l.providerName}</span></td>
+      <td class="px-3 py-2.5 mono text-xs text-right ${l.latencyMs > 5000 ? "text-chart-4" : ""}">${nf.format(l.latencyMs)}ms</td>
+      <td class="px-5 py-2.5 mono text-xs text-right hidden sm:table-cell ${l.retries ? "text-chart-4" : "text-muted-foreground"}">${l.retries || "—"}</td>
+    </tr>`);
+  return tr;
+}
+function renderLogs() {
+  const body = $("#logBody");
+  if (!DATA.logs.length) {
+    body.innerHTML = `<!-- shadcn: Empty --><tr><td colspan="5" class="px-5 py-10 text-center text-sm text-muted-foreground">No requests yet. Point a client at the gateway to see traffic here.</td></tr>`;
+    return;
+  }
+  body.innerHTML = "";
+  DATA.logs.forEach((l) => body.append(logRow(l, false)));
+}
+
+const MODELS = ["claude-sonnet-4", "gpt-4o-mini", "gemini-2.0-flash", "kiro-claude-sonnet-4"];
+let feedTimer;
+function startFeed() {
+  clearInterval(feedTimer);
+  feedTimer = setInterval(() => {
+    if (!DATA.accounts.length) return;
+    const usable = DATA.accounts.filter((a) => a.status === "active");
+    if (!usable.length) return;
+    const a = usable[Math.floor(Math.random() * usable.length)];
+    // SSE request:complete carries no token counts — rows show latency/retries only
+    const l = {
+      timestamp: null, type: "success", model: MODELS[Math.floor(Math.random() * MODELS.length)],
+      accountLabel: a.label, providerName: providerOf(a)?.name ?? "—",
+      latencyMs: 180 + Math.floor(Math.random() * 3200), retries: Math.random() > 0.85 ? 1 : 0, message: null,
+    };
+    const body = $("#logBody");
+    if (body.querySelector("td[colspan]")) body.innerHTML = "";
+    body.prepend(logRow(l, true));
+    while (body.children.length > 60) body.lastElementChild.remove();
+  }, 4200);
+}
+
+/* ------------------------------------------------------------- countdowns */
+setInterval(() => {
+  document.querySelectorAll("[data-countdown]").forEach((n) => {
+    const left = Math.max(0, Math.round((Number(n.dataset.countdown) - Date.now()) / 1000));
+    n.textContent = left ? `recovers in ${left}s` : "recovering…";
+  });
+}, 1000);
+
+/* ------------------------------------------------------------------- boot */
+function renderAll() {
+  renderAlerts(); renderHealth(); renderUsage(); renderTokenSaver();
+  renderRouterStats(); renderCombos(); renderQuota(); renderLogs();
+  lucide.createIcons();
+}
+function toggleTheme() {
+  const dark = document.documentElement.classList.toggle("dark");
+  $("#themeLabel").textContent = dark ? "Light mode" : "Dark mode";
+}
+document.querySelectorAll(".scn").forEach((b) => b.addEventListener("click", () => {
+  DATA = SCENARIOS[b.dataset.scenario];
+  document.querySelectorAll(".scn").forEach((x) => x.className = "scn rounded-full px-3 py-1.5" + (x === b ? " bg-primary text-primary-foreground" : ""));
+  renderAll();
+}));
+document.querySelector('.scn[data-scenario="normal"]').className = "scn rounded-full px-3 py-1.5 bg-primary text-primary-foreground";
+
+renderNav();
+renderAll();
+startFeed();
+</script>
+</body>
+</html>

@@ -1,6 +1,22 @@
 /* ─── UsageGraph scoped styles ─────────────────────────────────────────────── */
 /* Theme-aware: uses CSS custom properties from globals.css                  */
 
+:root {
+  --ug-cat-fill: #f6cd9e;
+  --ug-cat-fill-dark: #eeb679;
+  --ug-cat-fill-darker: #e7a35a;
+  --ug-cat-leg: #f6cd9e;
+  --ug-cat-leg-dark: #d99456;
+}
+
+.dark {
+  --ug-cat-fill: #dba566;
+  --ug-cat-fill-dark: #c68d4c;
+  --ug-cat-fill-darker: #b17a3d;
+  --ug-cat-leg: #dba566;
+  --ug-cat-leg-dark: #96632c;
+}
+
 .ug-wrap {
   position: relative;
   width: 100%;
@@ -22,6 +38,56 @@
   height: 100%;
   transform-origin: center center;
   user-select: none;
+  background-image: radial-gradient(
+    circle,
+    var(--border) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 28px 28px;
+  opacity: 1;
+}
+
+.ug-graph::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dark .ug-graph {
+  background-image: radial-gradient(
+    circle,
+    oklch(1 0 0 / 14%) 0.6px,
+    transparent 0.6px
+  );
+  background-size: 26px 26px;
+}
+
+/* ─── ambient floating particles ──────────────────────────────────────────── */
+.ug-bg-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+  animation: ug-float-drift ease-in-out infinite;
+}
+
+.dark .ug-bg-particle {
+  opacity: 0.3;
+}
+
+@keyframes ug-float-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(var(--ug-drift-x, 6px), var(--ug-drift-y, -14px));
+  }
 }
 
 /* ─── nodes ───────────────────────────────────────────────────────────────── */
@@ -47,8 +113,13 @@
   border-color: var(--ug-nc, #3f3f3f);
   box-shadow:
     0 0 0 1px var(--ug-nc, #3f3f3f),
-    0 0 22px -4px var(--ug-nc, #3f3f3f);
-  transform: translate(-50%, -50%) scale(1.04);
+    0 0 26px -4px var(--ug-nc, #3f3f3f);
+  transform: translate(-50%, -50%) scale(1.05);
+  transition:
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s;
 }
 
 .ug-node .ug-row {
@@ -58,14 +129,15 @@
 }
 
 .ug-node .ug-ico {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   display: grid;
   place-items: center;
   font-size: 12px;
   background: color-mix(in oklab, var(--ug-nc) 22%, var(--foreground));
   border: 1px solid color-mix(in oklab, var(--ug-nc) 45%, var(--foreground));
+  overflow: hidden;
 }
 
 .ug-node .ug-lb {
@@ -91,18 +163,63 @@
   display: grid;
   place-items: center;
   padding: 0;
+  z-index: 4;
+  animation: ug-hub-breathe 3s ease-in-out infinite;
 }
 
 .dark .ug-hub.ug-node {
   background: radial-gradient(circle at 50% 40%, #1b1b1b, #0d0d0d);
 }
 
-.ug-hub-text {
-  text-align: center;
+@keyframes ug-hub-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.68 0.19 264 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 20px 2px oklch(0.68 0.19 264 / 25%);
+  }
 }
 
-.ug-hub-emoji {
-  font-size: 14px;
+/* concentric pulses radiating outward from the hub, purely decorative */
+.ug-hub-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--primary);
+  opacity: 0;
+  pointer-events: none;
+  animation: ug-ring-pulse 2.6s ease-out infinite;
+}
+
+.ug-hub-ring.ug-ring-2 {
+  animation-delay: 0.87s;
+}
+
+.ug-hub-ring.ug-ring-3 {
+  animation-delay: 1.74s;
+}
+
+@keyframes ug-ring-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.ug-hub-paw {
+  color: var(--foreground);
+  opacity: 0.85;
+}
+
+.ug-hub-text {
+  position: relative;
+  z-index: 1;
+  text-align: center;
 }
 
 .ug-hub-title {
@@ -148,9 +265,21 @@
 
 .ug-streaming {
   border-color: var(--ug-nc, #3f3f3f);
-  box-shadow:
-    0 0 0 1px var(--ug-nc, #3f3f3f),
-    0 0 18px -4px var(--ug-nc, #3f3f3f);
+  animation: ug-node-breathing 1.5s ease-in-out infinite;
+}
+
+@keyframes ug-node-breathing {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--ug-nc, #3f3f3f),
+      0 0 18px -4px var(--ug-nc, #3f3f3f);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--ug-nc, #3f3f3f),
+      0 0 28px -2px var(--ug-nc, #3f3f3f);
+  }
 }
 
 /* ─── edges ───────────────────────────────────────────────────────────────── */
@@ -219,12 +348,37 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 54px;
-  height: 54px;
+  width: 64px;
+  height: 64px;
   transform-origin: 50% 50%;
   pointer-events: none;
   z-index: 2;
   will-change: transform, opacity;
+}
+
+/* faint afterimage dropped every ~100ms while the cat is walking */
+.ug-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.35;
+  filter: blur(0.5px);
+  animation: ug-trail-fade 0.5s ease-out forwards;
+}
+
+@keyframes ug-trail-fade {
+  from {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.55);
+  }
 }
 
 .ug-cat-rot {
@@ -232,10 +386,36 @@
   width: 100%;
   height: 100%;
   transform-origin: 50% 50%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
 }
 
 .ug-cat-body {
   transform-origin: 50% 50%;
+}
+
+.ug-cat-shadow {
+  fill: rgba(0, 0, 0, 0.22);
+  transform-origin: 50% 50%;
+}
+
+.dark .ug-cat-shadow {
+  fill: rgba(0, 0, 0, 0.4);
+}
+
+.ug-walking .ug-cat-shadow {
+  animation: ug-shadow-pulse 0.45s ease-in-out infinite;
+}
+
+@keyframes ug-shadow-pulse {
+  0%,
+  100% {
+    transform: scale(1, 1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(0.82, 0.82);
+    opacity: 0.6;
+  }
 }
 
 .ug-leg {
@@ -379,36 +559,154 @@
   position: absolute;
   width: 26px;
   height: 26px;
+  pointer-events: none;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+}
+
+.ug-impact-core {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 43, 77, 0.85),
-    rgba(255, 43, 77, 0) 70%
+    color-mix(in oklab, var(--ug-impact-color, #ff2b4d) 85%, transparent),
+    transparent 70%
   );
-  pointer-events: none;
-  z-index: 1;
+  opacity: 0;
 }
 
-@keyframes ug-impact-anim {
+.ug-impact.ug-impact-play .ug-impact-core {
+  animation: ug-impact-core-anim 0.5s ease-out forwards;
+}
+
+@keyframes ug-impact-core-anim {
   0% {
-    transform: translate(-50%, -50%) scale(0.3);
+    transform: scale(0.3);
     opacity: 1;
   }
   100% {
-    transform: translate(-50%, -50%) scale(2.3);
+    transform: scale(2.3);
     opacity: 0;
   }
 }
 
-.ug-impact.ug-impact-play {
-  animation: ug-impact-anim 0.5s ease-out forwards;
+.ug-impact-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--ug-impact-color, #ff2b4d);
+  opacity: 0;
 }
 
-/* ─── icon text ───────────────────────────────────────────────────────────── */
+.ug-impact.ug-impact-play .ug-impact-ring {
+  animation: ug-impact-ring-anim 0.6s ease-out forwards;
+}
+
+.ug-impact.ug-impact-play .ug-impact-ring.ug-ir-2 {
+  animation-delay: 0.08s;
+}
+
+.ug-impact.ug-impact-play .ug-impact-ring.ug-ir-3 {
+  animation-delay: 0.16s;
+}
+
+@keyframes ug-impact-ring-anim {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.ug-sparkle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px;
+  border-radius: 50%;
+  background: var(--ug-impact-color, #ff2b4d);
+  opacity: 0;
+}
+
+.ug-impact.ug-impact-play .ug-sparkle {
+  animation: ug-sparkle-fly 0.55s ease-out forwards;
+}
+
+@keyframes ug-sparkle-fly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--ug-sx, 14px), var(--ug-sy, -14px)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* ─── edge particles (data flow along the wavy line) ─────────────────────── */
+.ug-edge-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ug-nc, #888);
+  box-shadow: 0 0 4px 1px var(--ug-nc, #888);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  offset-rotate: 0deg;
+  animation-name: ug-particle-flow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes ug-particle-flow {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  92% {
+    opacity: 0.9;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+/* ─── icon text (glyph fallback, e.g. gemini) ─────────────────────────────── */
 .ug-node .ug-ico-text {
   font-size: 11px;
   font-weight: 700;
   color: var(--ug-nc, #e5e5e5);
+}
+
+/* ─── real provider logos ─────────────────────────────────────────────────── */
+/* white chip behind the logo so single-color/black marks (Anthropic,
+   Command Code) stay legible on both light and dark node backgrounds */
+.ug-logo-bg {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+  padding: 3px;
+}
+
+.ug-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* ─── zoom controls ───────────────────────────────────────────────────────── */

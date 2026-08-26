@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { useSseEvent } from "@/lib/sse-bus";
 import type { UsageSummary } from "@/types/usage";
 
 export interface GraphProvider {
@@ -182,39 +183,36 @@ export function useUsageGraph(): UseUsageGraphResult {
     void load();
   }, [load]);
 
-  // SSE subscription for real-time events
-  useEffect(() => {
-    const es = new EventSource("/api/events");
+  // Real-time events, via the shared SSE connection so the dashboard doesn't
+  // hold several subscriptions to the same stream.
+  const onRequestComplete = useCallback((e: MessageEvent) => {
+    try {
+      const data: RealtimeRequest = JSON.parse(e.data);
 
-    es.addEventListener("request:complete", (e: MessageEvent) => {
-      try {
-        const data: RealtimeRequest = JSON.parse(e.data);
+      // update nodes state optimistically
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id === data.transport) {
+            return {
+              ...n,
+              requestCount: n.requestCount + 1,
+              sub: `${fmtReq(n.requestCount + 1)} · ${fmtTokens(n.totalTokens)}`,
+            };
+          }
+          return n;
+        }),
+      );
 
-        // update nodes state optimistically
-        setNodes((prev) =>
-          prev.map((n) => {
-            if (n.id === data.transport) {
-              return {
-                ...n,
-                requestCount: n.requestCount + 1,
-                sub: `${fmtReq(n.requestCount + 1)} · ${fmtTokens(n.totalTokens)}`,
-              };
-            }
-            return n;
-          }),
-        );
-
-        // notify all registered callbacks
-        for (const cb of requestCallbacksRef.current) {
-          cb(data);
-        }
-      } catch {
-        // ignore parse errors
+      // notify all registered callbacks
+      for (const cb of requestCallbacksRef.current) {
+        cb(data);
       }
-    });
-
-    return () => es.close();
+    } catch {
+      // ignore parse errors
+    }
   }, []);
+
+  useSseEvent("request:complete", onRequestComplete);
 
   const onRequest = useCallback(
     (cb: (req: RealtimeRequest) => void): (() => void) => {

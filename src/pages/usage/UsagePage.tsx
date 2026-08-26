@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { UsageTable } from "@/components/usage/UsageTable";
 import { useUsage } from "@/hooks/useUsage";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { useSseEvent } from "@/lib/sse-bus";
 import { cn } from "@/lib/utils";
 import type { UsageRecord } from "@/types/usage";
 
@@ -195,36 +196,34 @@ export function UsagePage() {
     void loadRecords();
   }, [loadRecords]);
 
-  useEffect(() => {
-    const eventSource = new EventSource("/api/events");
-    eventSource.addEventListener("request:complete", (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data) as {
-          providerAccountId: string;
-          comboId: string | null;
-          model: string;
-          latencyMs: number;
-          timestamp: number;
-        };
-        const realtimeRecord: UsageRecord = {
-          id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: new Date(data.timestamp).toISOString(),
-          providerAccountId: data.providerAccountId,
-          comboId: data.comboId,
-          model: data.model,
-          inputTokens: 0,
-          outputTokens: 0,
-          status: "success",
-          latencyMs: data.latencyMs,
-          estimatedCost: 0,
-        };
-        setRecords((current) => [realtimeRecord, ...current].slice(0, 50));
-      } catch {
-        // Ignore malformed realtime events.
-      }
-    });
-    return () => eventSource.close();
+  const onRequestComplete = useCallback((event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data) as {
+        providerAccountId: string;
+        comboId: string | null;
+        model: string;
+        latencyMs: number;
+        timestamp: number;
+      };
+      const realtimeRecord: UsageRecord = {
+        id: `rt-${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: new Date(data.timestamp).toISOString(),
+        providerAccountId: data.providerAccountId,
+        comboId: data.comboId,
+        model: data.model,
+        inputTokens: 0,
+        outputTokens: 0,
+        status: "success",
+        latencyMs: data.latencyMs,
+        estimatedCost: 0,
+      };
+      setRecords((current) => [realtimeRecord, ...current].slice(0, 50));
+    } catch {
+      // Ignore malformed realtime events.
+    }
   }, []);
+
+  useSseEvent("request:complete", onRequestComplete);
 
   const totalRequests = useMemo(
     () =>

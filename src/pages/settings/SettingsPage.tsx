@@ -12,30 +12,26 @@ import { cn } from "@/lib/utils";
 
 const systemMetrics = [
   {
-    label: "Session security",
-    value: "CONFIGURED",
-    detail: "Password gate available",
+    label: "Session",
+    value: "PASSWORD",
     icon: LockKeyholeIcon,
     tone: "ok",
   },
   {
-    label: "Local persistence",
-    value: "ENABLED",
-    detail: "SQLite-backed settings",
+    label: "Storage",
+    value: "SQLITE",
     icon: SlidersHorizontalIcon,
     tone: "primary",
   },
   {
     label: "API access",
     value: "KEYSTORE",
-    detail: "Credentials managed below",
     icon: KeyRoundIcon,
     tone: "violet",
   },
   {
-    label: "Appearance",
-    value: "CONFIGURED",
-    detail: "Light / dark / system",
+    label: "Theme",
+    value: "SYSTEM",
     icon: MonitorCogIcon,
     tone: "amber",
   },
@@ -71,18 +67,17 @@ export function SettingsPage() {
           </p>
           <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Tune the local control plane, protect your session, and manage keys
-            used by routed clients.
+            Session, appearance, and API keys.
           </p>
         </div>
-        <StatusLed label="configuration surface" />
+        <StatusLed label="local" />
       </header>
 
       <EncryptionMismatchAlert />
 
       <Card className="!py-0 overflow-hidden">
         <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4 [&>*]:bg-card">
-          {systemMetrics.map(({ label, value, detail, icon: Icon, tone }) => (
+          {systemMetrics.map(({ label, value, icon: Icon, tone }) => (
             <div
               key={label}
               className="flex min-w-0 items-center gap-3 px-3 py-3.5 sm:px-4"
@@ -101,9 +96,6 @@ export function SettingsPage() {
                 </p>
                 <p className="glow-primary font-mono text-sm font-semibold tracking-tight">
                   {value}
-                </p>
-                <p className="truncate font-mono text-[10px] text-muted-foreground">
-                  {detail}
                 </p>
               </div>
             </div>
@@ -135,11 +127,6 @@ export function SettingsPage() {
           <ApiKeyManager />
         </div>
       </div>
-
-      <p className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-        <span className="size-1.5 rounded-full bg-primary shadow-[0_0_6px] shadow-primary/60" />
-        Changes apply locally and affect new sessions or routed requests.
-      </p>
     </div>
   );
 }

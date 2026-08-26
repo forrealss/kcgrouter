@@ -1,13 +1,7 @@
 import { ArrowRightIcon, TerminalIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { CLIToolSummary } from "@/types/cli-tool";
@@ -48,7 +42,7 @@ function ToolStatus({ tool }: { tool: CLIToolSummary }) {
     return (
       <Badge variant="outline" className="gap-1.5 font-mono text-[10px]">
         <span className="size-1.5 rounded-full bg-amber-400" />
-        SETUP REQUIRED
+        SETUP
       </Badge>
     );
   }
@@ -80,7 +74,7 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      <CardHeader className="px-5 pb-0">
+      <CardHeader className="px-5">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-primary/30 bg-primary/10">
             <ToolIcon icon={tool.icon} name={tool.name} />
@@ -94,29 +88,18 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
             </p>
           </div>
         </div>
-        <CardAction>
+        <CardAction className="flex items-center gap-2">
           <ToolStatus tool={tool} />
+          <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 px-5">
-        <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
-          <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-            {tool.configured
-              ? "Router endpoint active"
-              : tool.installed
-                ? "Ready for configuration"
-                : "Install client to continue"}
-          </span>
-          <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-        </div>
-      </CardContent>
     </Card>
   );
 }
 
 export function CLIToolCardSkeleton() {
   return (
-    <Card aria-hidden className="gap-4 p-5">
+    <Card aria-hidden className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <Skeleton className="size-9 shrink-0 rounded-md" />
@@ -125,9 +108,8 @@ export function CLIToolCardSkeleton() {
             <Skeleton className="h-3.5 w-40 max-w-full" />
           </div>
         </div>
-        <Skeleton className="h-5 w-24 rounded-full" />
+        <Skeleton className="h-5 w-20 rounded-full" />
       </div>
-      <Skeleton className="mt-2 h-3 w-48" />
     </Card>
   );
 }

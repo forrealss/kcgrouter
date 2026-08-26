@@ -25,7 +25,7 @@
     "bun": ">=1.2.3"
   },
   "scripts": {
-    "dev": "bun --hot src/index.ts",
+    "dev": "KCGRouter_DEV=1 bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "build": "bun run build.ts",
     "check": "biome check --write ./src",

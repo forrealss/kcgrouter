@@ -340,10 +340,9 @@ export function DashboardPage() {
       {/* ── Page Header ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">KCG Router — System Status</h2>
+          <h2 className="text-xl font-semibold">System Status</h2>
           <p className="text-sm text-muted-foreground">
-            Control panel: provider connections, combo routes, and real-time
-            request traffic.
+            Connections, routes, and live traffic.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -358,39 +357,39 @@ export function DashboardPage() {
       <Card className="!py-0 overflow-hidden">
         <div className="grid min-w-0 grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-4 [&>*]:bg-card">
           <SysMetric
-            label="Providers Connected"
+            label="Providers"
             value={numFmt.format(providers?.length ?? 0)}
             icon={ServerIcon}
             loading={!providers}
             tone="ok"
           />
           <SysMetric
-            label="Active Connections"
+            label="Active"
             value={`${numFmt.format(activeCount)}/${numFmt.format(allAccounts.length)}`}
             icon={SignalIcon}
             loading={!providers}
             tone={errorCount > 0 ? "warn" : "ok"}
           />
           <SysMetric
-            label="Combos Configured"
+            label="Combos"
             value={numFmt.format(combos?.length ?? 0)}
             icon={Layers3Icon}
             loading={!combos}
           />
           <SysMetric
-            label="Total Requests"
+            label="Requests"
             value={numFmt.format(totalRequests)}
             icon={ZapIcon}
             loading={!summary}
           />
           <SysMetric
-            label="Estimated Cost"
+            label="Est. cost"
             value={costFmt.format(summary?.totalCost ?? 0)}
             icon={CoinsIcon}
             loading={!summary}
           />
           <SysMetric
-            label="Failed Connections"
+            label="Errors"
             value={numFmt.format(errorCount)}
             icon={GaugeIcon}
             loading={!providers}
@@ -404,7 +403,7 @@ export function DashboardPage() {
             tone={(retryStats?.totalRetries ?? 0) > 0 ? "warn" : "ok"}
           />
           <SysMetric
-            label="Cooling Down"
+            label="Cooldown"
             value={numFmt.format(retryStats?.coolingDown ?? 0)}
             icon={HourglassIcon}
             loading={!retryStats}
@@ -467,7 +466,7 @@ export function DashboardPage() {
         <CardHeader className="px-5 pt-4 pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <BoxesIcon className="size-4 text-muted-foreground" />
-            Provider Connection Status
+            Connections
           </CardTitle>
           <CardAction>
             <button

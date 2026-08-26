@@ -13,9 +13,27 @@ export interface AppConfig {
 export const DEFAULT_PORT = 3000;
 export const CONFIG_FILE = "config.json";
 
-/** Resolve the KCG Router home directory (~/.kcgrouter unless overridden). */
+/**
+ * Directory name (relative to the current working directory) used as the home
+ * when running in dev mode (`bun dev`), so local development never shares
+ * secrets/DB/config with the production `~/.kcgrouter` used by the installed
+ * binary.
+ */
+const DEV_HOME_DIR = ".kcgrouter-dev";
+
+/**
+ * Resolve the KCG Router home directory.
+ *
+ * Priority:
+ * 1. KCGRouter_HOME env var (explicit override, also used by tests)
+ * 2. `<cwd>/.kcgrouter-dev` when launched via `bun dev` (KCGRouter_DEV=1)
+ * 3. `~/.kcgrouter` (default — used by the binary, daemon and production runs)
+ */
 export function getHome(): string {
-  return process.env.KCGRouter_HOME || join(homedir(), ".kcgrouter");
+  if (process.env.KCGRouter_HOME) return process.env.KCGRouter_HOME;
+  if (process.env.KCGRouter_DEV === "1")
+    return join(process.cwd(), DEV_HOME_DIR);
+  return join(homedir(), ".kcgrouter");
 }
 
 /** Full path to the config file. */

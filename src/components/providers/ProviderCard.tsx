@@ -57,12 +57,12 @@ export function ProviderCard({
     accounts.length > 0 &&
     accounts.every((account) => account.status === "expired");
   const statusLabel = hasError
-    ? "attention required"
+    ? "error"
     : hasActive
       ? "ready"
       : hasExpired
         ? "expired"
-        : "no connections";
+        : "unconfigured";
   const statusDot = hasError
     ? "bg-destructive shadow-[0_0_6px] shadow-destructive/70"
     : hasActive

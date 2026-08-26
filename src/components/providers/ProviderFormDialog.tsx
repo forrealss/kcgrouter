@@ -218,8 +218,7 @@ export function ProviderFormDialog({
                 placeholder="https://api.openai.com/v1"
               />
               <FieldDescription>
-                URL dasar endpoint API provider, termasuk path versi bila
-                diperlukan.
+                Include the version path if the provider needs one.
               </FieldDescription>
             </Field>
             {error ? (

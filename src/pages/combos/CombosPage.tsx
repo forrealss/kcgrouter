@@ -292,7 +292,7 @@ export function CombosPage() {
             </EmptyMedia>
             <EmptyTitle>No combos yet</EmptyTitle>
             <EmptyDescription>
-              Create a combo to configure provider and model order.
+              Create one to set provider and model order.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -312,7 +312,7 @@ export function CombosPage() {
               Routing inventory
             </h2>
             <Badge variant="secondary" className="font-mono text-[10px]">
-              {combos.length} registered
+              {combos.length}
             </Badge>
           </div>
           <div className="grid min-h-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -438,7 +438,7 @@ export function CombosPage() {
           <DialogHeader>
             <DialogTitle>Create combo</DialogTitle>
             <DialogDescription>
-              Choose a routing strategy before adding model targets.
+              Add model targets after creating it.
             </DialogDescription>
           </DialogHeader>
           <CreateComboForm

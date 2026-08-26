@@ -72,10 +72,6 @@ function PreferencesCard() {
           </div>
         </FieldGroup>
       </CardContent>
-      <div className="flex items-center gap-2 border-t border-border/50 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-        <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
-        Session controls ready
-      </div>
 
       <ChangePasswordDialog
         open={isPasswordDialogOpen}

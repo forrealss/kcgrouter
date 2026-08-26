@@ -190,8 +190,7 @@ export function CLIToolConfigForm({
           Configuration
         </CardTitle>
         <CardDescription>
-          Point this CLI tool to KCG Router. All requests are routed through the{" "}
-          <code className="font-mono">/v1</code> endpoint.
+          Routes through <code className="font-mono">/v1</code>.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-5 py-5 sm:px-6">
@@ -204,9 +203,9 @@ export function CLIToolConfigForm({
               </Label>
               <p className="text-sm text-muted-foreground">
                 {status?.form?.baseUrlStyle === "root"
-                  ? "This tool appends /v1 itself, so point it at the router root. Defaults to"
-                  : "Base URL of the router. Defaults to"}{" "}
-                <code className="font-mono text-xs">{defaultEndpoint}</code>.
+                  ? "Router root — this tool appends /v1 itself. Default:"
+                  : "Default:"}{" "}
+                <code className="font-mono text-xs">{defaultEndpoint}</code>
               </p>
             </div>{" "}
             <Input
@@ -320,7 +319,7 @@ export function CLIToolConfigForm({
                 <div className="flex flex-col gap-1">
                   <Label className="font-mono text-xs">Models</Label>
                   <p className="text-sm text-muted-foreground">
-                    Models this tool can use. Star one to set it as the default.
+                    Star one to make it the default.
                   </p>
                 </div>
                 <MultiCombobox
@@ -332,7 +331,7 @@ export function CLIToolConfigForm({
                   onActiveChange={setActiveModel}
                   disabled={isSaving}
                   emptyLabel="No models selected"
-                  emptyHint="Pick models from your enabled providers or combos, then star one to make it the default."
+                  emptyHint="Star one to make it the default."
                   searchPlaceholder="Search models..."
                   addLabel="Add model"
                   dialogTitle="Select models"
@@ -342,8 +341,8 @@ export function CLIToolConfigForm({
                 />
                 {modelOptions.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No enabled models or combos found. Enable models in the
-                    Providers page or create a combo first.
+                    No models available. Enable some in Providers, or create a
+                    combo.
                   </p>
                 ) : null}
               </div>

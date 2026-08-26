@@ -50,7 +50,7 @@ export function CreateComboForm({
               id="combo-name"
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
-              placeholder="mis. production-default"
+              placeholder="production-default"
               aria-invalid={Boolean(error)}
               disabled={isCreating}
               required

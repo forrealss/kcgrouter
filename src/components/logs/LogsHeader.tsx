@@ -70,8 +70,7 @@ export function LogsHeader({
           </Badge>
         </div>
         <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm">
-          Monitor request flow, provider results, and administrative events in
-          real time.
+          Requests, provider results, and admin events.
         </p>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -105,8 +104,7 @@ export function LogsHeader({
             <AlertDialogHeader>
               <AlertDialogTitle>Clear all logs?</AlertDialogTitle>
               <AlertDialogDescription>
-                All log entries will be permanently deleted from the database
-                and cannot be recovered.
+                All entries will be permanently deleted.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

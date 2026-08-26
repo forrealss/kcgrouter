@@ -86,8 +86,7 @@ export function LogsDetailModal({
         </DialogHeader>
 
         <p className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          Payloads may contain prompts, code, or sensitive data. Only view them
-          from a trusted dashboard.
+          Payloads may contain prompts, code, or secrets.
         </p>
 
         {isPayloadLoading ? (
@@ -108,10 +107,8 @@ export function LogsDetailModal({
                 <Clock3Icon />
                 <AlertTitle>Payload not available yet</AlertTitle>
                 <AlertDescription>
-                  This request log was just created. The payload will be
-                  available after processing finishes. Older logs may not have
-                  payloads because they were created before this feature was
-                  enabled.
+                  Available once the request finishes. Logs created before this
+                  feature have none.
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -126,8 +123,8 @@ export function LogsDetailModal({
               </TabsList>
               <TabsContent value="request" className="mt-3 min-h-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Payload received by the router
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    REQUEST
                   </span>
                   <CopyPayloadButton
                     value={formatPayload(payloads?.requestBody)}
@@ -139,8 +136,8 @@ export function LogsDetailModal({
               </TabsContent>
               <TabsContent value="response" className="mt-3 min-h-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Returned response
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    RESPONSE
                   </span>
                   <CopyPayloadButton
                     value={formatPayload(payloads?.responseBody)}

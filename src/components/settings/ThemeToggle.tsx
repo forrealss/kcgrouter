@@ -118,7 +118,7 @@ function ThemeToggle() {
               Theme
             </FieldLabel>
             <FieldDescription>
-              {themeDescription(theme)} Preferences are saved on this device.
+              {themeDescription(theme)} Saved on this device.
             </FieldDescription>
           </FieldContent>
           <ThemePicker

@@ -92,8 +92,7 @@ export function FetchModelsDialog({
         <DialogHeader>
           <DialogTitle>Import Models</DialogTitle>
           <DialogDescription>
-            {newCount} new models found from {provider.name}. Select the models
-            you want to add.
+            {newCount} new models from {provider.name}.
           </DialogDescription>
         </DialogHeader>
 
@@ -180,7 +179,7 @@ export function FetchModelsDialog({
                             variant="secondary"
                             className="shrink-0 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
                           >
-                            Already imported
+                            IMPORTED
                           </Badge>
                         ) : null}
                       </label>

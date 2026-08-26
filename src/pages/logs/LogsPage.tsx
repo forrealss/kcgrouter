@@ -125,8 +125,8 @@ export function LogsPage() {
               </EmptyTitle>
               <EmptyDescription>
                 {hasActiveFilters
-                  ? "Try changing the keyword or resetting the filters to see other entries."
-                  : "Logs will appear automatically when requests, tests, or admin activity occur."}
+                  ? "Try changing the keyword or resetting the filters."
+                  : "Entries appear as requests and admin activity occur."}
               </EmptyDescription>
             </EmptyHeader>
             {hasActiveFilters ? (
@@ -145,7 +145,6 @@ export function LogsPage() {
             filteredLogs={filteredLogs}
             totalLogs={logs.length}
             lastUpdated={lastUpdated}
-            connectionStatus={connectionStatus}
             liveAnnouncement={liveAnnouncement}
             onOpenLog={handleOpenLog}
             onLogKeyDown={handleLogKeyDown}

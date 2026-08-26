@@ -98,7 +98,7 @@ export function ProvidersPage() {
     <section className="flex min-w-0 flex-col gap-5">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Manage the upstream endpoints and connections used by the router.
+          Upstream endpoints and their connections.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -137,7 +137,7 @@ export function ProvidersPage() {
             tone="ok"
           />
           <InventoryMetric
-            label="Attention required"
+            label="Errors"
             value={String(inventory.errors)}
             icon={TriangleAlertIcon}
             tone={inventory.errors > 0 ? "bad" : "neutral"}
@@ -173,7 +173,7 @@ export function ProvidersPage() {
             </EmptyMedia>
             <EmptyTitle>No providers configured</EmptyTitle>
             <EmptyDescription>
-              Add a provider to start forwarding requests upstream.
+              Add one to start forwarding requests.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -192,7 +192,7 @@ export function ProvidersPage() {
                   Built-in transports
                 </h3>
                 <Badge variant="secondary" className="font-mono text-[10px]">
-                  {builtinProviders.length} registered
+                  {builtinProviders.length}
                 </Badge>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -218,7 +218,7 @@ export function ProvidersPage() {
                   Custom upstreams
                 </h3>
                 <Badge variant="secondary" className="font-mono text-[10px]">
-                  {customProviders.length} registered
+                  {customProviders.length}
                 </Badge>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

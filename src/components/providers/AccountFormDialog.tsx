@@ -95,7 +95,7 @@ export function AccountFormDialog({
       parsedQuotaLimit !== null &&
       (!Number.isSafeInteger(parsedQuotaLimit) || parsedQuotaLimit <= 0)
     ) {
-      setError("Batas quota harus berupa bilangan bulat positif.");
+      setError("The quota limit must be a positive whole number.");
       return;
     }
 

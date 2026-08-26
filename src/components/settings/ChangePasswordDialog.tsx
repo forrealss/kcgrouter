@@ -11,7 +11,6 @@ import {
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -162,16 +161,9 @@ function ChangePasswordDialog({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <DialogTitle className="text-base">Change password</DialogTitle>
-                <Badge
-                  variant="outline"
-                  className="font-mono text-[9px] uppercase tracking-[0.12em]"
-                >
-                  Secure action
-                </Badge>
               </div>
               <DialogDescription className="mt-1.5 text-xs leading-relaxed">
-                Rotate the credential used to access this dashboard. Your
-                current password is required for verification.
+                Rotates the dashboard sign-in credential.
               </DialogDescription>
             </div>
           </div>

@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ConnectionStatus, RequestLog } from "@/types/log";
+import type { RequestLog } from "@/types/log";
 
 const timestampFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -56,7 +56,6 @@ export function LogsTable({
   filteredLogs,
   totalLogs,
   lastUpdated,
-  connectionStatus,
   liveAnnouncement,
   onOpenLog,
   onLogKeyDown,
@@ -64,7 +63,6 @@ export function LogsTable({
   filteredLogs: RequestLog[];
   totalLogs: number;
   lastUpdated: Date | null;
-  connectionStatus: ConnectionStatus;
   liveAnnouncement: string;
   onOpenLog: (log: RequestLog) => void;
   onLogKeyDown: (event: KeyboardEvent, log: RequestLog) => void;
@@ -254,20 +252,6 @@ export function LogsTable({
           {lastUpdated
             ? `Updated ${lastUpdated.toLocaleTimeString("en-US")}`
             : "Waiting for updates..."}
-        </span>
-        <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
-          <span
-            className={`size-1.5 rounded-full ${
-              connectionStatus === "live"
-                ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-                : "bg-muted-foreground/50"
-            }`}
-          />
-          {connectionStatus === "live"
-            ? "Live sync active"
-            : connectionStatus === "connecting"
-              ? "Connecting to live logs"
-              : "Sync disconnected"}
         </span>
       </CardFooter>
     </div>

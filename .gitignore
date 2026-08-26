@@ -38,4 +38,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # database
 db/*sqlite*
 
+# local dev home (created by `bun dev`)
+.kcgrouter-dev/
+
 .freebuff

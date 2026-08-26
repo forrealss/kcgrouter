@@ -170,8 +170,7 @@ export function QuotaPage() {
             Quota Tracker
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Inspect token budgets and provider-side usage windows across every
-            routed account.
+            Token budgets and usage windows per account.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -285,8 +284,7 @@ export function QuotaPage() {
             </EmptyMedia>
             <EmptyTitle>No quota accounts configured</EmptyTitle>
             <EmptyDescription>
-              Add a provider account with a token limit or a supported remote
-              quota to start tracking capacity.
+              Add an account with a token limit or a supported remote quota.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

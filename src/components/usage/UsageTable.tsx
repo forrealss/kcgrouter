@@ -200,10 +200,7 @@ export function UsageTable({
     <Card>
       <CardHeader>
         <CardTitle>Request history</CardTitle>
-        <CardDescription>
-          Review the latest 50 requests and narrow the results by account,
-          model, or date.
-        </CardDescription>
+        <CardDescription>Latest 50 requests.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <form onSubmit={handleSubmit}>
@@ -346,8 +343,8 @@ export function UsageTable({
               <EmptyTitle>No usage records found</EmptyTitle>
               <EmptyDescription>
                 {hasActiveFilters
-                  ? "Try adjusting or clearing the active filters."
-                  : "Requests will appear here after traffic is routed through KCG Router."}
+                  ? "Try clearing the active filters."
+                  : "Records appear once traffic is routed."}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -416,9 +413,7 @@ export function UsageTable({
         ) : null}
       </CardContent>
       <CardFooter className="text-sm text-muted-foreground">
-        {isLoading
-          ? "Loading the latest records…"
-          : `Showing ${records.length} of up to 50 latest records.`}
+        {isLoading ? "Loading…" : `${records.length} of 50`}
       </CardFooter>
 
       <UsageDetailModal

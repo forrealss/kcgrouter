@@ -417,7 +417,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                                 className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 disabled={isMutating}
                                 aria-label={`Remove ${member.modelName} from combo`}
-                                title="Remove target from combo"
+                                title="Remove target"
                               >
                                 {removingMemberId === member.id ? (
                                   <Spinner className="size-3.5" />
@@ -432,9 +432,8 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                                   Delete target?
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  {member.modelName} will be removed from the
-                                  combo and the remaining target order will be
-                                  compacted.
+                                  {member.modelName} will be removed and the
+                                  remaining order compacted.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -470,7 +469,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
               <div>
                 <p className="text-sm font-medium">Add target</p>
                 <p className="text-xs text-muted-foreground">
-                  Add a provider model to the routing order.
+                  Appended to the end of the order.
                 </p>
               </div>
             </div>

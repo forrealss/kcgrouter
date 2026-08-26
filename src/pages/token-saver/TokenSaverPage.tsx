@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   ActivityIcon,
   BotIcon,
-  CheckCircle2Icon,
   FilterIcon,
   RefreshCwIcon,
   ScissorsIcon,
@@ -368,8 +367,7 @@ export function TokenSaverPage() {
           </p>
           <h2 className="text-xl font-semibold tracking-tight">Token Saver</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Compress tool output before it reaches the model context while
-            keeping the useful signal intact.
+            Compress tool output before it reaches the model context.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -515,8 +513,7 @@ export function TokenSaverPage() {
                       Output filters
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs">
-                      Tool-specific compression rules detected at the router
-                      edge.
+                      Per-tool compression rules.
                     </CardDescription>
                   </div>
                 </div>
@@ -604,10 +601,6 @@ export function TokenSaverPage() {
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   {formatUpdatedAt(settings.updatedAt)}
                 </span>
-                <StatusLed
-                  active={isActive}
-                  label={isActive ? "FILTERING ENABLED" : "FILTERING BYPASSED"}
-                />
               </div>
             </Card>
 
@@ -648,12 +641,6 @@ export function TokenSaverPage() {
               />
             </div>
           </div>
-
-          <p className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-            <CheckCircle2Icon className="size-3 text-emerald-500" />
-            Settings apply to new routed requests. Saving is optimistic and
-            reverts on failure.
-          </p>
         </>
       ) : null}
     </div>

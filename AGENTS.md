@@ -122,6 +122,7 @@ Upstream AI Providers (OpenAI, Anthropic, Gemini, Kiro, etc.)
 | `PORT`            | No       | Server port (default: 3000)      |
 | `DB_PATH`         | No       | Override DB path (used in tests) |
 | `KCGRouter_HOME`  | No       | Override home dir (default: `~/.kcgrouter/`) |
+| `KCGRouter_DEV`   | No       | Set to `1` by `bun dev`: use `<cwd>/.kcgrouter-dev/` as home instead of `~/.kcgrouter/` |
 
 Generate secrets: `bun run gen-env`
 
@@ -129,6 +130,11 @@ Secrets are **auto-generated on first run** if missing: `ensureSecrets()`
 (`src/env.ts`) creates `~/.kcgrouter/.env` (mode `0600`) with random
 `ENCRYPTION_KEY`/`SESSION_SECRET` and loads it at startup. Real environment
 variables always take precedence over the file, so shell-set values win.
+
+`bun dev` runs with `KCGRouter_DEV=1`, so it resolves its home to
+`<cwd>/.kcgrouter-dev/` (gitignored) instead of `~/.kcgrouter/`. This keeps
+dev secrets, DB, and config fully separate from the installed binary/daemon —
+avoiding encryption-key mismatches between the two.
 
 ### Custom port (`~/.kcgrouter/config.json`)
 

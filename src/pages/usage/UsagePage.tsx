@@ -293,8 +293,7 @@ export function UsagePage() {
           </p>
           <h2 className="text-xl font-semibold tracking-tight">Usage</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Monitor request flow, token throughput, latency, and provider costs
-            from a single control surface.
+            Throughput, latency, and cost per provider.
           </p>
         </div>
         <div className="flex items-center gap-2">

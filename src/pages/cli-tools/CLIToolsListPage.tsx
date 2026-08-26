@@ -1,5 +1,4 @@
 import {
-  ActivityIcon,
   CheckCircle2Icon,
   DownloadIcon,
   RefreshCwIcon,
@@ -97,8 +96,7 @@ export function CLIToolsListPage() {
           </p>
           <h2 className="text-xl font-semibold tracking-tight">CLI Tools</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Connect local coding clients to KCG Router and keep every endpoint
-            configuration in one control surface.
+            Point local coding clients at the router.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -200,7 +198,7 @@ export function CLIToolsListPage() {
             </EmptyMedia>
             <EmptyTitle>No CLI tools available</EmptyTitle>
             <EmptyDescription>
-              No supported client integrations are registered in this build.
+              No client integrations in this build.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -227,11 +225,6 @@ export function CLIToolsListPage() {
           </section>
         </>
       ) : null}
-
-      <p className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-        <ActivityIcon className="size-3 text-primary" />
-        Select a client to manage its router endpoint, API key, and model map.
-      </p>
     </div>
   );
 }

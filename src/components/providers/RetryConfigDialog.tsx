@@ -138,10 +138,7 @@ export function RetryConfigDialog({
         <DialogHeader>
           <DialogTitle>Retry policy — {providerName}</DialogTitle>
           <DialogDescription>
-            Override the global retry rules for this provider. Each row defines
-            how many retries a failed status code gets before the request falls
-            over to the next account. Leave a row blank to keep the global
-            default.
+            Blank rows use the global default.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSave}>
@@ -199,10 +196,9 @@ export function RetryConfigDialog({
 
             <Field>
               <FieldDescription className="text-[11px]">
-                Defaults: 429 → no retry · 502 → 3× @ 3s · 503 → 3× @ 2s · 504 →
-                2× @ 3s. Delays are jittered ±25% and an upstream{" "}
-                <code className="text-[10px]">Retry-After</code> header is
-                always honored.
+                429 → none · 502 → 3× @ 3s · 503 → 3× @ 2s · 504 → 2× @ 3s.
+                Jittered ±25%; upstream{" "}
+                <code className="text-[10px]">Retry-After</code> wins.
               </FieldDescription>
             </Field>
 

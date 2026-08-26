@@ -1,6 +1,5 @@
 import {
   CheckIcon,
-  CircleAlertIcon,
   CopyIcon,
   KeyRoundIcon,
   PlusIcon,
@@ -27,7 +26,6 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -355,7 +353,7 @@ function ApiKeyManager() {
                         title={
                           key.has_key
                             ? "Copy key"
-                            : "This key was created before encryption was enabled"
+                            : "Created before encryption was enabled"
                         }
                       >
                         {isCopying ? (
@@ -393,8 +391,7 @@ function ApiKeyManager() {
                               Revoke API key {key.label}?
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              The key will be permanently deleted and can no
-                              longer be used.
+                              This cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -427,16 +424,12 @@ function ApiKeyManager() {
                 </EmptyMedia>
                 <EmptyTitle>No API keys yet</EmptyTitle>
                 <EmptyDescription>
-                  Create your first key to start using the CLI.
+                  Create one to start using the CLI.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
         </CardContent>
-        <CardFooter className="gap-2 border-t px-5 text-[11px] text-muted-foreground">
-          <CircleAlertIcon className="size-3.5 shrink-0 text-amber-500" />
-          Keys are encrypted at rest and can be revoked at any time.
-        </CardFooter>
       </Card>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
@@ -444,7 +437,7 @@ function ApiKeyManager() {
           <DialogHeader>
             <DialogTitle>Create API key</DialogTitle>
             <DialogDescription>
-              Add a label so this key is easy to identify in CLI configuration.
+              A label makes it easy to identify later.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate}>
@@ -499,8 +492,7 @@ function ApiKeyManager() {
           <DialogHeader>
             <DialogTitle>Save your API key</DialogTitle>
             <DialogDescription>
-              Copy this key now. After closing this dialog, it can still be
-              copied from the list.
+              Also copyable from the list later.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -526,8 +518,7 @@ function ApiKeyManager() {
                 Do not share this API key
               </AlertTitle>
               <AlertDescription>
-                This key can be used to access the router endpoint on your
-                behalf.
+                It grants full access to the router endpoint.
               </AlertDescription>
             </Alert>
           </FieldGroup>

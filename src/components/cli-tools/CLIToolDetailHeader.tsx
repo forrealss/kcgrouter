@@ -89,14 +89,14 @@ export function CLIToolDetailHeader({
                   : "size-1.5 rounded-full bg-muted-foreground/50"
               }
             />
-            {status?.installed ? "INSTALLED" : "NOT DETECTED"}
+            {status?.installed ? "INSTALLED" : "MISSING"}
           </Badge>
           <Badge
             variant={isReady ? "default" : "outline"}
             className="gap-1.5 font-mono text-[10px]"
           >
             {isReady ? <CheckCircle2Icon /> : <CircleSlash2Icon />}
-            {isReady ? "CONNECTED" : "NOT CONFIGURED"}
+            {isReady ? "CONNECTED" : "UNLINKED"}
           </Badge>
         </div>
       </div>

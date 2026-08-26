@@ -26,20 +26,18 @@ export function EncryptionMismatchAlert() {
   return (
     <Alert variant="destructive">
       <KeySquareIcon />
-      <AlertTitle>Encryption key mismatch detected</AlertTitle>
+      <AlertTitle>Encryption key mismatch</AlertTitle>
       <AlertDescription className="flex flex-col gap-2">
         <p>
-          The current ENCRYPTION_KEY cannot decrypt {health.undecryptable}/
-          {health.checked} stored credential
+          ENCRYPTION_KEY cannot decrypt {health.undecryptable}/{health.checked}{" "}
+          stored credential
           {health.undecryptable === 1 ? "" : "s"}
-          {affected ? ` (${affected})` : ""}. This usually means the key used
-          now differs from the one at creation time — for example, dev and
-          production environments with separate secrets — or a stored value is
-          corrupt.
+          {affected ? ` (${affected})` : ""}. Usually a dev/production key
+          mismatch.
         </p>
         <p>
-          Connection tests and routed requests for affected accounts will fail
-          until the original key is restored or the credentials are re-created.
+          Affected accounts will fail until the original key is restored or the
+          credentials are re-created.
         </p>
       </AlertDescription>
     </Alert>

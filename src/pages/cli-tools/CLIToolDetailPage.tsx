@@ -86,7 +86,6 @@ export function CLIToolDetailPage({ toolId }: { toolId: string }) {
 
   const isConfigured = Boolean(status?.configured);
   const isInstalled = Boolean(status?.installed);
-  const isReady = isInstalled && isConfigured;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
@@ -136,7 +135,7 @@ export function CLIToolDetailPage({ toolId }: { toolId: string }) {
           aria-live="polite"
         >
           <RefreshCwIcon className="size-3 animate-spin" />
-          APPLYING CONFIGURATION
+          APPLYING
         </Badge>
       ) : null}
 
@@ -175,22 +174,6 @@ export function CLIToolDetailPage({ toolId }: { toolId: string }) {
           />
         </section>
       )}
-
-      {!isLoading && !error ? (
-        <p className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              isReady
-                ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-                : "bg-amber-400",
-            )}
-          />
-          {isReady
-            ? "Client is configured to route requests through KCG Router."
-            : "Apply a configuration to activate this client connection."}
-        </p>
-      ) : null}
     </div>
   );
 }

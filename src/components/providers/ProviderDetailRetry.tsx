@@ -5,22 +5,36 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { Provider, RetryConfig } from "@/types/provider";
 
-/** Status codes the global retry policy handles — shown as reference rows. */
-const STATUS_ROWS = [429, 502, 503, 504] as const;
+/** Status codes the global retry policy handles, with what each one means. */
+const STATUS_ROWS = [
+  { status: 429, reason: "Rate limited" },
+  { status: 502, reason: "Bad gateway" },
+  { status: 503, reason: "Unavailable" },
+  { status: 504, reason: "Gateway timeout" },
+] as const;
 
 const DEFAULT_LABELS: Record<number, string> = {
-  429: "no retry",
-  502: "3× @ 3s",
-  503: "3× @ 2s",
-  504: "2× @ 3s",
+  429: "Fail over immediately",
+  502: "3 retries, 3s apart",
+  503: "3 retries, 2s apart",
+  504: "2 retries, 3s apart",
 };
+
+function formatRule(attempts: number, delayMs: number): string {
+  if (attempts === 0) return "Fail over immediately";
+  const seconds = delayMs / 1000;
+  const delay = seconds % 1 === 0 ? seconds.toFixed(0) : seconds.toFixed(1);
+  return `${attempts} ${attempts === 1 ? "retry" : "retries"}, ${delay}s apart`;
+}
 
 interface ProviderDetailRetryProps {
   provider: Provider;
@@ -38,55 +52,65 @@ export function ProviderDetailRetry({
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-col gap-3 border-b border-border/60 bg-muted/15 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="size-1.5 rounded-full bg-chart-3 shadow-[0_0_6px] shadow-chart-3/70" />
-              <CardTitle className="text-base">Retry Policy</CardTitle>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                {overrideCount > 0
-                  ? `${overrideCount} OVERRIDE${overrideCount === 1 ? "" : "S"}`
-                  : "GLOBAL DEFAULTS"}
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-5 py-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            Retry policy
+            {overrideCount > 0 ? (
+              <Badge variant="secondary" className="text-[11px]">
+                {overrideCount} custom
               </Badge>
-            </div>
-            <CardDescription className="mt-1">
-              How retryable failures are retried before failing over.
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <Settings2Icon data-icon="inline-start" />
-            Configure
-          </Button>
+            ) : null}
+          </CardTitle>
+          <CardDescription>
+            How many times to retry before failing over to the next connection.
+          </CardDescription>
+          <CardAction>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              <Settings2Icon data-icon="inline-start" />
+              Configure
+            </Button>
+          </CardAction>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2 p-4">
-          {STATUS_ROWS.map((status) => {
-            const rule = provider.retryConfig?.[status];
-            return (
-              <div
-                key={status}
-                className="flex items-center justify-between gap-3 rounded-md border bg-muted/15 px-3 py-2"
-              >
-                <span className="font-mono text-xs font-semibold tabular-nums text-foreground/80">
-                  HTTP {status}
-                </span>
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {rule
-                    ? `${rule.attempts}× @ ${(rule.delayMs / 1000).toFixed(rule.delayMs % 1000 === 0 ? 0 : 1)}s`
-                    : DEFAULT_LABELS[status]}
-                </span>
-              </div>
-            );
-          })}
-          <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-            Empty rows fall back to the global default. Delays are jittered ±25%
-            and Retry-After headers are honored.
-          </p>
+
+        <CardContent className="px-5 py-2">
+          <dl className="divide-y divide-border/60">
+            {STATUS_ROWS.map(({ status, reason }) => {
+              const rule = provider.retryConfig?.[status];
+              return (
+                <div
+                  key={status}
+                  className="flex items-center justify-between gap-3 py-2.5"
+                >
+                  <dt className="flex min-w-0 items-baseline gap-2">
+                    <span className="font-mono text-sm font-medium tabular-nums">
+                      {status}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {reason}
+                    </span>
+                  </dt>
+                  <dd
+                    className={cn(
+                      "shrink-0 text-xs",
+                      rule
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {rule
+                      ? formatRule(rule.attempts, rule.delayMs)
+                      : DEFAULT_LABELS[status]}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
         </CardContent>
       </Card>
 

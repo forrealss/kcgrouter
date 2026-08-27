@@ -49,4 +49,19 @@ export const usageRoutes: Record<string, RouteHandler> = {
     });
     return Response.json(history);
   },
+
+  // Payloads live in MB-sized TEXT columns, so they are fetched per record on
+  // demand instead of riding along with every history page.
+  "GET /api/usage/history/:id/payloads": (_req, params) => {
+    const id = params?.id;
+    if (!id) {
+      return Response.json({ error: "Record ID is required" }, { status: 400 });
+    }
+
+    // A record with no stored payload is a normal outcome (realtime rows,
+    // or entries from before payload capture), not a failure — report empty
+    // bodies and let the UI say "nothing captured".
+    const payloads = UsageRecorder.getPayloads(id);
+    return Response.json(payloads ?? { requestBody: null, responseBody: null });
+  },
 };

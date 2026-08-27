@@ -31,6 +31,10 @@ export interface UsageRecord {
   estimatedCost: number;
   /** In-place retries performed before this request completed (realtime only). */
   retries?: number;
+  /** Whether request/response payloads are stored — fetch them via the
+   *  payloads endpoint instead of shipping them with every history page. */
+  hasPayload?: boolean;
+  /** Present only after fetching `/api/usage/history/:id/payloads`. */
   requestBody?: string | null;
   responseBody?: string | null;
 }

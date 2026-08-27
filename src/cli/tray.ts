@@ -106,7 +106,8 @@ export async function initTray(
       menu: {
         icon: getIconBase64(),
         isTemplateIcon: false,
-        title: "KCG Router",
+        // Empty title: GNOME AppIndicator renders it as text next to the icon
+        title: "",
         tooltip: `KCG Router :${options.port}`,
         items: menuItems.map((it) => ({
           title: it.title,

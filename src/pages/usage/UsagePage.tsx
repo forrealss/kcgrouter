@@ -299,6 +299,8 @@ export function UsagePage() {
     }
   }, []);
 
+  useSseEvent("request:complete", onRequestComplete);
+
   const isRefreshing = isSummaryLoading || isAccountsLoading || recordsLoading;
 
   function refreshAll() {

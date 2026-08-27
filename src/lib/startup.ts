@@ -266,8 +266,15 @@ function setupLinux(): void {
   // autostart environment has no guaranteed PATH — invoke the binary by its
   // absolute path.
   const kcgrouterPath = findKcgrouterBin();
+  const bunPath = findBun();
+  // The kcgrouter shim's shebang is `#!/usr/bin/env bun`, but desktop
+  // autostart environments (gnome-session etc.) don't source ~/.zshrc, so
+  // bun is not on PATH there and the shim fails silently — pass the bun
+  // binary's absolute path explicitly.
   const cmd = kcgrouterPath
-    ? `"${kcgrouterPath}" --daemon`
+    ? bunPath
+      ? `"${bunPath}" "${kcgrouterPath}" --daemon`
+      : `"${kcgrouterPath}" --daemon`
     : "kcgrouter --daemon";
 
   // Copy the app icon so the autostart entry shows the KCG Router logo.

@@ -197,6 +197,7 @@ export function UsageTable({
     null,
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [payloadLoading, setPayloadLoading] = useState(false);
   /** Models seen in loaded rows, so the picker offers real values to match. */
   const [knownModels, setKnownModels] = useState<string[]>([]);
 
@@ -268,10 +269,36 @@ export function UsageTable({
     setFilters(initialFilters);
   }
 
-  function handleRowClick(record: UsageRecord) {
-    if (!record.requestBody && !record.responseBody) return;
+  /**
+   * Payloads are not part of the history page — each row only carries a
+   * `hasPayload` flag, so the bodies are fetched here when a row is opened.
+   */
+  async function openRecord(record: UsageRecord) {
     setSelectedRecord(record);
     setIsModalOpen(true);
+    if (record.requestBody !== undefined || record.responseBody !== undefined)
+      return;
+
+    setPayloadLoading(true);
+    try {
+      const payloads = await apiClient.get<{
+        requestBody: string | null;
+        responseBody: string | null;
+      }>(`/api/usage/history/${encodeURIComponent(record.id)}/payloads`);
+      setSelectedRecord((current) =>
+        current?.id === record.id ? { ...current, ...payloads } : current,
+      );
+    } catch {
+      // Keep the modal open; the payload sections will show N/A.
+    } finally {
+      setPayloadLoading(false);
+    }
+  }
+
+  function handleRowClick(record: UsageRecord) {
+    if (!record.hasPayload && !record.requestBody && !record.responseBody)
+      return;
+    void openRecord(record);
   }
 
   const activeFilters = useMemo(() => {
@@ -655,8 +682,11 @@ export function UsageTable({
               </TableHeader>
               <TableBody>
                 {records.map((record) => {
-                  const hasPayload =
-                    Boolean(record.requestBody) || Boolean(record.responseBody);
+                  const hasPayload = Boolean(
+                    record.hasPayload ??
+                      record.requestBody ??
+                      record.responseBody,
+                  );
                   const isError = record.status === "error";
                   return (
                     <TableRow
@@ -755,6 +785,7 @@ export function UsageTable({
       <UsageDetailModal
         record={selectedRecord}
         open={isModalOpen}
+        loading={payloadLoading}
         onOpenChange={setIsModalOpen}
         accountLabel={
           selectedRecord

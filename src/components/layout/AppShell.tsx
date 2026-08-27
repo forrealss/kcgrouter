@@ -1,6 +1,7 @@
-import { ActivityIcon, AlertCircleIcon } from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { GatewayStatus } from "@/components/layout/GatewayStatus";
 import {
   type AppModule,
   AppSidebar,
@@ -8,6 +9,7 @@ import {
   defaultPath,
   resolveModuleFromPath,
 } from "@/components/layout/Sidebar";
+import { UpdateBadge } from "@/components/layout/UpdateBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -79,25 +81,17 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border/70 bg-background/90 px-4 backdrop-blur-xl md:px-6">
           <SidebarTrigger className="text-muted-foreground hover:bg-accent hover:text-foreground" />
+          <span className="h-5 w-px shrink-0 bg-border" aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-              KCG / control room
-            </p>
             <h1 className="truncate text-base font-semibold leading-tight">
               {currentModule.label}
             </h1>
+            <p className="truncate text-xs leading-tight text-muted-foreground">
+              {currentModule.description}
+            </p>
           </div>
-          <div className="hidden items-center gap-3 text-muted-foreground sm:flex">
-            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em]">
-              <ActivityIcon className="size-3 text-emerald-500" />
-              <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
-              Ready
-            </span>
-            <span className="h-4 w-px bg-border" aria-hidden />
-            <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              Ctrl B
-            </kbd>
-          </div>
+          <UpdateBadge />
+          <GatewayStatus />
         </header>
         <main
           className={`mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col gap-6 overscroll-contain overflow-x-hidden overflow-y-auto scrollbar-subtle p-4 md:p-6 ${activeModule === "dashboard" ? "bg-grid" : ""}`}

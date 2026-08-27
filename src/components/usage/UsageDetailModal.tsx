@@ -9,11 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { UsageRecord } from "@/types/usage";
 
 interface UsageDetailModalProps {
   record: UsageRecord | null;
   open: boolean;
+  /** True while the payload endpoint round-trip is in flight. */
+  loading?: boolean;
   onOpenChange: (open: boolean) => void;
   accountLabel?: string;
 }
@@ -58,6 +61,7 @@ function CopyButton({ text }: { text: string }) {
 export function UsageDetailModal({
   record,
   open,
+  loading = false,
   onOpenChange,
   accountLabel,
 }: UsageDetailModalProps) {
@@ -94,9 +98,13 @@ export function UsageDetailModal({
               </span>
               <CopyButton text={tryFormatJson(record.responseBody)} />
             </div>
-            <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
-              {tryFormatJson(record.responseBody)}
-            </pre>
+            {loading ? (
+              <PayloadSkeleton />
+            ) : (
+              <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                {tryFormatJson(record.responseBody)}
+              </pre>
+            )}
           </div>
 
           {/* Request Payload */}
@@ -107,12 +115,27 @@ export function UsageDetailModal({
               </span>
               <CopyButton text={tryFormatJson(record.requestBody)} />
             </div>
-            <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
-              {tryFormatJson(record.requestBody)}
-            </pre>
+            {loading ? (
+              <PayloadSkeleton />
+            ) : (
+              <pre className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                {tryFormatJson(record.requestBody)}
+              </pre>
+            )}
           </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PayloadSkeleton() {
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-muted p-4">
+      <Skeleton className="h-3 w-3/4" />
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-5/6" />
+      <Skeleton className="h-3 w-2/3" />
+    </div>
   );
 }

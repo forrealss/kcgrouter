@@ -4,6 +4,7 @@ import { runMigrations } from "../../../db/migrations";
 import { addAccount, createProvider } from "../provider-registry.service";
 import {
   getHistory,
+  getPayloads,
   HISTORY_SORT_KEYS,
   isHistorySort,
   record,
@@ -146,6 +147,68 @@ describe("UsageRecorder", () => {
     expect(summary.totalInputTokens).toBeGreaterThanOrEqual(300);
     expect(summary.totalOutputTokens).toBeGreaterThanOrEqual(150);
     expect(summary.byProvider.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("history rows stay metadata-only; payloads load per record", () => {
+    const p = createProvider({
+      name: `UR-Payload-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-payload-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
+    const a = addAccount(p.id, { label: "A", apiKey: "sk" });
+
+    record({
+      providerAccountId: a.id,
+      comboId: null,
+      model: "payload-model",
+      inputTokens: 1,
+      outputTokens: 1,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0,
+      requestBody: '{"prompt":"hello"}',
+      responseBody: '{"answer":"hi"}',
+    });
+
+    const [row] = getHistory({ model: "payload-model", limit: 1 });
+    expect(row?.hasPayload).toBe(true);
+    // Bodies must never ride along with the history page — they average MBs.
+    expect("requestBody" in (row ?? {})).toBe(false);
+    expect("responseBody" in (row ?? {})).toBe(false);
+
+    const payloads = getPayloads(row?.id ?? "");
+    expect(payloads?.requestBody).toBe('{"prompt":"hello"}');
+    expect(payloads?.responseBody).toBe('{"answer":"hi"}');
+    expect(getPayloads("ur_does_not_exist")).toBeNull();
+  });
+
+  test("oversized payloads are truncated at write time", () => {
+    const p = createProvider({
+      name: `UR-Trunc-${Date.now()}`,
+      transport: "openai",
+      baseUrl: "https://t.com",
+      prefix: `ur-trunc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    });
+    const a = addAccount(p.id, { label: "A", apiKey: "sk" });
+
+    record({
+      providerAccountId: a.id,
+      comboId: null,
+      model: "big-model",
+      inputTokens: 1,
+      outputTokens: 1,
+      status: "success",
+      latencyMs: 1,
+      estimatedCost: 0,
+      requestBody: "x".repeat(200 * 1024),
+      responseBody: null,
+    });
+
+    const [row] = getHistory({ model: "big-model", limit: 1 });
+    const payloads = getPayloads(row?.id ?? "");
+    expect(payloads?.requestBody?.length ?? 0).toBeLessThan(200 * 1024);
+    expect(payloads?.requestBody).toContain("[truncated");
   });
 
   describe("history sorting", () => {

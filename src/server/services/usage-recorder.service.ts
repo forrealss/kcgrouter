@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
-import { query, run } from "../../db/client";
+import { get, query, run } from "../../db/client";
 import type { UsageRecordRow } from "../../db/schema";
 
 export interface UsageRecord {
@@ -14,9 +14,21 @@ export interface UsageRecord {
   status: "success" | "error";
   latencyMs: number;
   estimatedCost: number;
-  requestBody?: string | null;
-  responseBody?: string | null;
+  hasPayload: boolean;
   requestId?: string | null;
+}
+
+/**
+ * Payloads are capped at write time so a single huge request (multi-MB
+ * streaming responses are common) cannot balloon the database or the detail
+ * endpoint. Truncated bodies keep a marker so the UI can tell.
+ */
+const MAX_PAYLOAD_CHARS = 64 * 1024;
+
+function truncatePayload(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.length <= MAX_PAYLOAD_CHARS) return value;
+  return `${value.slice(0, MAX_PAYLOAD_CHARS)}\n…[truncated, original ${value.length} chars]`;
 }
 
 export interface UsageSummary {
@@ -32,7 +44,24 @@ export interface UsageSummary {
   }[];
 }
 
-function rowToRecord(row: UsageRecordRow): UsageRecord {
+/** Write-side shape: payloads in, before truncation and id/timestamp assignment. */
+export interface UsageRecordEntry {
+  providerAccountId: string;
+  comboId: string | null;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  status: "success" | "error";
+  latencyMs: number;
+  estimatedCost: number;
+  requestBody?: string | null;
+  responseBody?: string | null;
+  requestId?: string | null;
+}
+
+function rowToRecord(
+  row: UsageRecordRow & { has_payload?: number },
+): UsageRecord {
   return {
     id: row.id,
     timestamp: row.timestamp,
@@ -44,13 +73,12 @@ function rowToRecord(row: UsageRecordRow): UsageRecord {
     status: row.status,
     latencyMs: row.latency_ms,
     estimatedCost: row.estimated_cost,
-    requestBody: row.request_body,
-    responseBody: row.response_body,
+    hasPayload: Boolean(row.has_payload),
     requestId: row.request_id ?? null,
   };
 }
 
-export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
+export function record(entry: UsageRecordEntry): void {
   const id = `ur_${randomBytes(12).toString("hex")}`;
   const now = new Date().toISOString();
 
@@ -67,10 +95,32 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
     entry.status,
     entry.latencyMs,
     entry.estimatedCost,
-    entry.requestBody ?? null,
-    entry.responseBody ?? null,
+    truncatePayload(entry.requestBody),
+    truncatePayload(entry.responseBody),
     entry.requestId ?? null,
   );
+}
+
+/**
+ * Metadata columns only — never `request_body`/`response_body`. Those payloads
+ * can average MBs per row, so selecting them turns every history page into a
+ * multi-hundred-MB transfer; clients fetch them per record via getPayloads().
+ */
+const HISTORY_COLUMNS = `
+  id, timestamp, provider_account_id, combo_id, model, input_tokens,
+  output_tokens, status, latency_ms, estimated_cost,
+  (request_body IS NOT NULL OR response_body IS NOT NULL) AS has_payload,
+  request_id`;
+
+export function getPayloads(
+  id: string,
+): { requestBody: string | null; responseBody: string | null } | null {
+  const row = get<{
+    request_body: string | null;
+    response_body: string | null;
+  }>("SELECT request_body, response_body FROM usage_records WHERE id = ?", id);
+  if (!row) return null;
+  return { requestBody: row.request_body, responseBody: row.response_body };
 }
 
 /**
@@ -131,8 +181,8 @@ export function getHistory(opts: {
   const limit = opts.limit ?? 50;
   const orderBy = HISTORY_SORTS[opts.sort ?? "newest"];
 
-  const rows = query<UsageRecordRow>(
-    `SELECT * FROM usage_records ${where} ORDER BY ${orderBy} LIMIT ?`,
+  const rows = query<UsageRecordRow & { has_payload: number }>(
+    `SELECT ${HISTORY_COLUMNS} FROM usage_records ${where} ORDER BY ${orderBy} LIMIT ?`,
     ...params,
     limit,
   );
@@ -149,8 +199,24 @@ export function summarize(range?: { from: string; to: string }): UsageSummary {
   const from = range?.from ?? defaultFrom;
   const to = range?.to ?? now.toISOString();
 
-  const rows = query<UsageRecordRow & { provider_account_id: string }>(
-    `SELECT * FROM usage_records WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC`,
+  // Aggregate in SQL. Loading the rows into JS to sum them would drag every
+  // stored payload column through memory; here only the per-provider totals
+  // ever leave SQLite.
+  const rows = query<{
+    provider_account_id: string;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    estimated_cost: number | null;
+    request_count: number;
+  }>(
+    `SELECT provider_account_id,
+            SUM(input_tokens) AS input_tokens,
+            SUM(output_tokens) AS output_tokens,
+            SUM(estimated_cost) AS estimated_cost,
+            COUNT(*) AS request_count
+     FROM usage_records
+     WHERE timestamp >= ? AND timestamp <= ?
+     GROUP BY provider_account_id`,
     from,
     to,
   );
@@ -158,45 +224,30 @@ export function summarize(range?: { from: string; to: string }): UsageSummary {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalCost = 0;
-
-  const byProviderMap = new Map<
-    string,
-    {
-      providerAccountId: string;
-      inputTokens: number;
-      outputTokens: number;
-      cost: number;
-      requestCount: number;
-    }
-  >();
+  const byProvider: UsageSummary["byProvider"] = [];
 
   for (const row of rows) {
-    totalInputTokens += row.input_tokens;
-    totalOutputTokens += row.output_tokens;
-    totalCost += row.estimated_cost;
+    const inputTokens = row.input_tokens ?? 0;
+    const outputTokens = row.output_tokens ?? 0;
+    const cost = row.estimated_cost ?? 0;
 
-    const key = row.provider_account_id;
-    const existing = byProviderMap.get(key);
-    if (existing) {
-      existing.inputTokens += row.input_tokens;
-      existing.outputTokens += row.output_tokens;
-      existing.cost += row.estimated_cost;
-      existing.requestCount += 1;
-    } else {
-      byProviderMap.set(key, {
-        providerAccountId: key,
-        inputTokens: row.input_tokens,
-        outputTokens: row.output_tokens,
-        cost: row.estimated_cost,
-        requestCount: 1,
-      });
-    }
+    totalInputTokens += inputTokens;
+    totalOutputTokens += outputTokens;
+    totalCost += cost;
+
+    byProvider.push({
+      providerAccountId: row.provider_account_id,
+      inputTokens,
+      outputTokens,
+      cost,
+      requestCount: row.request_count,
+    });
   }
 
   return {
     totalInputTokens,
     totalOutputTokens,
     totalCost,
-    byProvider: Array.from(byProviderMap.values()),
+    byProvider,
   };
 }

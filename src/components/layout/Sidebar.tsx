@@ -1,20 +1,22 @@
 import {
   BoxesIcon,
   ChartNoAxesCombinedIcon,
-  DownloadIcon,
   GaugeIcon,
   KeyRoundIcon,
   Layers3Icon,
   LayoutDashboardIcon,
   LogOutIcon,
   type LucideIcon,
+  MonitorIcon,
+  MoonIcon,
   ScrollTextIcon,
   SlidersHorizontalIcon,
-  SparklesIcon,
+  SunIcon,
   TerminalIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Logo } from "@/components/icons/Logo";
+import { gatewayStatusMeta } from "@/components/layout/GatewayStatus";
 import {
   SidebarContent,
   SidebarFooter,
@@ -31,7 +33,9 @@ import {
 import { ThemePicker } from "@/components/ui/theme-picker";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { apiClient } from "@/lib/api-client";
+import { useSseStatus } from "@/lib/sse-bus";
 import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
 export type AppModule =
   | "dashboard"
@@ -51,6 +55,9 @@ type ModuleDefinition = {
   description: string;
   icon: LucideIcon;
 };
+
+const microLabel = "font-mono text-[10px] uppercase tracking-[0.16em]";
+const microLabelMuted = `${microLabel} text-sidebar-foreground/50`;
 
 const mainModules: [ModuleDefinition, ...ModuleDefinition[]] = [
   {
@@ -135,6 +142,13 @@ export function resolveModuleFromPath(pathname: string): AppModule {
 
 export const defaultPath = "/dashboard";
 
+const THEME_CYCLE: Theme[] = ["light", "dark", "system"];
+const themeIcons: Record<Theme, LucideIcon> = {
+  light: SunIcon,
+  dark: MoonIcon,
+  system: MonitorIcon,
+};
+
 interface AppSidebarProps {
   activeModule: AppModule;
   onNavigate: (path: string) => void;
@@ -150,7 +164,8 @@ export function AppSidebar({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [theme, setTheme] = useState<Theme | null>(null);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
-  const updateInfo = useUpdateCheck();
+  const { current: currentVersion } = useUpdateCheck();
+  const gateway = gatewayStatusMeta[useSseStatus()];
 
   useEffect(() => {
     const controller = new AbortController();
@@ -195,6 +210,13 @@ export function AppSidebar({
     [theme, isSavingTheme],
   );
 
+  function cycleTheme() {
+    if (!theme) return;
+    const next =
+      THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
+    if (next) void changeTheme(next);
+  }
+
   function handleNav(path: string, e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
     onNavigate(path);
@@ -210,25 +232,14 @@ export function AppSidebar({
     }
   }
 
-  function renderModuleItems(
-    modules: ModuleDefinition[],
-    showUpdateBadge?: boolean,
-  ) {
+  function renderModuleItems(modules: ModuleDefinition[]) {
     return modules.map((module) => {
       const Icon = module.icon;
-      const isSettingsWithUpdate =
-        showUpdateBadge &&
-        module.id === "settings" &&
-        updateInfo.updateAvailable;
       return (
         <SidebarMenuItem key={module.id}>
           <SidebarMenuButton
             isActive={activeModule === module.id}
-            tooltip={
-              isSettingsWithUpdate
-                ? `${module.label} — v${updateInfo.latest} available`
-                : module.label
-            }
+            tooltip={module.label}
             asChild
           >
             <a href={module.path} onClick={(e) => handleNav(module.path, e)}>
@@ -236,17 +247,14 @@ export function AppSidebar({
               <span className="group-data-[collapsible=icon]:hidden">
                 {module.label}
               </span>
-              {isSettingsWithUpdate && (
-                <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-orange-500/90 text-[9px] font-bold text-white shadow-[0_0_6px] shadow-orange-500/50 group-data-[collapsible=icon]:hidden">
-                  {updateInfo.latest}
-                </span>
-              )}
             </a>
           </SidebarMenuButton>
         </SidebarMenuItem>
       );
     });
   }
+
+  const ThemeIcon = themeIcons[theme ?? "system"];
 
   return (
     <SidebarPrimitive variant="floating" collapsible="icon">
@@ -266,22 +274,17 @@ export function AppSidebar({
                   <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">
                     KCG Router
                   </span>
-                  <span className="flex items-center gap-1.5 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
-                    <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70" />
-                    {updateInfo.updateAvailable ? (
-                      <span className="flex items-center gap-1 text-orange-400">
-                        <SparklesIcon className="size-3" />v{updateInfo.latest}{" "}
-                        available
-                      </span>
-                    ) : (
-                      <>
-                        v{updateInfo.current ?? "..."}
-                        <span className="mx-0.5 text-sidebar-foreground/30">
-                          /
-                        </span>
-                        gateway online
-                      </>
+                  <span
+                    className={cn(
+                      microLabelMuted,
+                      "flex items-center gap-1.5 truncate group-data-[collapsible=icon]:hidden",
                     )}
+                  >
+                    <span
+                      title={gateway.label}
+                      className={cn("size-1.5 rounded-full", gateway.dot)}
+                    />
+                    v{currentVersion ?? "..."}
                   </span>
                 </div>
               </a>
@@ -291,38 +294,27 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup className="gap-1">
-          <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40">
+          <SidebarGroupLabel className={microLabelMuted}>
             Operations
           </SidebarGroupLabel>
           <SidebarMenu>{renderModuleItems(mainModules)}</SidebarMenu>
         </SidebarGroup>
         <SidebarSeparator />
         <SidebarGroup className="gap-1">
-          <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40">
-            Observability / system
+          <SidebarGroupLabel className={microLabelMuted}>
+            System
           </SidebarGroupLabel>
-          <SidebarMenu>{renderModuleItems(secondaryModules, true)}</SidebarMenu>
+          <SidebarMenu>{renderModuleItems(secondaryModules)}</SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {updateInfo.updateAvailable && (
-            <SidebarMenuItem>
-              <div className="rounded-md border border-orange-500/30 bg-orange-500/10 px-3 py-2 group-data-[collapsible=icon]:hidden">
-                <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-orange-400">
-                  <DownloadIcon className="size-3" />
-                  Update available — v{updateInfo.latest}
-                </div>
-                <code className="block rounded bg-background/60 px-2 py-1 font-mono text-[10px] text-foreground/80">
-                  {updateInfo.updateCommand}
-                </code>
-              </div>
-            </SidebarMenuItem>
-          )}
           <SidebarMenuItem>
             <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border/70 bg-sidebar-accent/20 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
-              <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-sidebar-foreground/60">
-                <span className="size-1.5 rounded-full bg-primary shadow-[0_0_6px] shadow-primary/60" />
+              <span
+                className={cn(microLabelMuted, "flex items-center gap-1.5")}
+              >
+                <span className="size-1.5 rounded-full bg-primary dark:shadow-[0_0_6px] dark:shadow-primary/60" />
                 Theme
               </span>
               <ThemePicker
@@ -332,12 +324,16 @@ export function AppSidebar({
                 disabled={theme === null || isSavingTheme}
               />
             </div>
+            <SidebarMenuButton
+              tooltip={`Theme: ${theme ?? "loading"} — click to cycle`}
+              disabled={theme === null || isSavingTheme}
+              onClick={cycleTheme}
+              className="hidden justify-center gap-0 group-data-[collapsible=icon]:flex"
+            >
+              <ThemeIcon />
+            </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <div className="mb-1 flex items-center gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
-              <span className="size-1.5 rounded-full bg-emerald-500/80" />
-              session / local
-            </div>
             <SidebarMenuButton
               tooltip="Log out"
               className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
@@ -351,6 +347,17 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div
+          className={cn(
+            microLabelMuted,
+            "flex items-center justify-between gap-2 px-2 pt-0.5 group-data-[collapsible=icon]:hidden",
+          )}
+        >
+          Toggle sidebar
+          <kbd className="rounded border border-sidebar-border bg-sidebar-accent/40 px-1.5 py-0.5 font-mono text-[10px] tracking-normal text-sidebar-foreground/60">
+            Ctrl B
+          </kbd>
+        </div>
       </SidebarFooter>
     </SidebarPrimitive>
   );

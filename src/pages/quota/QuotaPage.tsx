@@ -8,9 +8,8 @@ import {
   ServerIcon,
 } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { QuotaCard } from "@/components/quota/QuotaCard";
+import { QuotaCard, QuotaCardSkeleton } from "@/components/quota/QuotaCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -25,8 +24,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useQuota } from "@/hooks/useQuota";
 import { cn } from "@/lib/utils";
+import type { ProviderQuotaItem } from "@/types/quota";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
+
+/** Headroom below this fraction counts as "at risk" on the metric strip. */
+const AT_RISK_THRESHOLD = 0.2;
 
 const metricTone = {
   primary: "border-primary/30 bg-primary/10 text-primary",
@@ -37,15 +40,28 @@ const metricTone = {
 
 type MetricTone = keyof typeof metricTone;
 
+/**
+ * Whether a quota row is close to running out. Only `window` rows have a cap to
+ * measure headroom against; a `balance` row is at risk once it hits zero.
+ */
+function isQuotaAtRisk(quota: ProviderQuotaItem): boolean {
+  if ((quota.kind ?? "window") === "balance") return quota.total <= 0;
+  if (quota.total <= 0) return false;
+  const remaining = Math.max(0, quota.total - quota.used);
+  return remaining / quota.total <= AT_RISK_THRESHOLD;
+}
+
 function MetricCell({
   label,
   value,
+  hint,
   icon: Icon,
   loading,
   tone = "primary",
 }: {
   label: string;
   value: string;
+  hint?: string;
   icon: typeof GaugeIcon;
   loading?: boolean;
   tone?: MetricTone;
@@ -67,36 +83,19 @@ function MetricCell({
         {loading ? (
           <Skeleton className="mt-1 h-5 w-16" />
         ) : (
-          <p className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
-            {value}
+          <p className="flex items-baseline gap-1.5">
+            <span className="font-mono text-base font-semibold tracking-tight tabular-nums">
+              {value}
+            </span>
+            {hint ? (
+              <span className="truncate text-[11px] text-muted-foreground">
+                {hint}
+              </span>
+            ) : null}
           </p>
         )}
       </div>
     </div>
-  );
-}
-
-function QuotaSkeleton() {
-  return (
-    <Card className="gap-5 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3.5 w-24" />
-        </div>
-        <Skeleton className="h-5 w-16 rounded-full" />
-      </div>
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-3.5 w-28" />
-        <Skeleton className="h-2 w-full" />
-        <Skeleton className="h-3 w-full" />
-      </div>
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className="h-2 w-full" />
-        <Skeleton className="h-3 w-40" />
-      </div>
-    </Card>
   );
 }
 
@@ -126,15 +125,14 @@ export function QuotaPage() {
     const active = list.filter((account) => account.status === "active").length;
     const atRisk = list.filter((account) => {
       const limit = account.quotaLimitTokens;
-      const tokenUsage =
-        limit && limit > 0 ? account.quotaState.tokensUsed / limit : 0;
-      const remoteUsage = usageMap.get(account.id)?.quotas ?? [];
-      const remoteAtRisk = remoteUsage.some(
-        (quota) =>
-          quota.total > 0 &&
-          Math.max(0, (quota.total - quota.used) / quota.total) <= 0.2,
+      const budgetAtRisk =
+        limit !== null && limit > 0
+          ? account.quotaState.tokensUsed / limit >= 1 - AT_RISK_THRESHOLD
+          : false;
+      const remoteAtRisk = (usageMap.get(account.id)?.quotas ?? []).some(
+        isQuotaAtRisk,
       );
-      return tokenUsage >= 0.8 || remoteAtRisk;
+      return budgetAtRisk || remoteAtRisk;
     }).length;
     const tracked = list.filter(
       (account) =>
@@ -160,45 +158,26 @@ export function QuotaPage() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 scrollbar-subtle">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
-            Operations / quota
-          </p>
-          <h2 className="text-xl font-semibold tracking-tight">
-            Quota Tracker
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Token budgets and usage windows per account.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                isRefreshing
-                  ? "animate-pulse bg-amber-400"
-                  : "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-              )}
-            />
-            {isRefreshing ? "SYNCING" : "READY"}
-          </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={refreshAll}
-            disabled={isRefreshing}
-            aria-busy={isRefreshing}
-          >
-            <RefreshCwIcon
-              className={cn("size-3.5", isRefreshing && "animate-spin")}
-            />
-            {isRefreshing ? "Refreshing" : "Refresh"}
-          </Button>
-        </div>
+    <div className="flex min-w-0 flex-col gap-5 pb-2">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Remaining quota for providers that report it, plus the router's own
+          token budget.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={refreshAll}
+          disabled={isRefreshing}
+          aria-busy={isRefreshing}
+          className="w-fit"
+        >
+          <RefreshCwIcon
+            data-icon="inline-start"
+            className={cn(isRefreshing && "animate-spin")}
+          />
+          {isRefreshing ? "Refreshing" : "Refresh"}
+        </Button>
       </header>
 
       {error ? (
@@ -228,63 +207,68 @@ export function QuotaPage() {
       <Card className="!py-0 overflow-hidden">
         <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-3 lg:grid-cols-5 [&>*]:bg-card">
           <MetricCell
-            label="Accounts"
+            label="Connections"
             value={numberFormatter.format(accounts?.length ?? 0)}
+            hint="tracked"
             icon={ServerIcon}
-            loading={isLoading}
+            loading={isInitialLoading}
             tone="primary"
           />
           <MetricCell
             label="Active"
             value={numberFormatter.format(metrics.active)}
             icon={CheckCircle2Icon}
-            loading={isLoading}
+            loading={isInitialLoading}
             tone="ok"
           />
           <MetricCell
             label="At risk"
             value={numberFormatter.format(metrics.atRisk)}
+            hint={metrics.atRisk > 0 ? "under 20% left" : "all clear"}
             icon={AlertTriangleIcon}
-            loading={isLoading || isLoadingUsage}
+            loading={isInitialLoading || isLoadingUsage}
             tone={metrics.atRisk > 0 ? "warn" : "ok"}
           />
           <MetricCell
-            label="Tracked"
+            label="Reporting"
             value={numberFormatter.format(metrics.tracked)}
+            hint="with quota data"
             icon={Layers3Icon}
-            loading={isLoading || isLoadingUsage}
+            loading={isInitialLoading || isLoadingUsage}
             tone="violet"
           />
           <MetricCell
             label="Requests"
             value={numberFormatter.format(metrics.requests)}
             icon={ActivityIcon}
-            loading={isLoading}
+            loading={isInitialLoading}
             tone="primary"
           />
         </div>
       </Card>
 
       {isInitialLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_value, index) => (
-            <QuotaSkeleton
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-              key={`quota-skeleton-${index}`}
-            />
-          ))}
+        <div
+          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          role="status"
+          aria-label="Loading quota"
+        >
+          <QuotaCardSkeleton />
+          <QuotaCardSkeleton />
+          <QuotaCardSkeleton />
         </div>
       ) : null}
 
       {showEmptyState ? (
-        <Empty className="border border-dashed bg-card/40">
+        <Empty className="min-h-72 border border-dashed bg-card/60">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <GaugeIcon />
             </EmptyMedia>
-            <EmptyTitle>No quota accounts configured</EmptyTitle>
+            <EmptyTitle>No quota-reporting connections</EmptyTitle>
             <EmptyDescription>
-              Add an account with a token limit or a supported remote quota.
+              Only Kiro, Command Code, and Qoder report remaining quota. Add a
+              connection for one of them, or set a token cap on any connection.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -297,26 +281,26 @@ export function QuotaPage() {
       ) : null}
 
       {showGrid ? (
-        <section
-          aria-label="Quota accounts"
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-        >
+        <section aria-label="Quota accounts" className="flex flex-col gap-3">
           {error ? (
-            <p className="md:col-span-2 xl:col-span-3 -mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-500">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-amber-500">
               Showing last known quota state
             </p>
           ) : null}
-          {accounts.map((account) => {
-            const usage = usageMap.get(account.id);
-            return (
-              <QuotaCard
-                key={account.id}
-                account={account}
-                providerQuotas={usage?.quotas}
-                plan={usage?.plan}
-              />
-            );
-          })}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {accounts.map((account) => {
+              const usage = usageMap.get(account.id);
+              return (
+                <QuotaCard
+                  key={account.id}
+                  account={account}
+                  providerQuotas={usage?.quotas}
+                  plan={usage?.plan}
+                  isLoadingRemote={isLoadingUsage && providerUsage === null}
+                />
+              );
+            })}
+          </div>
         </section>
       ) : null}
     </div>

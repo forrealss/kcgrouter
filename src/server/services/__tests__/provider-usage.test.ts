@@ -193,3 +193,39 @@ describe("fetchQoderUsage", () => {
     expect(result).toBeNull();
   });
 });
+
+describe("quota kind classification", () => {
+  test("Qoder rows are windows — they report a real used/total pair", () => {
+    const quotas = parseQoderUsageResponse({
+      userQuota: { used: 120, total: 500 },
+      orgResourcePackage: { used: 5, total: 50 },
+    });
+
+    expect(quotas.map((q) => q.kind)).toEqual(["window", "window"]);
+  });
+
+  test("every emitted Qoder row carries an explicit kind", () => {
+    const quotas = parseQoderUsageResponse({
+      userQuota: { used: 1, total: 2 },
+      orgResourcePackage: { used: 3, total: 4 },
+    });
+
+    // A row without `kind` would silently fall back to window rendering in the
+    // UI, so the fetcher must always set it.
+    for (const quota of quotas) {
+      expect(quota.kind).toBeDefined();
+    }
+  });
+
+  test("a window row always has a usable cap to measure against", () => {
+    // The card only draws a progress bar when kind is window AND total > 0;
+    // these rows are the input to that rule.
+    const quotas = parseQoderUsageResponse({
+      userQuota: { used: 10, total: 100 },
+    });
+
+    for (const quota of quotas) {
+      if (quota.kind === "window") expect(quota.total).toBeGreaterThan(0);
+    }
+  });
+});

@@ -73,12 +73,38 @@ export function record(entry: Omit<UsageRecord, "id" | "timestamp">): void {
   );
 }
 
+/**
+ * Sort keys the history endpoint accepts, mapped to a fixed ORDER BY clause.
+ *
+ * SQL identifiers cannot be bound as parameters, so the clause must never be
+ * built from caller input — this allowlist is the only source of column names.
+ * Every entry ends with `timestamp DESC, id DESC` so rows that tie on the
+ * primary key still come back in a stable order across pages.
+ */
+const HISTORY_SORTS = {
+  newest: "timestamp DESC, id DESC",
+  oldest: "timestamp ASC, id ASC",
+  slowest: "latency_ms DESC, timestamp DESC, id DESC",
+  fastest: "latency_ms ASC, timestamp DESC, id DESC",
+  costliest: "estimated_cost DESC, timestamp DESC, id DESC",
+  "most-tokens": "(input_tokens + output_tokens) DESC, timestamp DESC, id DESC",
+} as const;
+
+export type HistorySort = keyof typeof HISTORY_SORTS;
+
+export const HISTORY_SORT_KEYS = Object.keys(HISTORY_SORTS) as HistorySort[];
+
+export function isHistorySort(value: string): value is HistorySort {
+  return Object.hasOwn(HISTORY_SORTS, value);
+}
+
 export function getHistory(opts: {
   providerAccountId?: string;
   model?: string;
   fromDate?: string;
   toDate?: string;
   limit?: number;
+  sort?: HistorySort;
 }): UsageRecord[] {
   const conditions: string[] = [];
   const params: SQLQueryBindings[] = [];
@@ -103,9 +129,10 @@ export function getHistory(opts: {
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = opts.limit ?? 50;
+  const orderBy = HISTORY_SORTS[opts.sort ?? "newest"];
 
   const rows = query<UsageRecordRow>(
-    `SELECT * FROM usage_records ${where} ORDER BY timestamp DESC LIMIT ?`,
+    `SELECT * FROM usage_records ${where} ORDER BY ${orderBy} LIMIT ?`,
     ...params,
     limit,
   );

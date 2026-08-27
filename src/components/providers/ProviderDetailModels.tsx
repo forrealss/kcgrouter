@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { TestStatusValue } from "@/hooks/useProviderDetail";
+import { formatContextLabel } from "@/lib/model-format";
 import { cn } from "@/lib/utils";
 import type {
   ModelCandidate,
@@ -78,13 +79,6 @@ interface ProviderDetailModelsProps {
   importingModels?: boolean;
   onImportModels?: (selected: ModelCandidate[]) => void;
   onCloseFetchDialog?: () => void;
-}
-
-function formatContext(contextLength: number): string {
-  if (contextLength >= 1_000_000) {
-    return `${(contextLength / 1_000_000).toFixed(1).replace(/\.0$/, "")}M context`;
-  }
-  return `${Math.round(contextLength / 1_000)}K context`;
 }
 
 export function ProviderDetailModels({
@@ -421,7 +415,7 @@ export function ProviderDetailModels({
                           variant="outline"
                           className="hidden shrink-0 font-mono text-[11px] font-normal tabular-nums text-muted-foreground sm:inline-flex"
                         >
-                          {formatContext(model.contextLength)}
+                          {formatContextLabel(model.contextLength)}
                         </Badge>
                       ) : null}
 

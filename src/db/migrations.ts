@@ -16,6 +16,7 @@ import * as m014 from "./migrations/014_link_request_logs_to_usage";
 import * as m015 from "./migrations/015_add_account_cooldown";
 import * as m016 from "./migrations/016_add_request_log_retries";
 import * as m017 from "./migrations/017_add_provider_retry_config";
+import * as m018 from "./migrations/018_add_usage_sort_indexes";
 import * as s001 from "./seeders/001_seed_builtin_providers";
 import * as s002 from "./seeders/002_seed_default_app_settings";
 import * as s003 from "./seeders/003_seed_provider_models";
@@ -53,6 +54,7 @@ const migrations: MigrationModule[] = [
   m015,
   m016,
   m017,
+  m018,
 ].sort((a, b) => a.id - b.id);
 
 const seeders: SeederModule[] = [s001, s002, s003, s004];

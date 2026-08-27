@@ -18,11 +18,21 @@ export interface QuotaAccount {
   };
 }
 
+/**
+ * Mirrors ProviderQuotaKind in src/server/services/provider-usage.service.ts.
+ *
+ * - `window`: real consumption cap — render progress against `total`.
+ * - `balance`: amount on hand with no cap — render the value only, never a bar.
+ */
+export type ProviderQuotaKind = "window" | "balance";
+
 export interface ProviderQuotaItem {
   name: string;
   used: number;
   total: number;
   resetAt: string | null;
+  /** Older payloads may omit this; treat a missing kind as a window. */
+  kind?: ProviderQuotaKind;
 }
 
 export interface ProviderUsageData {

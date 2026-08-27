@@ -22,6 +22,7 @@ export function getAllToolStatuses(): Record<
   {
     name: string;
     icon: string;
+    darkIcon?: string;
     description: string;
     installed: boolean;
     configured: boolean;
@@ -33,6 +34,7 @@ export function getAllToolStatuses(): Record<
     result[tool.id] = {
       name: tool.name,
       icon: tool.icon,
+      darkIcon: tool.darkIcon,
       description: tool.description,
       installed: status.installed,
       configured: status.configured,
@@ -43,6 +45,7 @@ export function getAllToolStatuses(): Record<
     {
       name: string;
       icon: string;
+      darkIcon?: string;
       description: string;
       installed: boolean;
       configured: boolean;

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
 import type { ProviderQuotaItem, QuotaAccount } from "@/types/quota";
@@ -250,6 +251,7 @@ export function QuotaCard({
   const { quotaState } = account;
   const quotaLimitTokens = account.quotaLimitTokens;
   const provider = transportMeta[account.transport];
+  const isDark = useDarkMode();
   const status = statusMeta[account.status];
   const hasRemoteQuotas = Boolean(providerQuotas?.length);
 
@@ -276,7 +278,13 @@ export function QuotaCard({
           aria-hidden
         >
           {provider.icon ? (
-            <img src={provider.icon} alt="" className="size-4.5" />
+            <img
+              src={
+                isDark && provider.darkIcon ? provider.darkIcon : provider.icon
+              }
+              alt=""
+              className="size-4.5"
+            />
           ) : (
             <provider.fallbackIcon className="size-4.5" />
           )}

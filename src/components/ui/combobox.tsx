@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { cn } from "@/lib/utils";
 
 export interface ComboboxOption {
@@ -36,7 +37,10 @@ interface ComboboxProps {
   closeLabel?: string;
   noResultsLabel?: string;
   /** Optional render metadata per group (keyed by the option `group` value). */
-  groupMeta?: Record<string, { icon?: string; iconComponent?: LucideIcon }>;
+  groupMeta?: Record<
+    string,
+    { icon?: string; darkIcon?: string; iconComponent?: LucideIcon }
+  >;
   disabled?: boolean;
   id?: string;
   className?: string;
@@ -60,6 +64,7 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const isDark = useDarkMode();
 
   const selectedLabel =
     options.find((opt) => opt.value === value)?.label ?? value;
@@ -165,7 +170,11 @@ export function Combobox({
                             <meta.iconComponent className="size-4 shrink-0 text-muted-foreground" />
                           ) : meta?.icon ? (
                             <img
-                              src={meta.icon}
+                              src={
+                                isDark && meta.darkIcon
+                                  ? meta.darkIcon
+                                  : meta.icon
+                              }
                               alt=""
                               aria-hidden
                               className="size-4 shrink-0 object-contain"

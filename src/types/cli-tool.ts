@@ -1,6 +1,7 @@
 export interface CLIToolSummary {
   name: string;
   icon: string;
+  darkIcon?: string;
   description: string;
   installed: boolean;
   configured: boolean;

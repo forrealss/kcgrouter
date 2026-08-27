@@ -169,6 +169,11 @@ const TRANSPORT_LOGO: Record<string, string> = {
   qoder: "/images/providers/qoder.svg",
 };
 
+const TRANSPORT_LOGO_DARK: Record<string, string> = {
+  anthropic: "/images/providers/anthropic-dark.svg",
+  mimo: "/images/providers/xiaomimimo-dark.svg",
+};
+
 /**
  * Real provider logo where an asset exists, otherwise a small glyph
  * fallback (gemini has no bundled icon). Wrapped in an `.ug-logo-bg` chip
@@ -176,7 +181,11 @@ const TRANSPORT_LOGO: Record<string, string> = {
  * against the dark node background.
  */
 function transportIconHtml(transport: string): string {
-  const logo = TRANSPORT_LOGO[transport];
+  const isDark = document.documentElement.classList.contains("dark");
+  const logo =
+    isDark && TRANSPORT_LOGO_DARK[transport]
+      ? TRANSPORT_LOGO_DARK[transport]
+      : TRANSPORT_LOGO[transport];
   if (logo) {
     return `<span class="ug-logo-bg"><img src="${logo}" alt="" class="ug-logo-img" /></span>`;
   }

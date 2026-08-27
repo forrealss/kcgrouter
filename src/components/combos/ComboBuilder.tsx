@@ -352,12 +352,12 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   const accountGroupMeta = useMemo(() => {
     const entries: Record<
       string,
-      { icon?: string; iconComponent?: LucideIcon }
+      { icon?: string; darkIcon?: string; iconComponent?: LucideIcon }
     > = {};
     for (const provider of providers) {
       const meta = transportMeta[provider.transport];
       entries[provider.name] = meta.icon
-        ? { icon: meta.icon }
+        ? { icon: meta.icon, darkIcon: meta.darkIcon }
         : { iconComponent: meta.fallbackIcon };
     }
     return entries;

@@ -21,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { apiClient } from "@/lib/api-client";
 import type { AccountErrorSummary } from "@/lib/provider-errors";
 import { formatDate } from "@/lib/provider-errors";
@@ -48,6 +49,7 @@ export function ProviderCard({
   lastError,
 }: ProviderCardProps) {
   const meta = transportMeta[provider.transport];
+  const isDark = useDarkMode();
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Derived from the shared resolver so a card and the detail page can never
@@ -102,7 +104,11 @@ export function ProviderCard({
           aria-hidden
         >
           {meta.icon ? (
-            <img src={meta.icon} alt="" className="size-6" />
+            <img
+              src={isDark && meta.darkIcon ? meta.darkIcon : meta.icon}
+              alt=""
+              className="size-6"
+            />
           ) : (
             <meta.fallbackIcon className="size-5" />
           )}

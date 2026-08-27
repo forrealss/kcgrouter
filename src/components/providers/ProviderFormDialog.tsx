@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { transportMeta } from "@/lib/provider-meta";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ export function ProviderFormDialog({
 }: ProviderFormDialogProps) {
   const [values, setValues] = useState<ProviderFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
+  const isDark = useDarkMode();
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<FieldKey, string>>
   >({});
@@ -293,7 +295,15 @@ export function ProviderFormDialog({
                           aria-hidden
                         >
                           {meta.icon ? (
-                            <img src={meta.icon} alt="" className="size-4" />
+                            <img
+                              src={
+                                isDark && meta.darkIcon
+                                  ? meta.darkIcon
+                                  : meta.icon
+                              }
+                              alt=""
+                              className="size-4"
+                            />
                           ) : (
                             <meta.fallbackIcon className="size-4" />
                           )}

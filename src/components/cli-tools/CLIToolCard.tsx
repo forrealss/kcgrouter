@@ -2,6 +2,7 @@ import { ArrowUpRightIcon, TerminalIcon } from "lucide-react";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { cliToolStateMeta, resolveCLIToolState } from "@/lib/cli-tool-status";
 import { cn } from "@/lib/utils";
 import type { CLIToolSummary } from "@/types/cli-tool";
@@ -11,8 +12,17 @@ interface CLIToolCardProps {
   onClick?: () => void;
 }
 
-function ToolIcon({ icon, name }: { icon: string; name: string }) {
+function ToolIcon({
+  icon,
+  darkIcon,
+  name,
+}: {
+  icon: string;
+  darkIcon?: string;
+  name: string;
+}) {
   const [isBroken, setIsBroken] = useState(false);
+  const isDark = useDarkMode();
 
   if (!icon || isBroken) {
     return <TerminalIcon className="size-4.5 text-muted-foreground" />;
@@ -20,7 +30,7 @@ function ToolIcon({ icon, name }: { icon: string; name: string }) {
 
   return (
     <img
-      src={icon}
+      src={isDark && darkIcon ? darkIcon : icon}
       alt=""
       className="size-5 object-contain"
       onError={() => setIsBroken(true)}
@@ -65,7 +75,11 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
               : "border-border/70 bg-muted/40",
           )}
         >
-          <ToolIcon icon={tool.icon} name={tool.name} />
+          <ToolIcon
+            icon={tool.icon}
+            darkIcon={tool.darkIcon}
+            name={tool.name}
+          />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium" title={tool.name}>

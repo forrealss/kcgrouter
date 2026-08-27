@@ -51,6 +51,7 @@ export interface CLIToolDefinition {
   id: string;
   name: string;
   icon: string;
+  darkIcon?: string;
   description: string;
   /** Per-tool UI hints for the generic config form. */
   form?: CLIToolFormConfig;

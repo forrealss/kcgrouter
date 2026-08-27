@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { useRouter } from "@/hooks/useRouter";
 import { cliToolStateMeta, resolveCLIToolState } from "@/lib/cli-tool-status";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ interface CLIToolDetailHeaderProps {
 
 function ToolHeaderIcon({ toolMeta }: { toolMeta: CLIToolSummary | null }) {
   const [isBroken, setIsBroken] = useState(false);
+  const isDark = useDarkMode();
 
   if (!toolMeta?.icon || isBroken) {
     return <TerminalIcon className="size-5 text-muted-foreground" />;
@@ -25,7 +27,7 @@ function ToolHeaderIcon({ toolMeta }: { toolMeta: CLIToolSummary | null }) {
 
   return (
     <img
-      src={toolMeta.icon}
+      src={isDark && toolMeta.darkIcon ? toolMeta.darkIcon : toolMeta.icon}
       alt=""
       className="size-6 object-contain"
       onError={() => setIsBroken(true)}

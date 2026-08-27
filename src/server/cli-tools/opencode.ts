@@ -176,6 +176,7 @@ export const opencodeTool: CLIToolDefinition = {
   id: "opencode",
   name: "OpenCode",
   icon: "/images/providers/opencode.svg",
+  darkIcon: "/images/providers/opencode-dark.svg",
   description: "OpenCode AI Terminal Assistant",
   getConfigPath,
   isInstalled,

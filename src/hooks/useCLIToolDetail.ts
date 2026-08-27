@@ -16,6 +16,8 @@ import type { Provider, ProviderModel } from "@/types/provider";
 export interface ModelGroupMeta {
   /** Image URL rendered next to the group header (e.g. provider logos). */
   icon?: string;
+  /** Dark-mode image URL rendered next to the group header. */
+  darkIcon?: string;
   /** Lucide icon rendered instead of `icon` when present (e.g. combos). */
   iconComponent?: LucideIcon;
 }
@@ -105,8 +107,10 @@ export function useCLIToolDetail(toolId: string) {
       }
 
       providersList.forEach((provider, index) => {
+        const meta = transportMeta[provider.transport];
         groupMeta[provider.name] = {
-          icon: transportMeta[provider.transport].icon,
+          icon: meta.icon,
+          darkIcon: meta.darkIcon,
         };
         for (const model of modelLists[index] ?? []) {
           if (!model.enabled) continue;

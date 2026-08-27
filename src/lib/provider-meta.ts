@@ -12,6 +12,7 @@ import type { ProviderTransport } from "@/types/provider";
 export interface TransportMeta {
   label: string;
   icon?: string;
+  darkIcon?: string;
   fallbackIcon: LucideIcon;
   accentClassName: string;
 }
@@ -27,12 +28,14 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
   openai: {
     label: "OpenAI-compatible",
     icon: "/images/providers/openai.svg",
+    darkIcon: "/images/providers/openai-dark.svg",
     fallbackIcon: BotIcon,
     accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
   },
   anthropic: {
     label: "Anthropic",
     icon: "/images/providers/anthropic.svg",
+    darkIcon: "/images/providers/anthropic-dark.svg",
     fallbackIcon: BrainCircuitIcon,
     accentClassName: "border-chart-4/40 bg-chart-4/10 text-chart-4",
   },
@@ -50,6 +53,7 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
   "command-code": {
     label: "Command Code",
     icon: "/images/providers/command-code.svg",
+    darkIcon: "/images/providers/command-code-dark.svg",
     fallbackIcon: TerminalIcon,
     accentClassName:
       "border-muted-foreground/40 bg-muted-foreground/10 text-muted-foreground",
@@ -57,12 +61,14 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
   mimo: {
     label: "Xiaomi MiMo",
     icon: "/images/providers/xiaomimimo.svg",
+    darkIcon: "/images/providers/xiaomimimo-dark.svg",
     fallbackIcon: BotIcon,
     accentClassName: "border-chart-7/40 bg-chart-7/10 text-chart-7",
   },
   qoder: {
     label: "Qoder",
     icon: "/images/providers/qoder.svg",
+    darkIcon: "/images/providers/qoder-dark.webp",
     fallbackIcon: DropletsIcon,
     accentClassName: "border-chart-6/40 bg-chart-6/10 text-chart-6",
   },

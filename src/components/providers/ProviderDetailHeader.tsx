@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { useRouter } from "@/hooks/useRouter";
 import { type AccountErrorSummary, formatDate } from "@/lib/provider-errors";
 import { transportMeta } from "@/lib/provider-meta";
@@ -78,6 +79,7 @@ export function ProviderDetailHeader({
 }: ProviderDetailHeaderProps) {
   const { navigate } = useRouter();
   const meta = transportMeta[provider.transport];
+  const isDark = useDarkMode();
   const health = providerHealthMeta[resolveProviderHealth(accounts)];
   const HealthIcon = health.icon;
 
@@ -111,7 +113,11 @@ export function ProviderDetailHeader({
             aria-hidden
           >
             {meta.icon ? (
-              <img src={meta.icon} alt="" className="size-6" />
+              <img
+                src={isDark && meta.darkIcon ? meta.darkIcon : meta.icon}
+                alt=""
+                className="size-6"
+              />
             ) : (
               <meta.fallbackIcon className="size-6" />
             )}

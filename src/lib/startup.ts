@@ -203,9 +203,10 @@ function setupMacOS(): void {
   }
   // launchd does not run the command through a shell, and `bun kcgrouter`
   // cannot resolve globally installed binaries — use the absolute path.
+  // Launch at login runs in the Aqua session, so the tray is available.
   const programArgs = kcgrouterPath
-    ? [kcgrouterPath, "--daemon"]
-    : [bunPath as string, "kcgrouter", "--daemon"];
+    ? [kcgrouterPath, "--tray"]
+    : [bunPath as string, "kcgrouter", "--tray"];
 
   writeFileSync(
     plistPath,
@@ -273,9 +274,9 @@ function setupLinux(): void {
   // binary's absolute path explicitly.
   const cmd = kcgrouterPath
     ? bunPath
-      ? `"${bunPath}" "${kcgrouterPath}" --daemon`
-      : `"${kcgrouterPath}" --daemon`
-    : "kcgrouter --daemon";
+      ? `"${bunPath}" "${kcgrouterPath}" --tray`
+      : `"${kcgrouterPath}" --tray`
+    : "kcgrouter --tray";
 
   // Copy the app icon so the autostart entry shows the KCG Router logo.
   const iconSrc = join(import.meta.dir, "..", "..", "assets", "icon.png");

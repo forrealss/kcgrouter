@@ -32,14 +32,14 @@ export interface StatusMeta {
 export const providerHealthMeta: Record<ProviderHealth, StatusMeta> = {
   online: {
     label: "Online",
-    dot: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-    text: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-success shadow-[0_0_6px] shadow-success/70",
+    text: "text-success",
     icon: CheckCircle2Icon,
   },
   degraded: {
     label: "Degraded",
-    dot: "bg-amber-500 shadow-[0_0_6px] shadow-amber-500/70",
-    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-warning shadow-[0_0_6px] shadow-warning/70",
+    text: "text-warning",
     icon: TriangleAlertIcon,
   },
   error: {
@@ -68,8 +68,8 @@ export type AccountStatusKey = "active" | "error" | "expired" | "cooldown";
 export const accountStatusMeta: Record<AccountStatusKey, StatusMeta> = {
   active: {
     label: "Active",
-    dot: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-    text: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-success shadow-[0_0_6px] shadow-success/70",
+    text: "text-success",
     icon: CheckCircle2Icon,
   },
   error: {
@@ -86,8 +86,8 @@ export const accountStatusMeta: Record<AccountStatusKey, StatusMeta> = {
   },
   cooldown: {
     label: "Cooling down",
-    dot: "bg-amber-500 shadow-[0_0_6px] shadow-amber-500/70",
-    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-warning shadow-[0_0_6px] shadow-warning/70",
+    text: "text-warning",
     icon: TimerIcon,
   },
 };

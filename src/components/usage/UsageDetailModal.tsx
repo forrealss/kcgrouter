@@ -50,7 +50,7 @@ function CopyButton({ text }: { text: string }) {
       title="Copy payload"
     >
       {copied ? (
-        <CheckIcon className="size-3.5 text-green-500" />
+        <CheckIcon className="size-3.5 text-success" />
       ) : (
         <CopyIcon className="size-3.5" />
       )}

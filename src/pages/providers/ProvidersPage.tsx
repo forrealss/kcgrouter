@@ -54,8 +54,7 @@ function InventoryMetric({
       <span
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-md border",
-          tone === "ok" &&
-            "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+          tone === "ok" && "border-success/30 bg-success/10 text-success",
           tone === "bad" &&
             "border-destructive/30 bg-destructive/10 text-destructive",
           tone === "neutral" &&

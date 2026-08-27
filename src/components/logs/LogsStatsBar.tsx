@@ -14,9 +14,9 @@ const numberFormatter = new Intl.NumberFormat("en-US");
 
 const metricTone = {
   primary: "border-primary/30 bg-primary/10 text-primary",
-  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+  ok: "border-success/30 bg-success/10 text-success",
   error: "border-destructive/30 bg-destructive/10 text-destructive",
-  amber: "border-amber-500/30 bg-amber-500/10 text-amber-500",
+  warn: "border-warning/30 bg-warning/10 text-warning",
   muted: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 
@@ -113,7 +113,7 @@ export function LogsStatsBar({
           hint={stats.averageLatency == null ? "no samples" : undefined}
           icon={Clock3Icon}
           loading={isLoading}
-          tone="amber"
+          tone="warn"
         />
       </div>
     </Card>

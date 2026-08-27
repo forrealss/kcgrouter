@@ -267,7 +267,7 @@ function ApiKeyManager() {
               <AlertDescription className="flex flex-col gap-3">
                 <p>{actionError ?? loadError}</p>
                 {loadError && keys?.length ? (
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-warning">
                     Showing last known key state
                   </p>
                 ) : null}
@@ -316,7 +316,7 @@ function ApiKeyManager() {
                       <span
                         className={`flex size-8 shrink-0 items-center justify-center rounded-md border ${
                           key.has_key
-                            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-500"
+                            ? "border-success/25 bg-success/10 text-success"
                             : "border-muted-foreground/20 bg-muted text-muted-foreground"
                         }`}
                       >
@@ -335,7 +335,7 @@ function ApiKeyManager() {
                           {!key.has_key ? (
                             <Badge
                               variant="outline"
-                              className="shrink-0 gap-1 text-[10px] font-normal text-amber-600 dark:text-amber-400"
+                              className="shrink-0 gap-1 text-[10px] font-normal text-warning"
                             >
                               <TriangleAlertIcon className="size-3" />
                               Legacy
@@ -372,7 +372,7 @@ function ApiKeyManager() {
                         ) : isCopied ? (
                           <CheckIcon
                             data-icon="inline-start"
-                            className="text-green-600 dark:text-green-400"
+                            className="text-success"
                           />
                         ) : (
                           <CopyIcon data-icon="inline-start" />

@@ -174,10 +174,11 @@
 @keyframes ug-hub-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 0 oklch(0.68 0.19 264 / 0%);
+    box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 20px 2px oklch(0.68 0.19 264 / 25%);
+    box-shadow: 0 0 20px 2px
+      color-mix(in oklab, var(--primary) 25%, transparent);
   }
 }
 

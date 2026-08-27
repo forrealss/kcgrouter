@@ -38,8 +38,8 @@ const statusMeta: Record<
 > = {
   active: {
     label: "Active",
-    dot: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-    text: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-success shadow-[0_0_6px] shadow-success/70",
+    text: "text-success",
   },
   error: {
     label: "Failing",
@@ -83,18 +83,18 @@ function formatCountdown(remainingMs: number): string {
   return `${minutes}m`;
 }
 
-/** Colour by headroom left: plenty → emerald, tight → amber, gone → red. */
+/** Colour by headroom left: plenty → success, tight → warning, gone → destructive. */
 function remainingTone(percentage: number): { text: string; bar: string } {
   if (percentage > 50) {
     return {
-      text: "text-emerald-600 dark:text-emerald-400",
-      bar: "[&_[data-slot=progress-indicator]]:bg-emerald-500",
+      text: "text-success",
+      bar: "[&_[data-slot=progress-indicator]]:bg-success",
     };
   }
   if (percentage > 20) {
     return {
-      text: "text-amber-600 dark:text-amber-400",
-      bar: "[&_[data-slot=progress-indicator]]:bg-amber-500",
+      text: "text-warning",
+      bar: "[&_[data-slot=progress-indicator]]:bg-warning",
     };
   }
   return {

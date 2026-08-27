@@ -108,7 +108,7 @@ export function LiveActivityCard({
           <h2 className="flex items-center gap-2 font-semibold">
             <ActivityIcon className="size-4 shrink-0" />
             Live activity
-            <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-chart-3" />
+            <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-live" />
           </h2>
           <p className="text-xs text-muted-foreground">
             Completed requests · last ~2000 log rows retained

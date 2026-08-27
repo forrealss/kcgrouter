@@ -129,7 +129,7 @@ export function LogsPage() {
         {isLoading ? <LogsSkeleton /> : null}
 
         {error && logs.length > 0 ? (
-          <p className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400 sm:px-5">
+          <p className="border-b border-warning/20 bg-warning/5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-warning sm:px-5">
             Showing last known activity state
           </p>
         ) : null}

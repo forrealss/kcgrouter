@@ -67,16 +67,14 @@ function getStrategyMeta(strategy: Combo["strategy"]): StrategyMeta {
     return {
       label: "FALLBACK",
       Icon: GitForkIcon,
-      accentClassName:
-        "border-amber-500/35 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      accentClassName: "border-warning/35 bg-warning/10 text-warning",
       description: "Tries targets in order, top first",
     };
   }
   return {
     label: "ROUND-ROBIN",
     Icon: RepeatIcon,
-    accentClassName:
-      "border-sky-500/35 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    accentClassName: "border-primary/35 bg-primary/10 text-primary",
     description: "Spreads requests across targets",
   };
 }
@@ -155,7 +153,7 @@ function TargetList({
               "relative flex items-center gap-2.5 px-2.5 py-2",
               "before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
               isNext
-                ? "bg-emerald-500/[0.06] before:bg-emerald-500/70"
+                ? "bg-success/[0.06] before:bg-success/70"
                 : "before:bg-transparent",
             )}
           >
@@ -163,7 +161,7 @@ function TargetList({
               className={cn(
                 "flex size-5 shrink-0 items-center justify-center rounded font-mono text-[10px] tabular-nums",
                 isNext
-                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                  ? "bg-success/15 text-success"
                   : "bg-muted text-muted-foreground",
               )}
               aria-hidden
@@ -177,7 +175,7 @@ function TargetList({
               {member.modelName}
             </span>
             {isNext ? (
-              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-success">
                 next
               </span>
             ) : null}
@@ -189,7 +187,7 @@ function TargetList({
           <span>+{remaining} more</span>
           {/* The highlighted row is hidden in the collapsed tail, so say where. */}
           {nextIndex >= visible.length ? (
-            <span className="uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+            <span className="uppercase tracking-wide text-success">
               next is #{nextIndex + 1}
             </span>
           ) : null}
@@ -323,7 +321,7 @@ export function CombosPage() {
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-md border",
                 summary.empty > 0
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-500"
+                  ? "border-warning/30 bg-warning/10 text-warning"
                   : "border-border bg-muted/50 text-muted-foreground",
               )}
             >
@@ -337,7 +335,7 @@ export function CombosPage() {
                 <span
                   className={cn(
                     "font-mono text-base font-semibold tracking-tight tabular-nums",
-                    summary.empty > 0 && "text-amber-600 dark:text-amber-400",
+                    summary.empty > 0 && "text-warning",
                   )}
                 >
                   {summary.empty}
@@ -432,7 +430,7 @@ export function CombosPage() {
                 key={combo.id}
                 className={cn(
                   "flex flex-col gap-0 overflow-hidden border-border/80 py-0 shadow-sm transition-colors duration-150",
-                  isEmpty && "border-amber-500/35",
+                  isEmpty && "border-warning/35",
                 )}
               >
                 <div className="flex min-w-0 items-start gap-3 border-b border-border/60 px-4 py-3.5">

@@ -14,6 +14,8 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -23,6 +25,12 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-live: var(--live);
+  --color-live-foreground: var(--live-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -64,73 +72,122 @@
   }
 }
 
+/*
+ * Glacier — adapted from the Nord palette (nordtheme.com), measured from
+ * Nord's own documented hex values rather than sampled by eye.
+ *
+ * Nord's own accent chroma is only ~0.06 (nord8 #88c0d0) — it reads as vivid
+ * through lightness contrast, not saturation: a mid-dark background (Nord's
+ * native L 0.32) against a much brighter accent (L 0.78). Two departures
+ * from upstream, both deliberate:
+ *
+ * 1. Background is darkened from Nord's native L 0.32 to L 0.19, matching a
+ *    flat-dark aesthetic rather than Nord's mid-dark "Polar Night".
+ * 2. Primary's chroma is raised from Nord's native 0.06 to 0.13, so it reads
+ *    as a confident CTA colour rather than a muted editor-accent.
+ *
+ * Everything else — hue 264 neutrals, aurora success/warning/error, and the
+ * frost-blue hue family for primary — comes straight from Nord.
+ * `--live` borrows Nord's aurora orange (nord12 #d08770): warm motion against
+ * an otherwise cool, icy interface, so primary and live never share a hue.
+ */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.99 0.003 264);
-  --foreground: oklch(0.2 0.03 264);
+  --radius: 0.5rem;
+  --background: oklch(0.985 0.004 264);
+  --foreground: oklch(0.28 0.024 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.03 264);
+  --card-foreground: oklch(0.28 0.024 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.03 264);
-  --primary: oklch(0.53 0.22 264);
-  --primary-foreground: oklch(0.99 0.005 264);
-  --secondary: oklch(0.95 0.015 264);
-  --secondary-foreground: oklch(0.3 0.05 264);
-  --muted: oklch(0.96 0.01 264);
-  --muted-foreground: oklch(0.5 0.03 264);
-  --accent: oklch(0.94 0.04 292);
-  --accent-foreground: oklch(0.3 0.08 292);
-  --destructive: oklch(0.58 0.22 25);
-  --border: oklch(0.91 0.012 264);
-  --input: oklch(0.91 0.012 264);
-  --ring: oklch(0.53 0.22 264 / 50%);
-  --chart-1: oklch(0.53 0.22 264);
-  --chart-2: oklch(0.65 0.2 300);
-  --chart-3: oklch(0.7 0.17 190);
-  --chart-4: oklch(0.75 0.18 60);
-  --chart-5: oklch(0.62 0.24 20);
-  --sidebar: oklch(0.98 0.003 264);
-  --sidebar-foreground: oklch(0.2 0.03 264);
-  --sidebar-primary: oklch(0.53 0.22 264);
-  --sidebar-primary-foreground: oklch(0.99 0.005 264);
-  --sidebar-accent: oklch(0.93 0.02 264);
-  --sidebar-accent-foreground: oklch(0.2 0.03 264);
+  --popover-foreground: oklch(0.28 0.024 264);
+  --primary: oklch(0.52 0.14 213);
+  --primary-foreground: oklch(0.99 0.01 213);
+  --secondary: oklch(0.945 0.01 264);
+  --secondary-foreground: oklch(0.32 0.03 264);
+  --muted: oklch(0.96 0.008 264);
+  --muted-foreground: oklch(0.5 0.028 263);
+  --accent: oklch(0.94 0.03 213);
+  --accent-foreground: oklch(0.3 0.07 213);
+  --destructive: oklch(0.52 0.19 15);
+  --destructive-foreground: oklch(0.99 0.01 15);
+  /* Accents are held at L 0.50-0.55 so 10-11px status labels clear WCAG AA. */
+  --success: oklch(0.5 0.11 131);
+  --success-foreground: oklch(0.99 0.01 131);
+  --warning: oklch(0.55 0.12 84);
+  --warning-foreground: oklch(0.99 0.01 84);
+  --live: oklch(0.55 0.15 38);
+  --live-foreground: oklch(0.99 0.01 38);
+  --border: oklch(0.89 0.012 264);
+  --input: oklch(0.89 0.012 264);
+  --ring: oklch(0.52 0.14 213 / 50%);
+  /* Categorical ramp, drawn from Nord's frost and aurora families. */
+  --chart-1: oklch(0.52 0.14 213);
+  --chart-2: oklch(0.5 0.11 131);
+  --chart-3: oklch(0.55 0.15 38);
+  --chart-4: oklch(0.5 0.1 249);
+  --chart-5: oklch(0.5 0.1 333);
+  --chart-6: oklch(0.52 0.19 15);
+  --chart-7: oklch(0.48 0.08 194);
+  --sidebar: oklch(0.962 0.007 264);
+  --sidebar-foreground: oklch(0.28 0.024 264);
+  --sidebar-primary: oklch(0.52 0.14 213);
+  --sidebar-primary-foreground: oklch(0.99 0.01 213);
+  --sidebar-accent: oklch(0.93 0.016 264);
+  --sidebar-accent-foreground: oklch(0.28 0.024 264);
   --sidebar-border: oklch(0 0 0 / 8%);
-  --sidebar-ring: oklch(0.53 0.22 264 / 50%);
+  --sidebar-ring: oklch(0.52 0.14 213 / 50%);
 }
 
+/*
+ * Dark is the faithful side. Neutral hue/chroma is Nord's own (264, 0.02-0.03),
+ * only lightness is compressed into a flat-dark ladder:
+ *   --background  L 0.19   darker than Nord's native Polar Night (L 0.32)
+ *   --card        L 0.225
+ *   --muted       L 0.30
+ * Accents are Nord's frost/aurora families: #88c0d0-#8fbcbb blue-teal for
+ * primary (chroma raised from 0.06 to 0.13), #a3be8c success, #ebcb8b
+ * warning, #d08770 live, #bf616a error.
+ */
 .dark {
-  --background: oklch(0.17 0.025 264);
-  --foreground: oklch(0.95 0.01 264);
-  --card: oklch(0.22 0.025 264);
-  --card-foreground: oklch(0.95 0.01 264);
-  --popover: oklch(0.22 0.025 264);
-  --popover-foreground: oklch(0.95 0.01 264);
-  --primary: oklch(0.68 0.19 264);
-  --primary-foreground: oklch(0.15 0.02 264);
-  --secondary: oklch(0.28 0.03 264);
-  --secondary-foreground: oklch(0.95 0.01 264);
-  --muted: oklch(0.26 0.025 264);
-  --muted-foreground: oklch(0.68 0.02 264);
-  --accent: oklch(0.3 0.06 292);
-  --accent-foreground: oklch(0.93 0.02 292);
-  --destructive: oklch(0.7 0.19 22);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.68 0.19 264 / 55%);
-  --chart-1: oklch(0.68 0.19 264);
-  --chart-2: oklch(0.72 0.18 300);
-  --chart-3: oklch(0.75 0.16 190);
-  --chart-4: oklch(0.78 0.17 60);
-  --chart-5: oklch(0.68 0.22 20);
-  --sidebar: oklch(0.13 0.02 264);
-  --sidebar-foreground: oklch(0.93 0.015 264);
-  --sidebar-primary: oklch(0.68 0.19 264);
-  --sidebar-primary-foreground: oklch(0.99 0.005 264);
-  --sidebar-accent: oklch(0.22 0.04 264);
-  --sidebar-accent-foreground: oklch(0.95 0.01 264);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0.19 264 / 55%);
+  --background: oklch(0.19 0.022 264);
+  --foreground: oklch(0.9 0.012 263);
+  --card: oklch(0.225 0.025 264);
+  --card-foreground: oklch(0.9 0.012 263);
+  --popover: oklch(0.225 0.025 264);
+  --popover-foreground: oklch(0.9 0.012 263);
+  --primary: oklch(0.72 0.13 213);
+  --primary-foreground: oklch(0.16 0.03 213);
+  --secondary: oklch(0.26 0.027 264);
+  --secondary-foreground: oklch(0.9 0.012 263);
+  --muted: oklch(0.3 0.028 264);
+  --muted-foreground: oklch(0.68 0.03 263);
+  --accent: oklch(0.3 0.06 213);
+  --accent-foreground: oklch(0.88 0.03 213);
+  --destructive: oklch(0.66 0.15 15);
+  --destructive-foreground: oklch(0.16 0.03 15);
+  --success: oklch(0.77 0.1 131);
+  --success-foreground: oklch(0.16 0.03 131);
+  --warning: oklch(0.855 0.1 84);
+  --warning-foreground: oklch(0.16 0.03 84);
+  --live: oklch(0.75 0.14 38);
+  --live-foreground: oklch(0.16 0.03 38);
+  --border: oklch(0.34 0.03 264);
+  --input: oklch(0.36 0.032 264);
+  --ring: oklch(0.46 0.032 264 / 65%);
+  --chart-1: oklch(0.72 0.13 213);
+  --chart-2: oklch(0.77 0.1 131);
+  --chart-3: oklch(0.75 0.14 38);
+  --chart-4: oklch(0.697 0.059 249);
+  --chart-5: oklch(0.692 0.062 333);
+  --chart-6: oklch(0.606 0.121 15);
+  --chart-7: oklch(0.763 0.048 194);
+  --sidebar: oklch(0.155 0.022 264);
+  --sidebar-foreground: oklch(0.88 0.012 263);
+  --sidebar-primary: oklch(0.72 0.13 213);
+  --sidebar-primary-foreground: oklch(0.16 0.03 213);
+  --sidebar-accent: oklch(0.26 0.032 264);
+  --sidebar-accent-foreground: oklch(0.9 0.012 263);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.46 0.032 264 / 65%);
 }
 
 @layer base {
@@ -181,7 +238,7 @@
 }
 
 .dark .glow-primary {
-  text-shadow: 0 0 12px oklch(0.68 0.19 264 / 30%);
+  text-shadow: 0 0 12px color-mix(in oklab, var(--primary) 30%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -214,5 +271,5 @@
 }
 
 .dark [data-slot="sidebar-inner"] {
-  box-shadow: 0 18px 45px -28px oklch(0.05 0.03 264 / 80%);
+  box-shadow: 0 18px 45px -28px oklch(0.06 0.025 264 / 80%);
 }

@@ -344,7 +344,7 @@ export function ProviderDetailModels({
                         "group relative flex items-center gap-3 py-2.5 pl-5 pr-3 transition-colors",
                         "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:transition-colors",
                         model.enabled
-                          ? "before:bg-emerald-500/80 hover:bg-emerald-500/[0.04] dark:before:shadow-[0_0_8px] dark:before:shadow-emerald-500/60"
+                          ? "before:bg-success/80 hover:bg-success/[0.04] dark:before:shadow-[0_0_8px] dark:before:shadow-success/60"
                           : "bg-muted/30 before:bg-transparent hover:bg-muted/50",
                       )}
                     >
@@ -355,7 +355,7 @@ export function ProviderDetailModels({
                             className={cn(
                               "flex shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border px-2 py-1.5 transition-colors",
                               model.enabled
-                                ? "border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15"
+                                ? "border-success/40 bg-success/10 hover:bg-success/15"
                                 : "border-border bg-muted/60 hover:bg-muted",
                             )}
                           >
@@ -364,14 +364,14 @@ export function ProviderDetailModels({
                               checked={model.enabled}
                               onCheckedChange={() => onToggleModel(model)}
                               aria-label={`${model.enabled ? "Disable" : "Enable"} ${model.modelName}`}
-                              className="data-[state=checked]:border-emerald-600 data-[state=checked]:bg-emerald-500"
+                              className="data-[state=checked]:border-success data-[state=checked]:bg-success"
                             />
                             <span
                               aria-hidden
                               className={cn(
                                 "w-6 font-mono text-[11px] font-semibold tracking-wide",
                                 model.enabled
-                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  ? "text-success"
                                   : "text-muted-foreground",
                               )}
                             >
@@ -432,7 +432,7 @@ export function ProviderDetailModels({
                               {isTesting ? (
                                 <Spinner className="size-4" />
                               ) : testStatus?.status === "ok" ? (
-                                <CheckCircleIcon className="size-4 text-emerald-500" />
+                                <CheckCircleIcon className="size-4 text-success" />
                               ) : testStatus?.status === "error" ? (
                                 <XCircleIcon className="size-4 text-destructive" />
                               ) : (

@@ -16,12 +16,19 @@ export interface TransportMeta {
   accentClassName: string;
 }
 
+/**
+ * Identity colour per transport. Each entry uses a distinct `--chart-*` hue so
+ * accounts stay tellable apart in badges and topology views.
+ *
+ * `--chart-3` is deliberately absent: it mirrors `--live`, which is reserved for
+ * in-flight traffic. A provider badge is identity, not activity.
+ */
 export const transportMeta: Record<ProviderTransport, TransportMeta> = {
   openai: {
     label: "OpenAI-compatible",
     icon: "/images/providers/openai.svg",
     fallbackIcon: BotIcon,
-    accentClassName: "border-chart-3/40 bg-chart-3/10 text-chart-3",
+    accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
   },
   anthropic: {
     label: "Anthropic",
@@ -51,12 +58,12 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
     label: "Xiaomi MiMo",
     icon: "/images/providers/xiaomimimo.svg",
     fallbackIcon: BotIcon,
-    accentClassName: "border-chart-1/40 bg-chart-1/10 text-chart-1",
+    accentClassName: "border-chart-7/40 bg-chart-7/10 text-chart-7",
   },
   qoder: {
     label: "Qoder",
     icon: "/images/providers/qoder.svg",
     fallbackIcon: DropletsIcon,
-    accentClassName: "border-pink-500/40 bg-pink-500/10 text-pink-500",
+    accentClassName: "border-chart-6/40 bg-chart-6/10 text-chart-6",
   },
 };

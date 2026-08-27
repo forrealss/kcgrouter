@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 export const gatewayStatusMeta = {
   live: {
     label: "gateway online",
-    dot: "bg-emerald-500 dark:shadow-[0_0_6px] dark:shadow-emerald-500/70",
+    dot: "bg-live dark:shadow-[0_0_6px] dark:shadow-live/70",
   },
   connecting: {
     label: "connecting",
-    dot: "bg-amber-400 motion-safe:animate-pulse",
+    dot: "bg-warning motion-safe:animate-pulse",
   },
   offline: {
     label: "gateway offline",

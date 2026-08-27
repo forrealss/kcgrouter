@@ -31,8 +31,8 @@ import type { CLIToolSummary } from "@/types/cli-tool";
 
 const metricTone = {
   primary: "border-primary/30 bg-primary/10 text-primary",
-  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
-  amber: "border-amber-500/30 bg-amber-500/10 text-amber-500",
+  ok: "border-success/30 bg-success/10 text-success",
+  warn: "border-warning/30 bg-warning/10 text-warning",
   muted: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 
@@ -244,7 +244,7 @@ export function CLIToolsListPage() {
             value={String(metrics.pending)}
             hint="installed only"
             icon={PlugZapIcon}
-            tone={metrics.pending > 0 ? "amber" : "muted"}
+            tone={metrics.pending > 0 ? "warn" : "muted"}
             loading={isInitialLoading}
           />
           <MetricCell
@@ -301,7 +301,7 @@ export function CLIToolsListPage() {
       {filtered.length > 0 ? (
         <div className="flex flex-col gap-6">
           {error ? (
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-amber-500">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-warning">
               Showing last known client state
             </p>
           ) : null}

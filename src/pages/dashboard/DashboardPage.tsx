@@ -24,8 +24,8 @@ import { cn } from "@/lib/utils";
 import type { ProviderUsageData } from "@/types/quota";
 
 const sseMeta: Record<SseStatus, { label: string; dot: string }> = {
-  live: { label: "LIVE", dot: "bg-chart-3 animate-pulse" },
-  connecting: { label: "CONNECTING", dot: "bg-chart-4 animate-pulse" },
+  live: { label: "LIVE", dot: "bg-live animate-pulse" },
+  connecting: { label: "CONNECTING", dot: "bg-warning animate-pulse" },
   offline: { label: "OFFLINE", dot: "bg-destructive" },
 };
 

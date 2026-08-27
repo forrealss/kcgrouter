@@ -12,11 +12,11 @@ const typeLabels: Record<RequestLogType, string> = {
 function typeBadgeClass(type: RequestLogType): string {
   switch (type) {
     case "success":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+      return "border-success/20 bg-success/10 text-success";
     case "error":
       return "border-destructive/20 bg-destructive/10 text-destructive";
     case "admin":
-      return "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+      return "border-warning/25 bg-warning/10 text-warning";
     default:
       return "border-border bg-muted/50 text-muted-foreground";
   }

@@ -264,7 +264,7 @@ function ChangePasswordDialog({
                 <CheckIcon
                   className={`size-3 ${
                     passwordMeetsMinimum
-                      ? "text-emerald-500"
+                      ? "text-success"
                       : "text-muted-foreground/50"
                   }`}
                 />
@@ -320,9 +320,7 @@ function ChangePasswordDialog({
               >
                 <CheckIcon
                   className={`size-3 ${
-                    passwordsMatch
-                      ? "text-emerald-500"
-                      : "text-muted-foreground/50"
+                    passwordsMatch ? "text-success" : "text-muted-foreground/50"
                   }`}
                 />
                 {passwordsMatch

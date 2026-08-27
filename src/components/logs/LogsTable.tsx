@@ -180,7 +180,7 @@ export function LogsTable({
                 {log.stream ? (
                   <>
                     <span aria-hidden>·</span>
-                    <span>streaming</span>
+                    <span className="text-live">streaming</span>
                   </>
                 ) : null}
               </div>

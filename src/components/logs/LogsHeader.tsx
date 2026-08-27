@@ -21,13 +21,13 @@ const connectionMeta: Record<
 > = {
   live: {
     label: "Live",
-    dot: "animate-pulse bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-    text: "text-emerald-600 dark:text-emerald-400",
+    dot: "animate-pulse bg-live shadow-[0_0_6px] shadow-live/70",
+    text: "text-live",
   },
   connecting: {
     label: "Connecting",
-    dot: "animate-pulse bg-amber-500 shadow-[0_0_6px] shadow-amber-500/60",
-    text: "text-amber-600 dark:text-amber-400",
+    dot: "animate-pulse bg-warning shadow-[0_0_6px] shadow-warning/60",
+    text: "text-warning",
   },
   offline: {
     label: "Offline",

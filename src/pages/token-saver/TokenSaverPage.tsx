@@ -99,9 +99,9 @@ const PONYTAIL_LEVELS: ModifierLevel[] = [
 
 const metricTone = {
   primary: "border-primary/30 bg-primary/10 text-primary",
-  violet: "border-chart-2/30 bg-chart-2/10 text-chart-2",
-  cyan: "border-chart-3/30 bg-chart-3/10 text-chart-3",
-  amber: "border-chart-4/30 bg-chart-4/10 text-chart-4",
+  chart2: "border-chart-2/30 bg-chart-2/10 text-chart-2",
+  chart3: "border-chart-3/30 bg-chart-3/10 text-chart-3",
+  chart4: "border-chart-4/30 bg-chart-4/10 text-chart-4",
   muted: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 
@@ -412,7 +412,7 @@ export function TokenSaverPage() {
                 value={formatCompact(settings.totalTokensSaved)}
                 hint="all time"
                 icon={ZapIcon}
-                tone="violet"
+                tone="chart2"
               />
               <MetricCell
                 label="Output filters"
@@ -429,7 +429,7 @@ export function TokenSaverPage() {
                     : "OFF"
                 }
                 icon={ScissorsIcon}
-                tone={settings.cavemanEnabled ? "cyan" : "muted"}
+                tone={settings.cavemanEnabled ? "chart3" : "muted"}
               />
               <MetricCell
                 label="Ponytail"
@@ -439,7 +439,7 @@ export function TokenSaverPage() {
                     : "OFF"
                 }
                 icon={SparklesIcon}
-                tone={settings.ponytailEnabled ? "amber" : "muted"}
+                tone={settings.ponytailEnabled ? "chart4" : "muted"}
               />
             </div>
           </Card>

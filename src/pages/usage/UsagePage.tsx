@@ -52,11 +52,11 @@ const metricTone = {
     icon: "border-primary/30 bg-primary/10 text-primary",
     value: "glow-primary",
   },
-  cyan: { icon: "border-chart-3/30 bg-chart-3/10 text-chart-3", value: "" },
-  violet: { icon: "border-chart-2/30 bg-chart-2/10 text-chart-2", value: "" },
-  amber: { icon: "border-chart-4/30 bg-chart-4/10 text-chart-4", value: "" },
+  chart3: { icon: "border-chart-3/30 bg-chart-3/10 text-chart-3", value: "" },
+  chart2: { icon: "border-chart-2/30 bg-chart-2/10 text-chart-2", value: "" },
+  chart4: { icon: "border-chart-4/30 bg-chart-4/10 text-chart-4", value: "" },
   ok: {
-    icon: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+    icon: "border-success/30 bg-success/10 text-success",
     value: "",
   },
 } as const;
@@ -160,7 +160,7 @@ function RankingRow({
   value: string;
   detail: string;
   percentage: number;
-  tone: "primary" | "cyan";
+  tone: "primary" | "chart3";
 }) {
   const barClass = tone === "primary" ? "bg-primary" : "bg-chart-3";
 
@@ -427,28 +427,28 @@ export function UsagePage() {
             value={formatCompact(totalTokens)}
             icon={ZapIcon}
             loading={isSummaryLoading}
-            tone="violet"
+            tone="chart2"
           />
           <MetricCell
             label="Input"
             value={formatCompact(summary?.totalInputTokens ?? 0)}
             icon={ArrowDownIcon}
             loading={isSummaryLoading}
-            tone="cyan"
+            tone="chart3"
           />
           <MetricCell
             label="Output"
             value={formatCompact(summary?.totalOutputTokens ?? 0)}
             icon={ArrowUpIcon}
             loading={isSummaryLoading}
-            tone="violet"
+            tone="chart2"
           />
           <MetricCell
             label="Est. cost"
             value={costFmt.format(summary?.totalCost ?? 0)}
             icon={CoinsIcon}
             loading={isSummaryLoading}
-            tone="amber"
+            tone="chart4"
           />
           <MetricCell
             label="Avg latency"
@@ -519,7 +519,7 @@ export function UsagePage() {
                   value={`${row.latency}ms`}
                   detail={`${numFmt.format(row.count)} sample${row.count === 1 ? "" : "s"}`}
                   percentage={row.percentage}
-                  tone="cyan"
+                  tone="chart3"
                 />
               ))
             )}

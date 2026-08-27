@@ -33,9 +33,9 @@ const AT_RISK_THRESHOLD = 0.2;
 
 const metricTone = {
   primary: "border-primary/30 bg-primary/10 text-primary",
-  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
-  warn: "border-amber-500/30 bg-amber-500/10 text-amber-500",
-  violet: "border-chart-2/30 bg-chart-2/10 text-chart-2",
+  ok: "border-success/30 bg-success/10 text-success",
+  warn: "border-warning/30 bg-warning/10 text-warning",
+  chart2: "border-chart-2/30 bg-chart-2/10 text-chart-2",
 } as const;
 
 type MetricTone = keyof typeof metricTone;
@@ -235,7 +235,7 @@ export function QuotaPage() {
             hint="with quota data"
             icon={Layers3Icon}
             loading={isInitialLoading || isLoadingUsage}
-            tone="violet"
+            tone="chart2"
           />
           <MetricCell
             label="Requests"
@@ -283,7 +283,7 @@ export function QuotaPage() {
       {showGrid ? (
         <section aria-label="Quota accounts" className="flex flex-col gap-3">
           {error ? (
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-amber-500">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-warning">
               Showing last known quota state
             </p>
           ) : null}

@@ -391,7 +391,7 @@ export function CLIToolConfigForm({
                 </div>
               ) : selectedKeyMeta && resolvedKey ? (
                 <p className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                  <CheckIcon className="size-3.5 text-emerald-500" />
+                  <CheckIcon className="size-3.5 text-success" />
                   {maskKey(resolvedKey)}
                 </p>
               ) : null}
@@ -557,7 +557,7 @@ export function CLIToolConfigForm({
                 className="gap-1.5 text-[11px] font-normal text-muted-foreground"
               >
                 <span
-                  className="size-1.5 rounded-full bg-emerald-500"
+                  className="size-1.5 rounded-full bg-success"
                   aria-hidden
                 />
                 Config present

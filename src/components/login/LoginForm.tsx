@@ -111,9 +111,9 @@ const trace: TraceLine[] = [
 ];
 
 const outcomeStyles: Record<TraceLine["outcome"], string> = {
-  ok: "text-emerald-600/70 dark:text-emerald-400/70",
-  limited: "text-amber-600/70 dark:text-amber-400/70",
-  reroute: "text-sky-600/70 dark:text-sky-400/70",
+  ok: "text-success/70",
+  limited: "text-warning/70",
+  reroute: "text-primary/70",
 };
 
 // 4 copies so the -25% keyframe wraps seamlessly
@@ -183,8 +183,8 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               /auth/session
             </p>
           </div>
-          <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
-            <span className="size-1.5 rounded-full bg-emerald-500 shadow-none dark:shadow-[0_0_6px] dark:shadow-emerald-500/70" />
+          <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-success">
+            <span className="size-1.5 rounded-full bg-success shadow-none dark:shadow-[0_0_6px] dark:shadow-success/70" />
             live
           </span>
         </div>
@@ -241,7 +241,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
         </form>
 
         <p className="mt-6 flex items-center gap-2 border-t pt-5 font-mono text-[10px] text-muted-foreground">
-          <ShieldCheckIcon className="size-3.5 shrink-0 text-emerald-600/80 dark:text-emerald-400/80" />
+          <ShieldCheckIcon className="size-3.5 shrink-0 text-success/80" />
           aes-256-gcm at rest · httpOnly session cookie
         </p>
       </div>

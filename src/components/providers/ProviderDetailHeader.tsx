@@ -57,8 +57,8 @@ function StatCell({
           <span
             className={cn(
               "font-mono text-sm font-semibold tabular-nums tracking-tight",
-              tone === "ok" && "text-emerald-600 dark:text-emerald-400",
-              tone === "warn" && "text-amber-600 dark:text-amber-400",
+              tone === "ok" && "text-success",
+              tone === "warn" && "text-warning",
             )}
           >
             {value}

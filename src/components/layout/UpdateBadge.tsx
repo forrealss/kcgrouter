@@ -21,7 +21,7 @@ function readDismissedUpdate(): string | null {
 }
 
 /**
- * Navbar affordance for release state: an amber pill when a newer version is
+ * Navbar affordance for release state: a warning-toned pill when a newer version is
  * published, or a muted one when the registry could not be reached. Silent
  * when the install is current. Dismissals are remembered per version so the
  * pill returns for the next release.
@@ -93,7 +93,7 @@ export function UpdateBadge() {
         <button
           type="button"
           title={`Version ${latest} available`}
-          className={`${microLabel} flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-300`}
+          className={`${microLabel} flex shrink-0 items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-warning transition-colors hover:bg-warning/20 dark:text-warning`}
         >
           <DownloadIcon className="size-3 shrink-0" />
           <span className="hidden tabular-nums sm:inline">v{latest}</span>
@@ -107,7 +107,7 @@ export function UpdateBadge() {
         <p className="mt-1.5 font-mono text-sm tabular-nums">
           <span className="text-muted-foreground">v{current}</span>
           <span className="mx-1.5 text-muted-foreground/50">→</span>
-          <span className="text-amber-600 dark:text-amber-300">v{latest}</span>
+          <span className="text-warning">v{latest}</span>
         </p>
         <div className="mt-3 flex items-center gap-1 rounded-md border bg-muted/40 pl-2">
           <code className="min-w-0 flex-1 truncate py-1.5 font-mono text-[11px] text-foreground/80">

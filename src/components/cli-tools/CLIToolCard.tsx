@@ -61,7 +61,7 @@ export function CLIToolCard({ tool, onClick }: CLIToolCardProps) {
           className={cn(
             "flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border",
             state === "connected"
-              ? "border-emerald-500/30 bg-emerald-500/10"
+              ? "border-success/30 bg-success/10"
               : "border-border/70 bg-muted/40",
           )}
         >

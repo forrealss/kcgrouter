@@ -141,7 +141,7 @@ function ActivityItem({ record }: { record: UsageRecord }) {
     <div className="flex items-start gap-3 py-2.5 border-b border-border/50 last:border-0">
       <div className="mt-0.5">
         {record.status === "success" ? (
-          <CheckCircleIcon className="size-4 text-emerald-500" />
+          <CheckCircleIcon className="size-4 text-success" />
         ) : (
           <XCircleIcon className="size-4 text-destructive" />
         )}
@@ -153,7 +153,7 @@ function ActivityItem({ record }: { record: UsageRecord }) {
             {record.status}
           </Badge>
           {record.retries ? (
-            <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
+            <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-warning">
               RETRIED {record.retries}×
             </span>
           ) : null}
@@ -416,7 +416,7 @@ export function UsageDashboard() {
                 <MiniBarChart
                   data={providerChartData}
                   label="Total tokens (input + output)"
-                  color="oklch(0.68 0.19 264)"
+                  color="var(--chart-1)"
                 />
               ) : (
                 <p className="text-sm text-muted-foreground py-8 text-center">
@@ -431,7 +431,7 @@ export function UsageDashboard() {
                 <MiniBarChart
                   data={costChartData}
                   label="Estimated cost (USD)"
-                  color="oklch(0.78 0.17 60)"
+                  color="var(--chart-4)"
                 />
               ) : (
                 <p className="text-sm text-muted-foreground py-8 text-center">

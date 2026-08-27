@@ -25,7 +25,7 @@ export function CopyPayloadButton({ value }: { value: string }) {
       title="Copy payload"
     >
       {copied ? (
-        <CheckIcon className="size-3.5 text-emerald-500" />
+        <CheckIcon className="size-3.5 text-success" />
       ) : (
         <CopyIcon className="size-3.5" />
       )}

@@ -265,7 +265,7 @@ export function ProviderDetailConnections({
                               ) : testStatus?.status === "ok" ? (
                                 <CheckCircleIcon
                                   data-icon="inline-start"
-                                  className="text-emerald-500"
+                                  className="text-success"
                                 />
                               ) : testStatus?.status === "error" ? (
                                 <XCircleIcon

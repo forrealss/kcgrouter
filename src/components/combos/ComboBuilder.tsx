@@ -729,7 +729,7 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
           ) : (
             <>
               <span
-                className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
+                className="size-1.5 rounded-full bg-success shadow-[0_0_6px] shadow-success/70"
                 aria-hidden
               />
               Saved

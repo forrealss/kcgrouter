@@ -721,7 +721,7 @@ export function UsageTable({
                               "size-1.5 shrink-0 rounded-full",
                               isError
                                 ? "bg-destructive shadow-[0_0_6px] shadow-destructive/70"
-                                : "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
+                                : "bg-success shadow-[0_0_6px] shadow-success/70",
                             )}
                             title={record.status}
                           />

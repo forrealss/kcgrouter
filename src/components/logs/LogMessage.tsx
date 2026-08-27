@@ -16,7 +16,7 @@ export function LogMessage({ log }: { log: RequestLog }) {
       )}
       {retried ? (
         <span
-          className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px font-mono text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300"
+          className="shrink-0 rounded border border-warning/30 bg-warning/10 px-1 py-px font-mono text-[10px] uppercase tracking-wide text-warning"
           title={`Retried ${log.retries}× before this entry`}
         >
           retried {log.retries}×

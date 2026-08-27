@@ -19,9 +19,25 @@ export const usageRoutes: Record<string, RouteHandler> = {
     const model = url.searchParams.get("model") ?? undefined;
     const fromDate = url.searchParams.get("from") ?? undefined;
     const toDate = url.searchParams.get("to") ?? undefined;
-    const limit = url.searchParams.get("limit")
-      ? Number(url.searchParams.get("limit"))
+
+    // Clamp rather than trust: an unbounded or non-numeric limit would either
+    // return the whole table or produce `LIMIT NaN`. Note `Number(null)` is 0,
+    // so the presence of the param has to be checked before parsing it.
+    const limitParam = url.searchParams.get("limit")?.trim();
+    const parsedLimit = limitParam ? Number(limitParam) : Number.NaN;
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 500)
       : 50;
+
+    const rawSort = url.searchParams.get("sort");
+    if (rawSort && !UsageRecorder.isHistorySort(rawSort)) {
+      return Response.json(
+        {
+          error: `Invalid sort. Must be one of: ${UsageRecorder.HISTORY_SORT_KEYS.join(", ")}`,
+        },
+        { status: 400 },
+      );
+    }
 
     const history = UsageRecorder.getHistory({
       providerAccountId,
@@ -29,6 +45,7 @@ export const usageRoutes: Record<string, RouteHandler> = {
       fromDate,
       toDate,
       limit,
+      sort: rawSort ?? undefined,
     });
     return Response.json(history);
   },

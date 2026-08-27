@@ -2,7 +2,13 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import { addAccount, createProvider } from "../provider-registry.service";
-import { getHistory, record, summarize } from "../usage-recorder.service";
+import {
+  getHistory,
+  HISTORY_SORT_KEYS,
+  isHistorySort,
+  record,
+  summarize,
+} from "../usage-recorder.service";
 
 describe("UsageRecorder", () => {
   beforeAll(() => {
@@ -140,5 +146,97 @@ describe("UsageRecorder", () => {
     expect(summary.totalInputTokens).toBeGreaterThanOrEqual(300);
     expect(summary.totalOutputTokens).toBeGreaterThanOrEqual(150);
     expect(summary.byProvider.length).toBeGreaterThanOrEqual(1);
+  });
+
+  describe("history sorting", () => {
+    /** Distinct latency/cost/token values so every ordering is unambiguous. */
+    const shapes = [
+      {
+        model: "sort-a",
+        inputTokens: 10,
+        outputTokens: 5,
+        latencyMs: 900,
+        estimatedCost: 0.001,
+      },
+      {
+        model: "sort-b",
+        inputTokens: 900,
+        outputTokens: 800,
+        latencyMs: 50,
+        estimatedCost: 0.5,
+      },
+      {
+        model: "sort-c",
+        inputTokens: 400,
+        outputTokens: 100,
+        latencyMs: 300,
+        estimatedCost: 0.05,
+      },
+    ];
+    let accountId = "";
+
+    beforeAll(() => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const provider = createProvider({
+        name: `UR-Sort-${unique}`,
+        transport: "openai",
+        baseUrl: "https://t.com",
+        prefix: `ur-sort-${unique}`,
+      });
+      accountId = addAccount(provider.id, { label: "A", apiKey: "sk" }).id;
+      for (const shape of shapes) {
+        record({
+          providerAccountId: accountId,
+          comboId: null,
+          status: "success",
+          ...shape,
+        });
+      }
+    });
+
+    function models(sort: Parameters<typeof getHistory>[0]["sort"]) {
+      return getHistory({ providerAccountId: accountId, sort }).map(
+        (r) => r.model,
+      );
+    }
+
+    test("orders by latency in both directions", () => {
+      expect(models("slowest")).toEqual(["sort-a", "sort-c", "sort-b"]);
+      expect(models("fastest")).toEqual(["sort-b", "sort-c", "sort-a"]);
+    });
+
+    test("orders by cost and by total tokens", () => {
+      expect(models("costliest")).toEqual(["sort-b", "sort-c", "sort-a"]);
+      expect(models("most-tokens")).toEqual(["sort-b", "sort-c", "sort-a"]);
+    });
+
+    test("oldest is the reverse of newest", () => {
+      expect(models("oldest")).toEqual([...models("newest")].reverse());
+    });
+
+    test("defaults to newest when sort is omitted", () => {
+      expect(models(undefined)).toEqual(models("newest"));
+    });
+
+    test("respects limit while sorted", () => {
+      expect(
+        getHistory({ providerAccountId: accountId, sort: "slowest", limit: 2 }),
+      ).toHaveLength(2);
+    });
+
+    test("isHistorySort gates the ORDER BY allowlist", () => {
+      for (const key of HISTORY_SORT_KEYS)
+        expect(isHistorySort(key)).toBe(true);
+      for (const bad of [
+        "timestamp",
+        "latency_ms",
+        "id; DROP TABLE usage_records",
+        "newest ASC",
+        "__proto__",
+        "",
+      ]) {
+        expect(isHistorySort(bad)).toBe(false);
+      }
+    });
   });
 });

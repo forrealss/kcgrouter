@@ -159,6 +159,26 @@ export interface ApiKeyPublic {
   has_key: boolean;
   created_at: string;
   last_used_at: string | null;
+  /**
+   * Last 4 characters of the key, or null when the key predates encryption.
+   *
+   * Lets a client tell *which* stored key a saved config refers to without
+   * fetching plaintext. Without it the CLI-tool form had to request every key's
+   * plaintext and compare — N requests that pulled every secret into the
+   * browser just to render one label.
+   */
+  last4: string | null;
+}
+
+/** Non-reversible tail of a key, safe to show in a picker. */
+function keyTail(keyEnc: string | null): string | null {
+  if (!keyEnc) return null;
+  try {
+    const plaintext = decrypt(keyEnc);
+    return plaintext.length >= 4 ? plaintext.slice(-4) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function createApiKey(
@@ -201,6 +221,7 @@ export async function listApiKeys(): Promise<ApiKeyPublic[]> {
     has_key: !!r.key_enc,
     created_at: r.created_at,
     last_used_at: r.last_used_at,
+    last4: keyTail(r.key_enc),
   }));
 }
 

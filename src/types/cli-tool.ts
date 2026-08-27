@@ -64,4 +64,6 @@ export interface ApiKeySummary {
   id: string;
   label: string;
   has_key: boolean;
+  /** Last 4 chars of the key, used to identify a saved key without fetching it. */
+  last4?: string | null;
 }

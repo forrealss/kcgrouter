@@ -7,11 +7,26 @@ import {
 import { resolveQoderCredentials } from "../providers/qoder/model-catalog";
 import { decrypt } from "./crypto.service";
 
+/**
+ * How a quota row should be read.
+ *
+ * - `window`: a real consumption cap that refills. `used` and `total` are both
+ *   meaningful, so progress against the cap is worth showing.
+ * - `balance`: a stored amount that is drawn down and topped up (Command Code
+ *   credits). There is no cap to fill, so only the amount on hand means
+ *   anything — `used` is derived and must not be shown as progress.
+ *
+ * The distinction is set per provider here because only the fetcher knows the
+ * upstream semantics; the UI must not infer it from the row name.
+ */
+export type ProviderQuotaKind = "window" | "balance";
+
 export interface ProviderQuota {
   name: string;
   used: number;
   total: number;
   resetAt: string | null;
+  kind: ProviderQuotaKind;
 }
 
 export interface ProviderUsageResult {
@@ -88,6 +103,7 @@ async function fetchKiroUsage(
           used: item.currentUsageWithPrecision || 0,
           total: item.usageLimitWithPrecision || 0,
           resetAt: resetAt,
+          kind: "window",
         });
 
         if (item.freeTrialInfo) {
@@ -97,6 +113,7 @@ async function fetchKiroUsage(
             total: item.freeTrialInfo.usageLimitWithPrecision || 0,
             resetAt:
               parseResetTime(item.freeTrialInfo.freeTrialExpiry) || resetAt,
+            kind: "window",
           });
         }
       }
@@ -178,6 +195,7 @@ async function fetchCommandCodeUsage(
       used: wh.used || 0,
       total: wh.cap || 0,
       resetAt: epochMsToIso(wh.resetAt ?? 0),
+      kind: "window",
     });
   }
 
@@ -188,20 +206,27 @@ async function fetchCommandCodeUsage(
       used: w.used || 0,
       total: w.cap || 0,
       resetAt: epochMsToIso(w.resetAt ?? 0),
+      kind: "window",
     });
   }
 
   if (data.credits) {
     const c = data.credits;
-    const total =
+    const balance =
       (c.monthlyCredits || 0) +
       (c.purchasedCredits || 0) +
       (c.freeCredits || 0);
+    // Credits are a balance, not a window: the sum above is what is left on the
+    // account, and nothing here reports how much was originally granted. The
+    // old code set `used = total - monthlyCredits`, which invented a
+    // consumption figure out of unrelated buckets. Report the balance as
+    // `total` and leave `used` at 0 so the UI shows the amount on hand.
     quotas.push({
       name: "credit",
-      used: total - (c.monthlyCredits || 0),
-      total,
+      used: 0,
+      total: balance,
       resetAt: null,
+      kind: "balance",
     });
   }
 
@@ -260,12 +285,13 @@ export function parseQoderUsageResponse(body: unknown): ProviderQuota[] {
   // credit row would render as "habis" (exhausted) on the quota card.
   if (userTotal > 0 || userUsed > 0) {
     quotas.push({
-      // Named "credit" so the quota card renders remaining/total (like
-      // Command Code's monthly credits) instead of a percentage bar.
+      // Qoder reports a real used/total pair, so this is a consumption window
+      // even though the unit is called "credits" upstream.
       name: "credit",
       used: clampUsed(userUsed, userTotal),
       total: userTotal,
       resetAt,
+      kind: "window",
     });
   }
 
@@ -276,6 +302,7 @@ export function parseQoderUsageResponse(body: unknown): ProviderQuota[] {
       used: clampUsed(orgUsed, orgTotal),
       total: orgTotal,
       resetAt,
+      kind: "window",
     });
   }
 

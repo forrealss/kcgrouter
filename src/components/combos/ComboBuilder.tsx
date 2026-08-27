@@ -4,13 +4,20 @@ import {
   ArrowUpIcon,
   ChevronRightIcon,
   CoinsIcon,
+  type LucideIcon,
   PlusIcon,
   RefreshCwIcon,
   ServerIcon,
-  Settings2Icon,
+  TargetIcon,
   Trash2Icon,
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -29,20 +36,16 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NumberInput } from "@/components/ui/number-input";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { transportMeta } from "@/lib/provider-meta";
+import { accountStatusMeta, resolveAccountStatus } from "@/lib/provider-status";
+import { cn } from "@/lib/utils";
 import type { Combo, ComboMember } from "@/types/combo";
 import type { Provider, ProviderAccount } from "@/types/provider";
 
@@ -85,6 +88,9 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   const [inputCost, setInputCost] = useState("");
   const [outputCost, setOutputCost] = useState("");
   const [modelOptions, setModelOptions] = useState<ComboboxOption[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<"account" | "model", string>>
+  >({});
   const isMutating = isAdding || isReordering || removingMemberId !== null;
 
   const loadMembers = useCallback(async () => {
@@ -205,15 +211,32 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
     event.preventDefault();
     setError(null);
 
+    const trimmedModel = modelName.trim();
+    const nextFieldErrors: Partial<Record<"account" | "model", string>> = {};
+
     if (!providerAccountId) {
-      setError("Select a provider account first.");
-      return;
+      nextFieldErrors.account = "Pick the connection this target routes to.";
+    }
+    if (!trimmedModel) {
+      nextFieldErrors.model = "A model name is required.";
+    } else if (
+      members.some(
+        (existing) =>
+          existing.providerAccountId === providerAccountId &&
+          existing.modelName.toLowerCase() === trimmedModel.toLowerCase(),
+      )
+    ) {
+      // Same connection + same model would never be reached by the engine:
+      // fallback stops at the first match, round-robin just repeats the call.
+      nextFieldErrors.model =
+        "This connection already routes that model in this combo.";
     }
 
-    if (!modelName.trim()) {
-      setError("Model name is required.");
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
       return;
     }
+    setFieldErrors({});
 
     let inputCostPer1M: number | undefined;
     let outputCostPer1M: number | undefined;
@@ -309,6 +332,37 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
   );
   const accountById = new Map(accounts.map((account) => [account.id, account]));
 
+  /**
+   * Connections grouped by provider, so the picker shows which upstream each
+   * key belongs to and flags keys that are not currently usable.
+   */
+  const accountOptions: ComboboxOption[] = accounts.map((account) => {
+    const statusKey = resolveAccountStatus(account);
+    return {
+      value: account.id,
+      label: account.label,
+      description:
+        statusKey === "active"
+          ? undefined
+          : `${accountStatusMeta[statusKey].label} — may be skipped when routing`,
+      group: account.providerName,
+    };
+  });
+
+  const accountGroupMeta = useMemo(() => {
+    const entries: Record<
+      string,
+      { icon?: string; iconComponent?: LucideIcon }
+    > = {};
+    for (const provider of providers) {
+      const meta = transportMeta[provider.transport];
+      entries[provider.name] = meta.icon
+        ? { icon: meta.icon }
+        : { iconComponent: meta.fallbackIcon };
+    }
+    return entries;
+  }, [providers]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:overflow-hidden sm:px-6 sm:py-5">
       {error ? (
@@ -348,8 +402,23 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
                 aria-label="Combo member order"
               >
                 {members.length === 0 ? (
-                  <li className="flex min-h-40 items-center justify-center rounded-md border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">
-                    No targets yet.
+                  <li className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-background/70 p-6 text-center">
+                    <span
+                      className="flex size-10 items-center justify-center rounded-lg border border-border/70 bg-muted/50 text-muted-foreground"
+                      aria-hidden
+                    >
+                      <TargetIcon className="size-5" />
+                    </span>
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-medium">
+                        No targets yet
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {combo.strategy === "fallback"
+                          ? "Add one on the right. The first target is tried first."
+                          : "Add targets on the right to rotate requests across them."}
+                      </span>
+                    </span>
                   </li>
                 ) : (
                   members.map((member, index) => {
@@ -461,151 +530,217 @@ export function ComboBuilder({ combo, onChanged }: ComboBuilderProps) {
             </div>
           </section>
 
-          <section className="h-fit rounded-lg border border-border/70 bg-muted/20 p-4">
-            <div className="mb-3 flex items-start gap-2">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background/70 text-primary">
-                <PlusIcon className="size-3.5" />
+          <section className="flex h-fit flex-col gap-0 overflow-hidden rounded-lg border border-border/70">
+            <div className="flex items-start gap-2.5 border-b border-border/60 bg-muted/30 px-4 py-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
+                <PlusIcon className="size-4" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium">Add target</p>
                 <p className="text-xs text-muted-foreground">
-                  Appended to the end of the order.
+                  {combo.strategy === "fallback"
+                    ? `Appended as fallback #${members.length + 1}.`
+                    : "Appended to the rotation."}
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleAddMember}>
-              <FieldGroup className="gap-4">
-                <Field>
-                  <FieldLabel htmlFor={`provider-account-${combo.id}`}>
-                    Provider connection
-                  </FieldLabel>
-                  <Select
-                    value={providerAccountId || undefined}
-                    onValueChange={setProviderAccountId}
-                    disabled={isMutating || accounts.length === 0}
+            {accounts.length === 0 ? (
+              <div className="flex flex-col gap-2 px-4 py-4">
+                <p className="text-sm font-medium">No connections available</p>
+                <p className="text-xs text-muted-foreground">
+                  A combo target points at a provider connection. Add a provider
+                  with at least one API key first.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleAddMember} className="px-4 py-4">
+                <FieldGroup className="gap-4">
+                  <Field
+                    data-invalid={Boolean(fieldErrors.account)}
+                    className="gap-2"
                   >
-                    <SelectTrigger
-                      id={`provider-account-${combo.id}`}
-                      className="w-full bg-background"
+                    <FieldLabel
+                      htmlFor={`provider-account-${combo.id}`}
+                      className="text-xs"
                     >
-                      <SelectValue placeholder="Select connection" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {accounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.providerName} — {account.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {accounts.length === 0 ? (
-                    <FieldDescription>
-                      Create a provider and an active account first.
-                    </FieldDescription>
-                  ) : null}
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`model-name-${combo.id}`}>
-                    Target model
-                  </FieldLabel>
-                  <Combobox
-                    id={`model-name-${combo.id}`}
-                    options={modelOptions}
-                    value={modelName}
-                    onValueChange={setModelName}
-                    placeholder={
-                      selectedAccount
-                        ? "Select or type a model"
-                        : "Select a connection first"
-                    }
-                    searchPlaceholder="Search models..."
-                    allowCustom
-                    disabled={isMutating || !selectedAccount}
-                  />
-                </Field>
-                <div className="rounded-md border bg-background/70">
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between gap-3 p-3 text-left text-xs font-medium transition-colors hover:bg-accent/50"
-                    onClick={() => setIsCostsOpen((open) => !open)}
-                    aria-expanded={isCostsOpen}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Settings2Icon className="size-3.5 text-muted-foreground" />
-                      Cost / 1M (optional)
-                    </span>
-                    <ChevronRightIcon
-                      className={`size-3.5 text-muted-foreground transition-transform ${isCostsOpen ? "rotate-90" : ""}`}
+                      Provider connection
+                    </FieldLabel>
+                    <Combobox
+                      id={`provider-account-${combo.id}`}
+                      options={accountOptions}
+                      value={providerAccountId}
+                      onValueChange={(next) => {
+                        setProviderAccountId(next);
+                        setFieldErrors((current) => ({
+                          ...current,
+                          account: undefined,
+                        }));
+                        setError(null);
+                      }}
+                      placeholder="Select connection"
+                      searchPlaceholder="Search connections..."
+                      dialogTitle="Select provider connection"
+                      allowCustom={false}
+                      groupMeta={accountGroupMeta}
+                      noResultsLabel="No connections found"
+                      disabled={isMutating}
                     />
-                  </button>
-                  {isCostsOpen ? (
-                    <div className="grid gap-3 border-t p-3 sm:grid-cols-2">
-                      <Field>
-                        <FieldLabel htmlFor={`input-cost-${combo.id}`}>
-                          Input / 1M
-                        </FieldLabel>
-                        <Input
-                          id={`input-cost-${combo.id}`}
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          value={inputCost}
-                          onChange={(event) => setInputCost(event.target.value)}
-                          placeholder="Optional"
-                          disabled={isMutating}
-                          className="bg-background"
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor={`output-cost-${combo.id}`}>
-                          Output / 1M
-                        </FieldLabel>
-                        <Input
-                          id={`output-cost-${combo.id}`}
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          value={outputCost}
-                          onChange={(event) =>
-                            setOutputCost(event.target.value)
-                          }
-                          placeholder="Optional"
-                          disabled={isMutating}
-                          className="bg-background"
-                        />
-                      </Field>
-                    </div>
-                  ) : null}
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isMutating || accounts.length === 0}
-                >
-                  {isAdding ? (
-                    <Spinner data-icon="inline-start" />
-                  ) : (
-                    <PlusIcon data-icon="inline-start" />
-                  )}
-                  Add
-                </Button>
-              </FieldGroup>
-            </form>
+                    {fieldErrors.account ? (
+                      <FieldError>{fieldErrors.account}</FieldError>
+                    ) : null}
+                  </Field>
+                  <Field
+                    data-invalid={Boolean(fieldErrors.model)}
+                    className="gap-2"
+                  >
+                    <FieldLabel
+                      htmlFor={`model-name-${combo.id}`}
+                      className="text-xs"
+                    >
+                      Target model
+                    </FieldLabel>
+                    <Combobox
+                      id={`model-name-${combo.id}`}
+                      options={modelOptions}
+                      value={modelName}
+                      onValueChange={(next) => {
+                        setModelName(next);
+                        setFieldErrors((current) => ({
+                          ...current,
+                          model: undefined,
+                        }));
+                        setError(null);
+                      }}
+                      placeholder={
+                        selectedAccount
+                          ? "Select or type a model"
+                          : "Select a connection first"
+                      }
+                      searchPlaceholder="Search models..."
+                      dialogTitle="Select target model"
+                      allowCustom
+                      customLabel="Use custom model"
+                      disabled={isMutating || !selectedAccount}
+                    />
+                    <FieldDescription className="text-xs">
+                      {selectedAccount
+                        ? "Pick from the provider catalog, or type any model ID it accepts."
+                        : "Choose a connection to load its model catalog."}
+                    </FieldDescription>
+                    {fieldErrors.model ? (
+                      <FieldError>{fieldErrors.model}</FieldError>
+                    ) : null}
+                  </Field>
+                  <div className="rounded-md border border-border/70">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors hover:bg-accent/40"
+                      onClick={() => setIsCostsOpen((open) => !open)}
+                      aria-expanded={isCostsOpen}
+                    >
+                      <span className="flex items-center gap-2">
+                        <CoinsIcon className="size-3.5 text-muted-foreground" />
+                        Cost per 1M tokens
+                        <span className="font-normal text-muted-foreground">
+                          optional
+                        </span>
+                      </span>
+                      <ChevronRightIcon
+                        className={cn(
+                          "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                          isCostsOpen && "rotate-90",
+                        )}
+                      />
+                    </button>
+                    {isCostsOpen ? (
+                      <div className="flex flex-col gap-3 border-t border-border/60 p-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field className="gap-1.5">
+                            <FieldLabel
+                              htmlFor={`input-cost-${combo.id}`}
+                              className="text-xs"
+                            >
+                              Input
+                            </FieldLabel>
+                            <NumberInput
+                              id={`input-cost-${combo.id}`}
+                              value={inputCost}
+                              onValueChange={setInputCost}
+                              min={0}
+                              step={0.5}
+                              unit="$"
+                              placeholder="—"
+                              disabled={isMutating}
+                            />
+                          </Field>
+                          <Field className="gap-1.5">
+                            <FieldLabel
+                              htmlFor={`output-cost-${combo.id}`}
+                              className="text-xs"
+                            >
+                              Output
+                            </FieldLabel>
+                            <NumberInput
+                              id={`output-cost-${combo.id}`}
+                              value={outputCost}
+                              onValueChange={setOutputCost}
+                              min={0}
+                              step={0.5}
+                              unit="$"
+                              placeholder="—"
+                              disabled={isMutating}
+                            />
+                          </Field>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Used to report spend for this target. Leave blank if
+                          you do not track cost.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isMutating}
+                  >
+                    {isAdding ? (
+                      <Spinner data-icon="inline-start" />
+                    ) : (
+                      <PlusIcon data-icon="inline-start" />
+                    )}
+                    Add target
+                  </Button>
+                </FieldGroup>
+              </form>
+            )}
           </section>
         </div>
       )}
 
-      <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-3 border-t bg-background/95 py-3 text-xs text-muted-foreground backdrop-blur md:static md:bg-transparent md:py-3 md:backdrop-blur-none">
-        <span className="mr-auto">{isMutating ? "Saving..." : "Saved"}</span>
+      <div className="sticky bottom-0 z-10 mt-4 flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border/60 bg-background/95 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none">
+        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isMutating ? (
+            <>
+              <Spinner className="size-3" />
+              Saving…
+            </>
+          ) : (
+            <>
+              <span
+                className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
+                aria-hidden
+              />
+              Saved
+            </>
+          )}
+        </span>
         <Button
           type="button"
           variant="ghost"
           size="sm"
+          className="-mr-2 text-muted-foreground hover:text-foreground"
           disabled={isLoading || isMutating}
           onClick={() => void loadBuilderData()}
         >

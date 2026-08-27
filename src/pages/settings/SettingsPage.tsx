@@ -18,7 +18,10 @@ export function SettingsPage() {
         <div className="min-w-0 xl:col-span-2">
           <PreferencesCard />
         </div>
-        <div className="min-w-0 xl:col-span-3">
+        <div
+          id="api-keys"
+          className="min-w-0 scroll-mt-20 rounded-xl transition-shadow xl:col-span-3"
+        >
           <ApiKeyManager />
         </div>
       </div>

@@ -6,9 +6,11 @@ import {
   getHistory,
   getPayloads,
   HISTORY_SORT_KEYS,
+  isBucketGranularity,
   isHistorySort,
   record,
   summarize,
+  timeseries,
 } from "../usage-recorder.service";
 
 describe("UsageRecorder", () => {
@@ -300,6 +302,118 @@ describe("UsageRecorder", () => {
       ]) {
         expect(isHistorySort(bad)).toBe(false);
       }
+    });
+  });
+
+  describe("timeseries", () => {
+    test("isBucketGranularity gates the strftime format allowlist", () => {
+      expect(isBucketGranularity("day")).toBe(true);
+      expect(isBucketGranularity("hour")).toBe(true);
+      for (const bad of [
+        "%Y-%m-%d",
+        "day; DROP TABLE usage_records",
+        "week",
+        "__proto__",
+        "",
+      ]) {
+        expect(isBucketGranularity(bad)).toBe(false);
+      }
+    });
+
+    test("groups requests into day buckets within range", () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const provider = createProvider({
+        name: `UR-TS-${unique}`,
+        transport: "openai",
+        baseUrl: "https://t.com",
+        prefix: `ur-ts-${unique}`,
+      });
+      const account = addAccount(provider.id, { label: "A", apiKey: "sk" });
+
+      record({
+        providerAccountId: account.id,
+        comboId: null,
+        model: "ts-model",
+        inputTokens: 10,
+        outputTokens: 5,
+        status: "success",
+        latencyMs: 1,
+        estimatedCost: 0.01,
+      });
+      record({
+        providerAccountId: account.id,
+        comboId: null,
+        model: "ts-model",
+        inputTokens: 20,
+        outputTokens: 10,
+        status: "success",
+        latencyMs: 1,
+        estimatedCost: 0.02,
+      });
+
+      const from = new Date(Date.now() - 60_000).toISOString();
+      const to = new Date(Date.now() + 60_000).toISOString();
+      const buckets = timeseries({ from, to, granularity: "day" });
+
+      expect(buckets.length).toBeGreaterThanOrEqual(1);
+      const todayBucket = buckets[buckets.length - 1];
+      expect(todayBucket?.requests).toBeGreaterThanOrEqual(2);
+      expect(todayBucket?.inputTokens).toBeGreaterThanOrEqual(30);
+      expect(todayBucket?.outputTokens).toBeGreaterThanOrEqual(15);
+    });
+
+    test("returns no buckets for a range with no data", () => {
+      const from = new Date(
+        Date.now() - 10 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const to = new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString();
+      const buckets = timeseries({ from, to, granularity: "day" });
+      expect(buckets).toEqual([]);
+    });
+
+    test("a large positive tzOffsetMinutes shifts the bucket to the previous UTC day", () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const provider = createProvider({
+        name: `UR-TZ-${unique}`,
+        transport: "openai",
+        baseUrl: "https://t.com",
+        prefix: `ur-tz-${unique}`,
+      });
+      const account = addAccount(provider.id, { label: "A", apiKey: "sk" });
+
+      // Force a timestamp just after UTC midnight so a west-of-UTC offset
+      // (positive per getTimezoneOffset()) pushes it into the prior day.
+      const utcMidnightPlus1h = new Date();
+      utcMidnightPlus1h.setUTCHours(0, 30, 0, 0);
+      const timestamp = utcMidnightPlus1h.toISOString();
+
+      run(
+        `INSERT INTO usage_records (id, timestamp, provider_account_id, combo_id, model, input_tokens, output_tokens, status, latency_ms, estimated_cost, request_body, response_body, request_id)
+         VALUES (?, ?, ?, NULL, 'tz-model', 1, 1, 'success', 1, 0, NULL, NULL, NULL)`,
+        `ur_tz_${unique}`,
+        timestamp,
+        account.id,
+      );
+
+      const from = new Date(
+        utcMidnightPlus1h.getTime() - 2 * 60 * 60 * 1000,
+      ).toISOString();
+      const to = new Date(
+        utcMidnightPlus1h.getTime() + 2 * 60 * 60 * 1000,
+      ).toISOString();
+
+      const utcBuckets = timeseries({ from, to, tzOffsetMinutes: 0 });
+      const shiftedBuckets = timeseries({ from, to, tzOffsetMinutes: 420 });
+
+      const utcDay = utcMidnightPlus1h.toISOString().slice(0, 10);
+      const prevDay = new Date(
+        utcMidnightPlus1h.getTime() - 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+
+      expect(utcBuckets.some((b) => b.bucket === utcDay)).toBe(true);
+      expect(shiftedBuckets.some((b) => b.bucket === prevDay)).toBe(true);
     });
   });
 });

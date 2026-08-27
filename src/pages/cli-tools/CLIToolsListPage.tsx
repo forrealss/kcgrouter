@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCLITools } from "@/hooks/useCLITools";
 import { useRouter } from "@/hooks/useRouter";
-import { resolveCLIToolState } from "@/lib/cli-tool-status";
+import { countCLIToolStates, resolveCLIToolState } from "@/lib/cli-tool-status";
 import { cn } from "@/lib/utils";
 import type { CLIToolSummary } from "@/types/cli-tool";
 
@@ -135,22 +135,13 @@ export function CLIToolsListPage() {
     [tools],
   );
 
-  /**
-   * Counted per resolved state rather than derived by subtraction: `installed`
-   * and `configured` are independent, so `installed - configured` undercounts a
-   * tool that holds config without an install.
-   */
   const metrics = useMemo(() => {
-    let connected = 0;
-    let pending = 0;
-    let absent = 0;
-    for (const [, tool] of entries) {
-      const state = resolveCLIToolState(tool);
-      if (state === "connected") connected += 1;
-      else if (state === "absent") absent += 1;
-      else pending += 1;
-    }
-    return { connected, pending, absent };
+    const counts = countCLIToolStates(entries.map(([, tool]) => tool));
+    return {
+      connected: counts.connected,
+      pending: counts.needsSetup + counts.orphaned,
+      absent: counts.absent,
+    };
   }, [entries]);
 
   const filtered = useMemo(() => {

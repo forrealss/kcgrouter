@@ -1,27 +1,33 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BoxesIcon,
+  KeyRoundIcon,
+  Layers3Icon,
+  ScissorsIcon,
+  ScrollTextIcon,
+  TerminalIcon,
+  ZapIcon,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { AlertsSection } from "@/components/dashboard/AlertsSection";
-import { CombosTopologyCard } from "@/components/dashboard/CombosTopologyCard";
 import { HealthSection } from "@/components/dashboard/HealthSection";
-import { LiveActivityCard } from "@/components/dashboard/LiveActivityCard";
-import { ProviderStatusTable } from "@/components/dashboard/ProviderStatusTable";
-import { QuotaTrackerCard } from "@/components/dashboard/QuotaTrackerCard";
-import { RouterStatsCard } from "@/components/dashboard/RouterStatsCard";
-import { TokenSaverCard } from "@/components/dashboard/TokenSaverCard";
-import { VolumeSpendCard } from "@/components/dashboard/VolumeSpendCard";
+import { StatCard, StatCardSkeleton } from "@/components/dashboard/StatCard";
+import { UsageTrendCard } from "@/components/dashboard/UsageTrendCard";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { UsageGraph } from "@/components/usage/UsageGraph";
+import { useApiKeys } from "@/hooks/useApiKeys";
+import { useCLITools } from "@/hooks/useCLITools";
 import { useCombos } from "@/hooks/useCombos";
 import { useDashboardActivity } from "@/hooks/useDashboardActivity";
 import { useEncryptionHealth } from "@/hooks/useEncryptionHealth";
 import { useProviders } from "@/hooks/useProviders";
-import { useQuota } from "@/hooks/useQuota";
+import { useRouter } from "@/hooks/useRouter";
 import { useTokenSaver } from "@/hooks/useTokenSaver";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { useUsageSummary } from "@/hooks/useUsageSummary";
+import { useUsageTimeseries } from "@/hooks/useUsageTimeseries";
+import { countCLIToolStates } from "@/lib/cli-tool-status";
+import { compactNumber, formatAgo, numFmt } from "@/lib/dashboard-format";
 import { type SseStatus, useSseStatus } from "@/lib/sse-bus";
 import { cn } from "@/lib/utils";
-import type { ProviderUsageData } from "@/types/quota";
 
 const sseMeta: Record<SseStatus, { label: string; dot: string }> = {
   live: { label: "LIVE", dot: "bg-live animate-pulse" },
@@ -29,15 +35,33 @@ const sseMeta: Record<SseStatus, { label: string; dot: string }> = {
   offline: { label: "OFFLINE", dot: "bg-destructive" },
 };
 
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
 /**
- * Dashboard landing page. Ordered to answer "is my gateway healthy right
- * now, and what has it been doing?" top to bottom:
- *   1. Critical alerts (encryption mismatch, pending update)
- *   2. Account health (benched / failing / expired accounts, or a quiet
- *      "all healthy" strip)
- *   3. Network graph + live activity feed
- *   4. Volume & spend, alongside token saver + router behaviour
- *   5. Provider connection table, combo topology, upstream quota
+ * Dashboard landing page — a summary, not a duplicate of every other page.
+ * Detail already lives on /providers, /combos, /usage, /quota, /logs; this
+ * page answers three questions: is anything broken, what are the headline
+ * numbers, and where's the traffic trending. Ordered:
+ *   1. Critical alerts + account problems (hidden entirely when healthy)
+ *   2. Headline stat cards (providers, combos, tokens, requests)
+ *   3. Status + shortcut cards (token saver, CLI tools, logs, API keys)
+ *   4. Usage trend chart with a date-range filter
  */
 export function DashboardPage() {
   const {
@@ -46,65 +70,37 @@ export function DashboardPage() {
     isLoading: providersLoading,
     error: providersError,
   } = useProviders();
-  const {
-    combos,
-    membersByCombo,
-    isLoading: combosLoading,
-    error: combosError,
-  } = useCombos();
+  const { combos, membersByCombo, isLoading: combosLoading } = useCombos();
   const {
     summary,
     isLoading: summaryLoading,
     error: summaryError,
   } = useUsageSummary();
-  const {
-    accounts: quotaAccounts,
-    providerUsage,
-    isLoading: quotaLoading,
-    isLoadingUsage,
-    error: quotaError,
-    loadProviderUsage,
-  } = useQuota();
   const { health: encryptionHealth } = useEncryptionHealth();
   const {
     settings: tokenSaverSettings,
     isLoading: tokenSaverLoading,
     loadError: tokenSaverError,
   } = useTokenSaver();
+  const { tools: cliTools, isLoading: cliToolsLoading } = useCLITools();
+  const { keys: apiKeys, isLoading: apiKeysLoading } = useApiKeys();
   const update = useUpdateCheck();
   const activity = useDashboardActivity();
   const sseStatus = useSseStatus();
+  const { navigate } = useRouter();
 
-  const mainRowRef = useRef<HTMLDivElement>(null);
-  const [rowH, setRowH] = useState(360);
-  const [hasFetchedUpstream, setHasFetchedUpstream] = useState(false);
-
-  // `/api/quota/usage` fans out sequential calls to every upstream provider,
-  // so it stays behind an explicit action instead of firing on every visit.
-  const handleFetchUpstream = useCallback(() => {
-    setHasFetchedUpstream(true);
-    void loadProviderUsage();
-  }, [loadProviderUsage]);
-
-  // Responsive height shared by the network graph and live activity feed.
-  useEffect(() => {
-    const el = mainRowRef.current;
-    if (!el) return;
-    const calc = () => {
-      const w = el.offsetWidth;
-      setRowH(
-        w < 640
-          ? Math.floor(w * 0.62)
-          : w < 1024
-            ? Math.floor(w * 0.44)
-            : Math.floor(w * 0.38),
-      );
-    };
-    calc();
-    const ro = new ResizeObserver(calc);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const [range, setRange] = useState(() => ({
+    from: startOfDay(daysAgo(29)),
+    to: endOfDay(new Date()),
+  }));
+  const {
+    buckets,
+    isLoading: trendLoading,
+    error: trendError,
+  } = useUsageTimeseries({
+    from: range.from.toISOString(),
+    to: range.to.toISOString(),
+  });
 
   const allAccounts = useMemo(() => {
     if (!providers) return [];
@@ -114,62 +110,62 @@ export function DashboardPage() {
     });
   }, [providers, accounts]);
 
-  const accountById = useMemo(() => {
-    const map = new Map(
-      allAccounts.map((row) => [row.account.id, row.account]),
-    );
-    return (id: string) => map.get(id);
-  }, [allAccounts]);
-
-  // Display labels come from the already-loaded provider/account data rather
-  // than re-fetching the whole provider tree just to build a lookup.
-  const accountLabels = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const { account, provider } of allAccounts) {
-      map.set(account.id, `${provider.name} — ${account.label}`);
-    }
-    return map;
-  }, [allAccounts]);
-
-  const accountLabel = useCallback(
-    (accountId: string) => accountLabels.get(accountId) ?? accountId,
-    [accountLabels],
+  const activeAccountCount = useMemo(
+    () => allAccounts.filter((row) => row.account.status === "active").length,
+    [allAccounts],
   );
 
-  const usageByAccount = useMemo(() => {
-    const map = new Map<string, { requestCount: number; tokens: number }>();
-    for (const p of summary?.byProvider ?? []) {
-      map.set(p.providerAccountId, {
-        requestCount: p.requestCount,
-        tokens: p.inputTokens + p.outputTokens,
-      });
-    }
-    return map;
-  }, [summary]);
+  const totalRequests = useMemo(
+    () => summary?.byProvider.reduce((a, p) => a + p.requestCount, 0) ?? 0,
+    [summary],
+  );
+  const totalTokens =
+    (summary?.totalInputTokens ?? 0) + (summary?.totalOutputTokens ?? 0);
 
-  const quotaByAccount = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const a of quotaAccounts ?? []) {
-      const limit = a.quotaLimitTokens;
-      if (limit === null || limit <= 0) continue;
-      map.set(
-        a.id,
-        Math.min(100, Math.round((a.quotaState.tokensUsed / limit) * 100)),
-      );
-    }
-    return map;
-  }, [quotaAccounts]);
+  const comboMemberCount = useMemo(
+    () =>
+      Object.values(membersByCombo).reduce(
+        (sum, members) => sum + members.length,
+        0,
+      ),
+    [membersByCombo],
+  );
 
-  const quotaUsageByAccount = useMemo(() => {
-    const map = new Map<string, ProviderUsageData>();
-    for (const u of providerUsage ?? []) map.set(u.accountId, u);
-    return map;
-  }, [providerUsage]);
+  const cliCounts = useMemo(
+    () => countCLIToolStates(Object.values(cliTools ?? {})),
+    [cliTools],
+  );
+  const cliNeedsAttention = cliCounts.needsSetup + cliCounts.orphaned;
 
-  const recentTimestamps = useMemo(
-    () => activity.logs.map((l) => l.timestamp),
+  const recentErrorCount = useMemo(
+    () => activity.logs.filter((l) => l.type === "error").length,
     [activity.logs],
   );
+  const lastActivityAt = activity.logs[0]?.timestamp ?? null;
+
+  // Revoked keys are deleted outright (see revokeApiKey), so every key this
+  // list returns is active.
+  const activeApiKeyCount = apiKeys?.length ?? 0;
+  const lastKeyUsedAt = useMemo(() => {
+    const timestamps = (apiKeys ?? [])
+      .map((k) => k.last_used_at)
+      .filter((v): v is string => v != null)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return timestamps[0] ?? null;
+  }, [apiKeys]);
+
+  function goToApiKeys() {
+    navigate("/settings");
+    // Settings mounts synchronously; wait one frame so the anchor exists
+    // before scrolling and flashing the highlight ring.
+    requestAnimationFrame(() => {
+      const el = document.getElementById("api-keys");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-primary/60");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary/60"), 1600);
+    });
+  }
 
   const status = sseMeta[sseStatus];
 
@@ -199,7 +195,7 @@ export function DashboardPage() {
         </Badge>
       </div>
 
-      {/* ── Critical alerts ───────────────────────────────────────── */}
+      {/* ── Critical alerts + account problems ─────────────────────── */}
       <AlertsSection
         encryptionHealth={encryptionHealth}
         version={{
@@ -209,95 +205,133 @@ export function DashboardPage() {
           updateCommand: update.updateCommand,
         }}
       />
-
-      {/* ── Health headline ───────────────────────────────────────── */}
       <HealthSection
         accounts={allAccounts}
         isLoading={providersLoading}
         error={providersError}
-        providerCount={providers?.length ?? 0}
-        comboCount={combos.length}
       />
 
-      {/* ── Network graph + live activity ─────────────────────────── */}
-      <div ref={mainRowRef} className="grid min-w-0 gap-4 lg:grid-cols-5">
-        <Card
-          className="min-w-0 overflow-hidden !py-0 lg:col-span-3"
-          style={{ height: rowH }}
-        >
-          <CardContent className="h-full p-0">
-            <UsageGraph height={rowH} />
-          </CardContent>
-        </Card>
-        <div className="lg:col-span-2">
-          <LiveActivityCard
-            logs={activity.logs}
-            isLoading={activity.isLoading}
-            error={activity.error}
-            freshIds={activity.freshIds}
-            height={rowH}
-          />
-        </div>
+      {/* ── Headline numbers ────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {providersLoading && providers === null ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Providers"
+              value={String(providers?.length ?? 0)}
+              hint={`${activeAccountCount}/${allAccounts.length} connections active`}
+              icon={BoxesIcon}
+              tone="ok"
+              onClick={() => navigate("/providers")}
+            />
+            <StatCard
+              label="Combos"
+              value={String(combosLoading ? "…" : combos.length)}
+              hint={`${comboMemberCount} member${comboMemberCount === 1 ? "" : "s"}`}
+              icon={Layers3Icon}
+              onClick={() => navigate("/combos")}
+            />
+            <StatCard
+              label="Tokens"
+              value={compactNumber(totalTokens)}
+              hint={`in ${compactNumber(summary?.totalInputTokens ?? 0)} · out ${compactNumber(summary?.totalOutputTokens ?? 0)}`}
+              icon={ZapIcon}
+              loading={summaryLoading}
+              error={summaryError}
+              onClick={() => navigate("/usage")}
+            />
+            <StatCard
+              label="Requests"
+              value={numFmt.format(totalRequests)}
+              hint={
+                activity.sampleSize > 0
+                  ? `err ${activity.errorRatePct.toFixed(1)}% · p95 ${activity.latencyP95}ms`
+                  : "no samples yet"
+              }
+              icon={ScrollTextIcon}
+              tone={activity.errorRatePct > 5 ? "warn" : "neutral"}
+              loading={summaryLoading}
+              onClick={() => navigate("/usage")}
+            />
+          </>
+        )}
       </div>
 
-      {/* ── Volume & spend, token saver, router behaviour ───────────
-          items-stretch keeps both columns the same height, so neither side
-          leaves an empty gap below it. */}
-      <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-3">
-        <div className="min-w-0 xl:col-span-2">
-          <VolumeSpendCard
-            summary={summary}
-            isLoading={summaryLoading}
-            error={summaryError}
-            recentTimestamps={recentTimestamps}
-            accountLabel={accountLabel}
-          />
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <TokenSaverCard
-            settings={tokenSaverSettings}
-            isLoading={tokenSaverLoading}
-            error={tokenSaverError}
-          />
-          <RouterStatsCard
-            stats={activity.stats}
-            statsError={activity.statsError}
-            errorRatePct={activity.errorRatePct}
-            latencyP50={activity.latencyP50}
-            latencyP95={activity.latencyP95}
-            sampleSize={activity.sampleSize}
-            isLoading={activity.isLoading}
-          />
-        </div>
+      {/* ── Status + shortcuts ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Token Saver"
+          value={tokenSaverSettings?.enabled ? "on" : "off"}
+          hint={
+            tokenSaverSettings
+              ? `${compactNumber(tokenSaverSettings.totalTokensSaved)} saved`
+              : undefined
+          }
+          icon={ScissorsIcon}
+          tone={tokenSaverSettings?.enabled ? "ok" : "neutral"}
+          loading={tokenSaverLoading}
+          error={tokenSaverError}
+          onClick={() => navigate("/token-saver")}
+        />
+        <StatCard
+          label="CLI Tools"
+          value={`${cliCounts.connected}/${cliCounts.total}`}
+          hint={
+            cliCounts.total === 0
+              ? "no clients registered"
+              : cliNeedsAttention > 0
+                ? `${cliNeedsAttention} need setup`
+                : "all configured"
+          }
+          icon={TerminalIcon}
+          tone={
+            cliCounts.total === 0
+              ? "neutral"
+              : cliNeedsAttention > 0
+                ? "warn"
+                : "ok"
+          }
+          loading={cliToolsLoading}
+          onClick={() => navigate("/cli-tools")}
+        />
+        <StatCard
+          label="Logs"
+          value={String(recentErrorCount)}
+          hint={
+            lastActivityAt
+              ? `last activity ${formatAgo(lastActivityAt)}`
+              : "no recent activity"
+          }
+          icon={ScrollTextIcon}
+          tone={recentErrorCount > 0 ? "bad" : "neutral"}
+          loading={activity.isLoading}
+          onClick={() => navigate("/logs")}
+        />
+        <StatCard
+          label="API Keys"
+          value={String(activeApiKeyCount)}
+          hint={
+            lastKeyUsedAt ? `used ${formatAgo(lastKeyUsedAt)}` : "never used"
+          }
+          icon={KeyRoundIcon}
+          loading={apiKeysLoading}
+          onClick={goToApiKeys}
+        />
       </div>
 
-      {/* ── Provider connection status ─────────────────────────────── */}
-      <ProviderStatusTable
-        rows={allAccounts}
-        usageByAccount={usageByAccount}
-        quotaByAccount={quotaByAccount}
-        isLoading={providersLoading}
-        error={providersError}
-      />
-
-      {/* ── Combo routing topology ────────────────────────────────── */}
-      <CombosTopologyCard
-        combos={combos}
-        membersByCombo={membersByCombo}
-        accountById={accountById}
-        isLoading={combosLoading}
-        error={combosError}
-      />
-
-      {/* ── Upstream quota ─────────────────────────────────────────── */}
-      <QuotaTrackerCard
-        accounts={quotaAccounts}
-        usageByAccount={quotaUsageByAccount}
-        isLoading={quotaLoading}
-        error={quotaError}
-        isFetchingUpstream={isLoadingUsage}
-        hasFetchedUpstream={hasFetchedUpstream}
-        onFetchUpstream={handleFetchUpstream}
+      {/* ── Usage trend ─────────────────────────────────────────────── */}
+      <UsageTrendCard
+        buckets={buckets}
+        isLoading={trendLoading}
+        error={trendError}
+        range={range}
+        onRangeChange={setRange}
       />
     </div>
   );

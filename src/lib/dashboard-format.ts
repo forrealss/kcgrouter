@@ -26,26 +26,3 @@ export function cooldownRemainingSeconds(cooldownUntil: string | null): number {
   const ms = new Date(cooldownUntil).getTime() - Date.now();
   return ms > 0 ? Math.ceil(ms / 1000) : 0;
 }
-
-/**
- * Bucket a list of ISO timestamps into fixed-width windows covering the
- * last `totalMinutes` minutes, oldest bucket first. Used for the small
- * "requests per hour" sparkline — this is a client-side approximation over
- * whatever slice of request history was fetched, not a true time series.
- */
-export function bucketRecent(
-  timestamps: string[],
-  bucketMinutes = 5,
-  totalMinutes = 60,
-): number[] {
-  const bucketCount = Math.ceil(totalMinutes / bucketMinutes);
-  const buckets = new Array(bucketCount).fill(0);
-  const now = Date.now();
-  for (const ts of timestamps) {
-    const minutesAgo = (now - new Date(ts).getTime()) / 60_000;
-    if (minutesAgo < 0 || minutesAgo > totalMinutes) continue;
-    const idx = bucketCount - 1 - Math.floor(minutesAgo / bucketMinutes);
-    if (idx >= 0 && idx < bucketCount) buckets[idx] += 1;
-  }
-  return buckets;
-}

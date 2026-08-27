@@ -9,11 +9,12 @@ import {
   ServerIcon,
   ZapIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UsageGraph } from "@/components/usage/UsageGraph";
 import { UsageTable } from "@/components/usage/UsageTable";
 import { useUsage } from "@/hooks/useUsage";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
@@ -253,6 +254,31 @@ export function UsagePage() {
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
+  const graphRowRef = useRef<HTMLDivElement>(null);
+  const [graphHeight, setGraphHeight] = useState(360);
+
+  // Same responsive-height logic the network graph used on the dashboard:
+  // a fixed aspect ratio band that narrows the taller it gets on small
+  // screens, so the graph doesn't dominate the page on mobile.
+  useEffect(() => {
+    const el = graphRowRef.current;
+    if (!el) return;
+    const calc = () => {
+      const w = el.offsetWidth;
+      setGraphHeight(
+        w < 640
+          ? Math.floor(w * 0.62)
+          : w < 1024
+            ? Math.floor(w * 0.44)
+            : Math.floor(w * 0.38),
+      );
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const loadRecords = useCallback(async () => {
     setRecordsLoading(true);
     setRecordsError(null);
@@ -462,6 +488,17 @@ export function UsagePage() {
           />
         </div>
       </Card>
+
+      <div ref={graphRowRef} className="min-w-0">
+        <Card
+          className="min-w-0 overflow-hidden !py-0"
+          style={{ height: graphHeight }}
+        >
+          <CardContent className="h-full p-0">
+            <UsageGraph height={graphHeight} />
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <Card className="h-fit gap-0 !py-0 overflow-hidden">

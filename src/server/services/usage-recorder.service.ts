@@ -251,3 +251,88 @@ export function summarize(range?: { from: string; to: string }): UsageSummary {
     byProvider,
   };
 }
+
+export interface UsageBucket {
+  /** `YYYY-MM-DD` (day) or `YYYY-MM-DDTHH` (hour), in the requested timezone. */
+  bucket: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}
+
+/**
+ * strftime format per granularity. This is the only source of the format
+ * string passed to SQL — never build it from caller input.
+ */
+const BUCKET_FORMATS = {
+  day: "%Y-%m-%d",
+  hour: "%Y-%m-%dT%H",
+} as const;
+
+export type BucketGranularity = keyof typeof BUCKET_FORMATS;
+
+export function isBucketGranularity(value: string): value is BucketGranularity {
+  return Object.hasOwn(BUCKET_FORMATS, value);
+}
+
+/**
+ * Day/hour buckets over a date range, offset to the caller's local timezone
+ * so "this month" lines up with what the user sees on their calendar rather
+ * than UTC day boundaries.
+ *
+ * `tzOffsetMinutes` follows `Date.prototype.getTimezoneOffset()` (positive
+ * west of UTC, e.g. +420 for UTC-7); it is clamped to a real-world range and
+ * turned into a `strftime` modifier string that is bound as a value, never
+ * interpolated into the query.
+ */
+export function timeseries(opts: {
+  from: string;
+  to: string;
+  granularity?: BucketGranularity;
+  tzOffsetMinutes?: number;
+}): UsageBucket[] {
+  const granularity = opts.granularity ?? "day";
+  const format = BUCKET_FORMATS[granularity];
+
+  // Clamp to UTC-14..UTC+14 (the real-world extremes) before turning it into
+  // a modifier string — this value never comes from a fixed allowlist, so it
+  // must be sanitized rather than merely typed.
+  const rawOffset = opts.tzOffsetMinutes ?? 0;
+  const offsetMinutes = Number.isFinite(rawOffset)
+    ? Math.max(-840, Math.min(840, Math.trunc(rawOffset)))
+    : 0;
+  // getTimezoneOffset() is positive west of UTC, so local time = UTC - offset.
+  const localMinutes = -offsetMinutes;
+  const modifier = `${localMinutes >= 0 ? "+" : "-"}${Math.abs(localMinutes)} minutes`;
+
+  const rows = query<{
+    bucket: string;
+    requests: number;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    cost: number | null;
+  }>(
+    `SELECT strftime(?, timestamp, ?) AS bucket,
+            COUNT(*)                  AS requests,
+            SUM(input_tokens)         AS input_tokens,
+            SUM(output_tokens)        AS output_tokens,
+            SUM(estimated_cost)       AS cost
+     FROM usage_records
+     WHERE timestamp >= ? AND timestamp <= ?
+     GROUP BY bucket
+     ORDER BY bucket`,
+    format,
+    modifier,
+    opts.from,
+    opts.to,
+  );
+
+  return rows.map((row) => ({
+    bucket: row.bucket,
+    requests: row.requests,
+    inputTokens: row.input_tokens ?? 0,
+    outputTokens: row.output_tokens ?? 0,
+    cost: row.cost ?? 0,
+  }));
+}

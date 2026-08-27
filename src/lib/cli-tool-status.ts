@@ -80,3 +80,35 @@ export function resolveCLIToolState(flags: {
 export function isCLIToolLive(state: CLIToolState): boolean {
   return state === "connected";
 }
+
+export interface CLIToolStateCounts {
+  connected: number;
+  needsSetup: number;
+  orphaned: number;
+  absent: number;
+  total: number;
+}
+
+/**
+ * Tally tools by resolved state. Counted per state rather than derived by
+ * subtraction: `installed` and `configured` are independent, so
+ * `installed - configured` undercounts a tool that holds config without an
+ * install (the `orphaned` state). Shared by the CLI Tools list page and the
+ * dashboard summary card so both report the same numbers.
+ */
+export function countCLIToolStates(
+  tools: Iterable<{ installed: boolean; configured: boolean }>,
+): CLIToolStateCounts {
+  const counts: CLIToolStateCounts = {
+    connected: 0,
+    needsSetup: 0,
+    orphaned: 0,
+    absent: 0,
+    total: 0,
+  };
+  for (const tool of tools) {
+    counts[resolveCLIToolState(tool)] += 1;
+    counts.total += 1;
+  }
+  return counts;
+}

@@ -2,7 +2,6 @@ import {
   ArrowUpRightIcon,
   PlusIcon,
   ServerIcon,
-  ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { Truncated } from "@/components/dashboard/Truncated";
@@ -16,7 +15,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "@/hooks/useRouter";
 import { useTicker } from "@/hooks/useTicker";
 import { cooldownRemainingSeconds, formatAgo } from "@/lib/dashboard-format";
@@ -32,8 +30,6 @@ interface HealthSectionProps {
   accounts: AccountRow[];
   isLoading: boolean;
   error: string | null;
-  providerCount: number;
-  comboCount: number;
 }
 
 type ProblemKind = "benched" | "erroring" | "expired" | "degrading";
@@ -137,27 +133,24 @@ function ProblemRow({ row }: { row: AccountRow & { kind: ProblemKind } }) {
 }
 
 /**
- * Health-first headline for the dashboard: surfaces every account that is
- * benched, failing, expired, or repeatedly backing off, with the raw
- * upstream error message. Accounts with no issues collapse into a single
- * quiet strip so a fully healthy system doesn't compete for attention.
+ * Dashboard alert strip: surfaces only accounts that are benched, failing,
+ * expired, or repeatedly backing off, with the raw upstream error message.
+ * Renders nothing when the system is healthy — provider/combo counts and
+ * a fully-healthy state already live in the summary stat cards, so this
+ * section exists purely to demand attention when something is wrong.
  */
 export function HealthSection({
   accounts,
   isLoading,
   error,
-  providerCount,
-  comboCount,
 }: HealthSectionProps) {
   const { navigate } = useRouter();
 
   // single pass: split accounts into problem rows and healthy ones
   const problems: Array<AccountRow & { kind: ProblemKind }> = [];
-  const healthy: AccountRow[] = [];
   for (const row of accounts) {
     const kind = classify(row.account);
     if (kind) problems.push({ ...row, kind });
-    else healthy.push(row);
   }
 
   // countdowns in the problem rows need a per-second re-render
@@ -186,45 +179,23 @@ export function HealthSection({
     );
   }
 
-  const ok = problems.length === 0;
-  const headline = isLoading
-    ? "Checking account health…"
-    : error
-      ? "Account health unknown"
-      : ok
-        ? "All accounts healthy"
-        : `${problems.length} account${problems.length > 1 ? "s" : ""} need attention`;
+  if (!error && problems.length === 0) return null;
+
+  const headline = error
+    ? "Account health unknown"
+    : `${problems.length} account${problems.length > 1 ? "s" : ""} need attention`;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
       <div className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4">
-        <span
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-xl",
-            error || !ok
-              ? "bg-destructive/10 text-destructive"
-              : "bg-chart-3/15 text-chart-3",
-          )}
-        >
-          {error || !ok ? (
-            <TriangleAlertIcon className="size-5" />
-          ) : (
-            <ShieldCheckIcon className="size-5" />
-          )}
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+          <TriangleAlertIcon className="size-5" />
         </span>
         <div className="min-w-0">
           {/* announced so a status change is picked up by screen readers */}
           <h2 className="font-semibold leading-tight" aria-live="polite">
             {headline}
           </h2>
-          {isLoading && accounts.length === 0 ? (
-            <Skeleton className="mt-1 h-3 w-48" />
-          ) : (
-            <p className="font-mono text-xs text-muted-foreground">
-              {healthy.length}/{accounts.length} active · {providerCount}{" "}
-              providers · {comboCount} combos
-            </p>
-          )}
         </div>
         <Button
           variant="outline"
@@ -247,37 +218,6 @@ export function HealthSection({
           {problems.map((row) => (
             <ProblemRow key={row.account.id} row={row} />
           ))}
-        </div>
-      ) : null}
-
-      {accounts.length > 0 ? (
-        <div
-          className={cn(
-            "px-5 py-3",
-            problems.length > 0 && "border-t border-border",
-          )}
-        >
-          <span className="text-xs text-muted-foreground">Healthy</span>
-          {healthy.length === 0 ? (
-            <span className="ml-2 text-xs text-muted-foreground">none</span>
-          ) : (
-            // fixed-width grid cells so every chip is the same size regardless
-            // of how long the account label is; long names truncate
-            <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
-              {healthy.map((row) => (
-                <span
-                  key={row.account.id}
-                  className="flex h-8 min-w-0 items-center gap-1.5 rounded-full border border-border px-2.5 font-mono text-xs"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-chart-3" />
-                  <Truncated
-                    text={row.account.label}
-                    detail={`${row.provider.name} · last used ${formatAgo(row.account.lastUsedAt)}`}
-                  />
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       ) : null}
     </div>

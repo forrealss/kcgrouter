@@ -18,6 +18,22 @@ export interface UsageAccountOption {
   label: string;
 }
 
+/**
+ * One day/hour bucket from `GET /api/usage/timeseries`. `bucket` is
+ * `YYYY-MM-DD` (day) or `YYYY-MM-DDTHH` (hour), offset to the caller's local
+ * timezone server-side. Buckets with zero requests are omitted by the
+ * server — callers that render a continuous line must gap-fill.
+ */
+export interface UsageBucket {
+  bucket: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}
+
+export type BucketGranularity = "day" | "hour";
+
 export interface UsageRecord {
   id: string;
   timestamp: string;

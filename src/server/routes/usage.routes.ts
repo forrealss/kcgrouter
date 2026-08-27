@@ -50,6 +50,39 @@ export const usageRoutes: Record<string, RouteHandler> = {
     return Response.json(history);
   },
 
+  "GET /api/usage/timeseries": (req) => {
+    const url = new URL(req.url);
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+
+    if (!from || !to) {
+      return Response.json(
+        { error: "from and to are required" },
+        { status: 400 },
+      );
+    }
+
+    const rawBucket = url.searchParams.get("bucket") ?? "day";
+    if (!UsageRecorder.isBucketGranularity(rawBucket)) {
+      return Response.json(
+        { error: "Invalid bucket. Must be one of: day, hour" },
+        { status: 400 },
+      );
+    }
+
+    const rawOffset = url.searchParams.get("tzOffsetMinutes");
+    const parsedOffset = rawOffset ? Number(rawOffset) : 0;
+    const tzOffsetMinutes = Number.isFinite(parsedOffset) ? parsedOffset : 0;
+
+    const buckets = UsageRecorder.timeseries({
+      from,
+      to,
+      granularity: rawBucket,
+      tzOffsetMinutes,
+    });
+    return Response.json(buckets);
+  },
+
   // Payloads live in MB-sized TEXT columns, so they are fetched per record on
   // demand instead of riding along with every history page.
   "GET /api/usage/history/:id/payloads": (_req, params) => {

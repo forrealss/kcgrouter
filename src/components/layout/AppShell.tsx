@@ -100,7 +100,7 @@ export function AppShell({ onLogout, renderModule }: AppShellProps) {
           </div>
         </header>
         <main
-          className={`mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col gap-6 overscroll-contain overflow-x-hidden overflow-y-auto scrollbar-subtle p-4 md:p-6 ${activeModule === "logs" ? "md:pb-2" : ""} ${activeModule === "dashboard" ? "bg-grid" : ""}`}
+          className={`mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col gap-6 overscroll-contain overflow-x-hidden overflow-y-auto scrollbar-subtle p-4 md:p-6 ${activeModule === "dashboard" ? "bg-grid" : ""}`}
         >
           {logoutError ? (
             <Alert variant="destructive">

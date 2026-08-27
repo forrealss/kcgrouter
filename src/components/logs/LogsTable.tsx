@@ -3,14 +3,7 @@ import type { KeyboardEvent } from "react";
 import { LogBadge, typeLabels } from "@/components/logs/LogBadge";
 import { LogIdentity } from "@/components/logs/LogIdentity";
 import { LogMessage } from "@/components/logs/LogMessage";
-import { Badge } from "@/components/ui/badge";
-import {
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -68,28 +61,8 @@ export function LogsTable({
   onLogKeyDown: (event: KeyboardEvent, log: RequestLog) => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-muted/15 px-4 py-3 sm:px-5">
-        <div className="flex min-w-0 items-center gap-2">
-          <RadioIcon className="size-4 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 font-mono text-sm font-medium">
-              Latest entries
-            </CardTitle>
-            <CardDescription className="truncate">
-              Showing {numberFormatter.format(filteredLogs.length)} of{" "}
-              {numberFormatter.format(totalLogs)} latest entries.
-            </CardDescription>
-          </div>
-        </div>
-        <Badge
-          variant="outline"
-          className="hidden shrink-0 font-mono text-[10px] sm:inline-flex"
-        >
-          LIMIT 200
-        </Badge>
-      </CardHeader>
-      <CardContent className="scrollbar-subtle min-h-0 flex-1 overflow-auto p-0">
+    <div className="flex min-w-0 flex-col overflow-hidden">
+      <CardContent className="scrollbar-subtle max-h-[60vh] overflow-auto overscroll-contain p-0">
         <div aria-live="polite" className="sr-only">
           {liveAnnouncement}
         </div>
@@ -113,22 +86,10 @@ export function LogsTable({
                   key={log.id}
                   onClick={() => void onOpenLog(log)}
                   onKeyDown={(event) => onLogKeyDown(event, log)}
-                  tabIndex={
-                    log.type === "request" || log.type === "success"
-                      ? 0
-                      : undefined
-                  }
-                  role={
-                    log.type === "request" || log.type === "success"
-                      ? "button"
-                      : undefined
-                  }
-                  aria-label={
-                    log.type === "request" || log.type === "success"
-                      ? `Open ${typeLabels[log.type]} details ${log.model ?? ""}`
-                      : undefined
-                  }
-                  className={`motion-safe:animate-trace-in border-b border-border/50 font-mono text-[11px] transition-colors hover:bg-muted/30 ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open ${typeLabels[log.type]} details ${log.model ?? ""}`}
+                  className={`motion-safe:animate-trace-in cursor-pointer border-b border-border/50 font-mono text-[11px] transition-colors hover:bg-muted/30 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${log.type === "error" ? "bg-destructive/[0.025]" : ""}`}
                 >
                   <TableCell className="whitespace-nowrap pl-5 align-top">
                     <time
@@ -177,32 +138,12 @@ export function LogsTable({
         {/* Mobile cards */}
         <div className="divide-y md:hidden">
           {filteredLogs.map((log) => (
-            <article
+            <button
               key={log.id}
-              onClick={
-                log.type === "request" || log.type === "success"
-                  ? () => void onOpenLog(log)
-                  : undefined
-              }
-              onKeyDown={
-                log.type === "request" || log.type === "success"
-                  ? (event) => onLogKeyDown(event, log)
-                  : undefined
-              }
-              tabIndex={
-                log.type === "request" || log.type === "success" ? 0 : undefined
-              }
-              role={
-                log.type === "request" || log.type === "success"
-                  ? "button"
-                  : undefined
-              }
-              aria-label={
-                log.type === "request" || log.type === "success"
-                  ? `Open ${typeLabels[log.type]} details ${log.model ?? ""}`
-                  : undefined
-              }
-              className={`motion-safe:animate-trace-in space-y-3 p-4 transition-colors ${log.type === "error" ? "bg-destructive/[0.025]" : ""} ${log.type === "request" || log.type === "success" ? "cursor-pointer hover:bg-muted/20 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" : ""}`}
+              type="button"
+              onClick={() => void onOpenLog(log)}
+              aria-label={`Open ${typeLabels[log.type]} details ${log.model ?? ""}`}
+              className={`motion-safe:animate-trace-in block w-full cursor-pointer space-y-3 p-4 text-left transition-colors hover:bg-muted/20 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${log.type === "error" ? "bg-destructive/[0.025]" : ""}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <time
@@ -243,17 +184,22 @@ export function LogsTable({
                   </>
                 ) : null}
               </div>
-            </article>
+            </button>
           ))}
         </div>
       </CardContent>
-      <CardFooter className="justify-between gap-3 border-t bg-muted/10 px-5 py-3 text-xs text-muted-foreground sm:px-6">
-        <span className="truncate">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-4 py-2.5 sm:px-5">
+        <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          {numberFormatter.format(filteredLogs.length)} of{" "}
+          {numberFormatter.format(totalLogs)} entries
+          {totalLogs >= 200 ? " · limit 200" : ""}
+        </p>
+        <p className="truncate text-[11px] text-muted-foreground">
           {lastUpdated
             ? `Updated ${lastUpdated.toLocaleTimeString("en-US")}`
-            : "Waiting for updates..."}
-        </span>
-      </CardFooter>
+            : "Waiting for updates…"}
+        </p>
+      </div>
     </div>
   );
 }

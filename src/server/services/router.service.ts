@@ -305,12 +305,15 @@ interface RecordAccountFailureInput {
   stream: boolean;
   error: unknown;
   startedAt: number;
+  /** The client's request body, persisted so a failure can be inspected. */
+  rawBody: unknown;
 }
 
 /**
- * Record a failed attempt against one account: mark the account's cooldown and
- * log the error. Returns the human-readable message for the caller to surface
- * if the whole failover chain is exhausted.
+ * Record a failed attempt against one account: mark the account's cooldown,
+ * persist the request payload for inspection, and log the error. Returns the
+ * human-readable message for the caller to surface if the whole failover chain
+ * is exhausted.
  */
 function recordAccountFailure(input: RecordAccountFailureInput): string {
   const {
@@ -322,15 +325,36 @@ function recordAccountFailure(input: RecordAccountFailureInput): string {
     stream,
     error,
     startedAt,
+    rawBody,
   } = input;
 
   const message = errorMessage(error);
+  const latencyMs = Date.now() - startedAt;
   ProviderRegistry.recordAccountError(
     accountId,
     message,
     classifyError(error),
     retryAfterFloor(error),
   );
+
+  // Payloads live on the usage record, keyed by requestId. Only successes used
+  // to write one, so a failed request had no inspectable body — exactly the
+  // case an operator most wants to look at. Record the attempt with zeroed
+  // usage so the payload is retained and the log detail can surface it.
+  UsageRecorder.record({
+    requestId,
+    providerAccountId: accountId,
+    comboId,
+    model: modelName,
+    inputTokens: 0,
+    outputTokens: 0,
+    status: "error",
+    latencyMs,
+    estimatedCost: 0,
+    requestBody: JSON.stringify(rawBody),
+    responseBody: JSON.stringify({ error: message }),
+  });
+
   RequestLog.record({
     requestId,
     type: "error",
@@ -341,7 +365,7 @@ function recordAccountFailure(input: RecordAccountFailureInput): string {
     sourceFormat,
     stream,
     message,
-    latencyMs: Date.now() - startedAt,
+    latencyMs,
     retries: error instanceof ProviderError ? error.retries : undefined,
   });
   return message;
@@ -614,6 +638,7 @@ async function handlePrefixRoute(
         stream,
         error: err,
         startedAt,
+        rawBody,
       });
     }
   }
@@ -718,6 +743,7 @@ async function handleComboRoute(
         stream,
         error: err,
         startedAt,
+        rawBody,
       });
     }
   }

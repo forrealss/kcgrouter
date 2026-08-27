@@ -112,9 +112,12 @@ export function useLogs() {
     setConnectionStatus(sseStatus);
   }, [sseStatus]);
 
+  /**
+   * Open the detail for any log type. It used to bail out for `error` and
+   * `admin`, which hid the metadata operators most want to read — a failing
+   * entry's full message was only ever visible truncated in the table.
+   */
   async function handleOpenLog(log: RequestLog) {
-    if (log.type !== "request" && log.type !== "success") return;
-
     const requestId = ++payloadRequestId.current;
     setSelectedLog(log);
     setPayloads(null);
@@ -203,6 +206,22 @@ export function useLogs() {
     });
   }, [logs, typeFilter, sourceFilter, accountFilter, searchQuery]);
 
+  /**
+   * Counts over the *unfiltered* stream, so the type tabs keep showing how many
+   * entries each type has even while one of them is selected.
+   */
+  const typeCounts = useMemo(() => {
+    const counts = {
+      all: logs.length,
+      request: 0,
+      success: 0,
+      error: 0,
+      admin: 0,
+    } satisfies Record<"all" | RequestLogType, number>;
+    for (const log of logs) counts[log.type] += 1;
+    return counts;
+  }, [logs]);
+
   const stats = useMemo<LogsStats>(() => {
     const latencyValues = logs.flatMap((log) =>
       log.latencyMs == null ? [] : [log.latencyMs],
@@ -256,6 +275,7 @@ export function useLogs() {
     accountOptions,
     filteredLogs,
     stats,
+    typeCounts,
     hasActiveFilters,
     loadLogs,
     handleOpenLog,

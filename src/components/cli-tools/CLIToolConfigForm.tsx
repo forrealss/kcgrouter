@@ -5,6 +5,7 @@ import {
   KeyRoundIcon,
   LinkIcon,
   PencilIcon,
+  PlugZapIcon,
   RotateCcwIcon,
   SparklesIcon,
   Trash2Icon,
@@ -68,6 +69,35 @@ const CUSTOM_KEY = "__custom";
 function maskKey(key: string): string {
   if (key.length <= 8) return "•".repeat(key.length);
   return `${key.slice(0, 4)}${"•".repeat(6)}${key.slice(-4)}`;
+}
+
+function SectionCard({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: typeof LinkIcon;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardHeader className="grid-cols-[auto_1fr] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-muted-foreground">
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <CardDescription className="text-xs">{description}</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 px-5 py-4">
+        {children}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function CLIToolConfigForm({
@@ -183,8 +213,12 @@ export function CLIToolConfigForm({
     return null;
   })();
 
-  const canSubmit =
-    !isSaving && !isKeyLoading && !endpointError && Boolean(effectiveKey);
+  /** Both cards feed one atomic write, so blockers are reported together. */
+  const blockers: string[] = [];
+  if (endpointError) blockers.push("a valid endpoint");
+  if (!effectiveKey) blockers.push("an API key");
+
+  const canSubmit = !isSaving && !isKeyLoading && blockers.length === 0;
 
   function handleModelsChange(next: string[]) {
     setSelectedModels(next);
@@ -219,16 +253,12 @@ export function CLIToolConfigForm({
   }
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-5 py-4">
-        <CardTitle className="text-base">Configuration</CardTitle>
-        <CardDescription className="text-xs">
-          Written to this tool's own config file. Applying overwrites only the
-          kcgrouter provider entry.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-5 px-5 py-5">
+    <div className="flex min-w-0 flex-col gap-4">
+      <SectionCard
+        icon={PlugZapIcon}
+        title="Connection"
+        description="Where this client sends requests, and how it authenticates."
+      >
         <Field data-invalid={Boolean(endpointError)} className="gap-2">
           <FieldLabel htmlFor="endpoint" className="text-xs">
             <LinkIcon className="size-3.5 text-muted-foreground" />
@@ -381,212 +411,228 @@ export function CLIToolConfigForm({
             </p>
           ) : null}
         </Field>
+      </SectionCard>
 
-        <div className="border-t border-border/50" />
-
-        {usesRoleSlots ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-0.5">
-              <p className="text-xs font-medium">Model roles</p>
-              <p className="text-xs text-muted-foreground">
-                This client asks for a model by role. Leave a role empty to use
-                its built-in default.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {roleSlots.map((slot) => (
-                <Field key={slot.envKey} className="gap-2">
-                  <FieldLabel
-                    htmlFor={`role-${slot.envKey}`}
-                    className="text-xs"
-                  >
-                    {slot.label}
-                  </FieldLabel>
-                  <div className="flex items-center gap-1.5">
-                    <Combobox
-                      className="min-w-0 flex-1"
-                      id={`role-${slot.envKey}`}
-                      options={modelOptions}
-                      value={roleSlotValues[slot.envKey] ?? ""}
-                      onValueChange={(value) =>
-                        handleRoleSlotChange(slot, value)
-                      }
-                      disabled={isSaving}
-                      placeholder={
-                        slot.defaultValue
-                          ? `Default: ${slot.defaultValue}`
-                          : "Select model"
-                      }
-                      searchPlaceholder="Search models..."
-                      dialogTitle={`Model for ${slot.label}`}
-                      noResultsLabel="No models found"
-                      customLabel="Use"
-                      groupMeta={modelGroupMeta}
-                    />
-                    {roleSlotValues[slot.envKey] ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleRoleSlotChange(slot, "")}
-                        disabled={isSaving}
-                        aria-label={`Clear ${slot.label}`}
-                        className="shrink-0 text-muted-foreground"
-                      >
-                        <XIcon className="size-3.5" />
-                      </Button>
-                    ) : null}
-                  </div>
-                </Field>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <Field className="gap-2">
-              <FieldLabel className="text-xs">
-                <SparklesIcon className="size-3.5 text-muted-foreground" />
-                Exposed models
-              </FieldLabel>
-              <MultiCombobox
-                className="w-full"
-                options={modelOptions}
-                value={selectedModels}
-                onValueChange={handleModelsChange}
-                activeValue={activeModel}
-                onActiveChange={setActiveModel}
-                disabled={isSaving}
-                emptyLabel="No models selected"
-                emptyHint="This client will see no models until you add one."
-                searchPlaceholder="Search models..."
-                addLabel="Add model"
-                dialogTitle="Select models"
-                doneLabel="Done"
-                noResultsLabel="No models found"
-                groupMeta={modelGroupMeta}
-              />
-              <FieldDescription className="text-xs">
-                {modelOptions.length === 0
-                  ? "Nothing routable yet — enable models under Providers, or create a combo."
-                  : "Star one to make it this client's default."}
-              </FieldDescription>
-            </Field>
-
-            {!hideSubagentModel ? (
-              <Field className="gap-2">
-                <FieldLabel htmlFor="subagent-model" className="text-xs">
-                  Subagent model
+      {usesRoleSlots ? (
+        <SectionCard
+          icon={SparklesIcon}
+          title="Model roles"
+          description="This client asks for a model by role. Leave a role empty to use its built-in default."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {roleSlots.map((slot) => (
+              <Field key={slot.envKey} className="gap-2">
+                <FieldLabel htmlFor={`role-${slot.envKey}`} className="text-xs">
+                  {slot.label}
                 </FieldLabel>
                 <div className="flex items-center gap-1.5">
                   <Combobox
                     className="min-w-0 flex-1"
-                    id="subagent-model"
+                    id={`role-${slot.envKey}`}
                     options={modelOptions}
-                    value={subagentModel}
-                    onValueChange={setSubagentModel}
+                    value={roleSlotValues[slot.envKey] ?? ""}
+                    onValueChange={(value) => handleRoleSlotChange(slot, value)}
                     disabled={isSaving}
-                    placeholder="Same as default"
+                    placeholder={
+                      slot.defaultValue
+                        ? `Default: ${slot.defaultValue}`
+                        : "Select model"
+                    }
                     searchPlaceholder="Search models..."
-                    dialogTitle="Subagent model"
+                    dialogTitle={`Model for ${slot.label}`}
                     noResultsLabel="No models found"
                     customLabel="Use"
                     groupMeta={modelGroupMeta}
                   />
-                  {subagentModel ? (
+                  {roleSlotValues[slot.envKey] ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setSubagentModel("")}
+                      onClick={() => handleRoleSlotChange(slot, "")}
                       disabled={isSaving}
-                      aria-label="Clear subagent model"
+                      aria-label={`Clear ${slot.label}`}
                       className="shrink-0 text-muted-foreground"
                     >
                       <XIcon className="size-3.5" />
                     </Button>
                   ) : null}
                 </div>
-                <FieldDescription className="text-xs">
-                  Used for background subagent work. Leave empty to skip.
-                </FieldDescription>
               </Field>
+            ))}
+          </div>
+          {modelOptions.length === 0 ? (
+            <p className="rounded-md border border-dashed bg-muted/15 px-3 py-2.5 text-xs text-muted-foreground">
+              Nothing routable yet — enable models under Providers, or create a
+              combo.
+            </p>
+          ) : null}
+        </SectionCard>
+      ) : (
+        <SectionCard
+          icon={SparklesIcon}
+          title="Models"
+          description="Which routing targets this client can pick from."
+        >
+          <Field className="gap-2">
+            <FieldLabel className="text-xs">Exposed models</FieldLabel>
+            <MultiCombobox
+              className="w-full"
+              options={modelOptions}
+              value={selectedModels}
+              onValueChange={handleModelsChange}
+              activeValue={activeModel}
+              onActiveChange={setActiveModel}
+              disabled={isSaving}
+              emptyLabel="No models selected"
+              emptyHint="This client will see no models until you add one."
+              searchPlaceholder="Search models..."
+              addLabel="Add model"
+              dialogTitle="Select models"
+              doneLabel="Done"
+              noResultsLabel="No models found"
+              groupMeta={modelGroupMeta}
+            />
+            <FieldDescription className="text-xs">
+              {modelOptions.length === 0
+                ? "Nothing routable yet — enable models under Providers, or create a combo."
+                : "Star one to make it this client's default."}
+            </FieldDescription>
+          </Field>
+
+          {!hideSubagentModel ? (
+            <Field className="gap-2 border-t border-border/50 pt-4">
+              <FieldLabel htmlFor="subagent-model" className="text-xs">
+                Subagent model
+              </FieldLabel>
+              <div className="flex items-center gap-1.5">
+                <Combobox
+                  className="min-w-0 flex-1"
+                  id="subagent-model"
+                  options={modelOptions}
+                  value={subagentModel}
+                  onValueChange={setSubagentModel}
+                  disabled={isSaving}
+                  placeholder="Same as default"
+                  searchPlaceholder="Search models..."
+                  dialogTitle="Subagent model"
+                  noResultsLabel="No models found"
+                  customLabel="Use"
+                  groupMeta={modelGroupMeta}
+                />
+                {subagentModel ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSubagentModel("")}
+                    disabled={isSaving}
+                    aria-label="Clear subagent model"
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    <XIcon className="size-3.5" />
+                  </Button>
+                ) : null}
+              </div>
+              <FieldDescription className="text-xs">
+                Used for background subagent work. Leave empty to skip.
+              </FieldDescription>
+            </Field>
+          ) : null}
+        </SectionCard>
+      )}
+
+      {/*
+        One save bar for both cards: the tool's `apply` rewrites the whole
+        kcgrouter entry in a single file write and rejects a payload without
+        `baseUrl`, so per-card saving would either drop fields or need a
+        partial-update endpoint that does not exist yet.
+      */}
+      <Card className="gap-0 py-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div className="flex min-w-0 items-center gap-2">
+            {status?.configured ? (
+              <Badge
+                variant="outline"
+                className="gap-1.5 text-[11px] font-normal text-muted-foreground"
+              >
+                <span
+                  className="size-1.5 rounded-full bg-emerald-500"
+                  aria-hidden
+                />
+                Config present
+              </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Not written yet
+              </span>
+            )}
+            {blockers.length > 0 ? (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                Needs {blockers.join(" and ")}.
+              </span>
             ) : null}
           </div>
-        )}
-      </CardContent>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-4">
-        <div className="flex items-center gap-2">
-          {status?.configured ? (
-            <Badge
-              variant="outline"
-              className="gap-1.5 text-[11px] font-normal text-muted-foreground"
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleReset}
+              disabled={isSaving || !status?.configured}
+              className="text-muted-foreground hover:text-destructive"
             >
-              <span
-                className="size-1.5 rounded-full bg-emerald-500"
-                aria-hidden
-              />
-              Config present
-            </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              Not written yet
-            </span>
-          )}
+              <Trash2Icon data-icon="inline-start" />
+              Remove config
+            </Button>
+            <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
+              {isSaving ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <CheckIcon data-icon="inline-start" />
+              )}
+              Apply
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleReset}
-            disabled={isSaving || !status?.configured}
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <Trash2Icon data-icon="inline-start" />
-            Remove config
-          </Button>
-          <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-            {isSaving ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <CheckIcon data-icon="inline-start" />
-            )}
-            Apply
-          </Button>
-        </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
 export function CLIToolConfigFormSkeleton() {
   return (
-    <Card aria-hidden className="gap-0 overflow-hidden py-0">
-      <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-5 py-4">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-3 w-72 max-w-full" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5 px-5 py-5">
-        {["endpoint", "apikey"].map((key) => (
-          <div key={key} className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-2.5 w-56 max-w-full" />
+    <div aria-hidden className="flex flex-col gap-4">
+      {["connection", "models"].map((key) => (
+        <Card key={key} className="gap-0 overflow-hidden py-0">
+          <CardHeader className="grid-cols-[auto_1fr] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+            <Skeleton className="size-8 rounded-md" />
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-2.5 w-56 max-w-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 px-5 py-4">
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-2.5 w-48 max-w-full" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+      <Card className="gap-0 py-0">
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
+          <Skeleton className="h-5 w-28" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-9 w-20" />
           </div>
-        ))}
-        <div className="border-t border-border/50" />
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-16 w-full" />
         </div>
-      </CardContent>
-      <div className="flex items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-4">
-        <Skeleton className="h-5 w-24" />
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-28" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

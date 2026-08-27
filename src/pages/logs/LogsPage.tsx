@@ -6,8 +6,14 @@ import { LogsSkeleton } from "@/components/logs/LogsSkeleton";
 import { LogsStatsBar } from "@/components/logs/LogsStatsBar";
 import { LogsTable } from "@/components/logs/LogsTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Empty,
   EmptyContent,
@@ -43,6 +49,7 @@ export function LogsPage() {
     accountOptions,
     filteredLogs,
     stats,
+    typeCounts,
     hasActiveFilters,
     loadLogs,
     handleOpenLog,
@@ -53,7 +60,7 @@ export function LogsPage() {
   } = useLogs();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-0 scrollbar-subtle">
+    <div className="flex min-w-0 flex-col gap-5 pb-2">
       <LogsHeader
         connectionStatus={connectionStatus}
         isLoading={isLoading}
@@ -69,7 +76,21 @@ export function LogsPage() {
         isLoading={isLoading && logs.length === 0}
       />
 
-      <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-sm">
+      <Card className="flex min-w-0 flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-sm">
+        <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-4 py-3.5 sm:px-5">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            Activity stream
+            {hasActiveFilters ? (
+              <Badge variant="secondary" className="text-[10px]">
+                filtered
+              </Badge>
+            ) : null}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            The 200 most recent entries. Click a row to inspect it.
+          </CardDescription>
+        </CardHeader>
+
         <LogsFilters
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
@@ -82,6 +103,7 @@ export function LogsPage() {
           accountOptions={accountOptions}
           hasActiveFilters={hasActiveFilters}
           onResetFilters={resetFilters}
+          typeCounts={typeCounts}
         />
 
         {error ? (
@@ -115,7 +137,7 @@ export function LogsPage() {
         {!isLoading &&
         filteredLogs.length === 0 &&
         (!error || logs.length > 0) ? (
-          <Empty className="min-h-64 flex-1 border-0 bg-transparent shadow-none">
+          <Empty className="min-h-64 border-0 bg-transparent shadow-none">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 {hasActiveFilters ? <SearchIcon /> : <ListTreeIcon />}

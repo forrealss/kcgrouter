@@ -173,10 +173,15 @@ export function getPayloads(logId: string): RequestLogPayloads | null {
     request_body: string | null;
     response_body: string | null;
   }>(
+    // No type filter: `error` rows now carry a usage record too (see
+    // recordAccountFailure in router.service.ts), and a failed request's body is
+    // the most useful thing to inspect. Rows genuinely without a payload — admin
+    // entries, or logs predating payload capture — still fall through to null
+    // because the join finds no usage_id.
     `SELECT ur.id AS usage_id, ur.request_body, ur.response_body
      FROM request_logs rl
      LEFT JOIN usage_records ur ON ur.request_id = rl.request_id
-     WHERE rl.id = ? AND rl.type IN ('request', 'success')
+     WHERE rl.id = ?
      ORDER BY ur.timestamp DESC
      LIMIT 1`,
     logId,

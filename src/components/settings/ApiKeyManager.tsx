@@ -5,6 +5,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -20,10 +21,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -51,6 +52,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 
@@ -60,6 +62,8 @@ type ApiKey = {
   has_key: boolean;
   created_at: string;
   last_used_at: string | null;
+  /** Last 4 chars, so a key is identifiable without revealing it. */
+  last4: string | null;
 };
 
 type CreatedApiKey = {
@@ -211,7 +215,8 @@ function ApiKeyManager() {
     }
   }
 
-  const activeKeyCount = keys?.filter((key) => key.has_key).length ?? 0;
+  const keyCount = keys?.length ?? 0;
+  const legacyCount = keys?.filter((key) => !key.has_key).length ?? 0;
 
   function closePlaintextDialog() {
     setPlaintextKey(null);
@@ -220,47 +225,38 @@ function ApiKeyManager() {
 
   return (
     <>
-      <Card aria-busy={isLoading || isCreating || Boolean(revokingKeyId)}>
-        <CardHeader className="gap-3 px-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className="flex size-8 shrink-0 items-center justify-center rounded-md border border-chart-2/30 bg-chart-2/10 text-chart-2"
-              aria-hidden
-            >
-              <KeyRoundIcon className="size-4" />
-            </span>
-            <div className="flex min-w-0 flex-col gap-1">
-              <CardTitle className="text-sm font-medium">API access</CardTitle>
-              <CardDescription className="truncate text-xs">
-                Credentials for CLI tools and routed applications.
-              </CardDescription>
-            </div>
+      <Card
+        className="gap-0 overflow-hidden py-0"
+        aria-busy={isLoading || isCreating || Boolean(revokingKeyId)}
+      >
+        <CardHeader className="grid-cols-[auto_1fr_auto] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+          <span
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-muted-foreground"
+            aria-hidden
+          >
+            <KeyRoundIcon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <CardTitle className="text-sm font-medium">API keys</CardTitle>
+            <CardDescription className="text-xs">
+              {isLoading
+                ? "Loading credentials…"
+                : keyCount === 0
+                  ? "No credentials yet."
+                  : `${keyCount} key${keyCount === 1 ? "" : "s"} clients can authenticate with.`}
+            </CardDescription>
           </div>
-          <CardAction className="flex shrink-0 items-center gap-2">
-            <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:inline-flex">
-              <span
-                className={`size-1.5 rounded-full ${
-                  isLoading
-                    ? "animate-pulse bg-amber-400"
-                    : keys?.length
-                      ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-                      : "bg-muted-foreground/50"
-                }`}
-              />
-              {isLoading ? "SYNCING" : `${activeKeyCount} ACTIVE`}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setIsCreateDialogOpen(true)}
-              disabled={isLoading || isCreating}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Create key
-            </Button>
-          </CardAction>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setIsCreateDialogOpen(true)}
+            disabled={isLoading || isCreating}
+          >
+            <PlusIcon data-icon="inline-start" />
+            Create key
+          </Button>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 px-5">
+        <CardContent className="flex flex-col gap-4 px-5 py-4">
           {loadError || actionError ? (
             <Alert variant="destructive">
               <AlertTitle>
@@ -289,9 +285,20 @@ function ApiKeyManager() {
           ) : null}
 
           {isLoading ? (
-            <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              <Spinner />
-              Loading API keys...
+            <div
+              className="flex flex-col divide-y divide-border/60 overflow-hidden rounded-lg border"
+              aria-hidden
+            >
+              {["a", "b"].map((key) => (
+                <div key={key} className="flex items-center gap-3 px-3 py-3">
+                  <Skeleton className="size-8 shrink-0 rounded-md" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-2.5 w-44 max-w-full" />
+                  </div>
+                  <Skeleton className="h-8 w-20 shrink-0" />
+                </div>
+              ))}
             </div>
           ) : keys?.length ? (
             <div className="flex flex-col divide-y rounded-lg border">
@@ -316,29 +323,33 @@ function ApiKeyManager() {
                         <KeyRoundIcon className="size-4" />
                       </span>
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="flex items-center gap-2 truncate text-sm font-medium">
-                          <span className="truncate">{key.label}</span>
-                          <span
-                            className={`hidden shrink-0 items-center gap-1 font-mono text-[9px] uppercase tracking-wide sm:inline-flex ${
-                              key.has_key
-                                ? "text-emerald-500"
-                                : "text-amber-500"
-                            }`}
-                          >
-                            <span
-                              className={`size-1 rounded-full ${
-                                key.has_key ? "bg-emerald-500" : "bg-amber-400"
-                              }`}
-                            />
-                            {key.has_key ? "READY" : "LEGACY"}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {key.label}
                           </span>
+                          {key.last4 ? (
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                              ••{key.last4}
+                            </span>
+                          ) : null}
+                          {!key.has_key ? (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 gap-1 text-[10px] font-normal text-amber-600 dark:text-amber-400"
+                            >
+                              <TriangleAlertIcon className="size-3" />
+                              Legacy
+                            </Badge>
+                          ) : null}
                         </span>
-                        <span className="truncate font-mono text-[10px] text-muted-foreground">
-                          {!key.has_key
-                            ? "Legacy key — copying unavailable"
-                            : key.last_used_at
-                              ? `Last used ${formatDate(key.last_used_at)}`
-                              : `Created ${formatDate(key.created_at)}`}
+                        {/* Both dates matter: creation tells you how old the key
+                            is, last-used whether anything still relies on it. */}
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          Created {formatDate(key.created_at)}
+                          <span aria-hidden> · </span>
+                          {key.last_used_at
+                            ? `last used ${formatDate(key.last_used_at)}`
+                            : "never used"}
                         </span>
                       </div>
                     </div>
@@ -430,6 +441,16 @@ function ApiKeyManager() {
             </Empty>
           )}
         </CardContent>
+
+        {legacyCount > 0 ? (
+          <div className="border-t border-border/60 bg-muted/20 px-5 py-2.5">
+            <p className="text-[11px] text-muted-foreground">
+              {legacyCount} key{legacyCount === 1 ? "" : "s"} predate encrypted
+              storage, so the value can no longer be read back. Recreate them to
+              copy the key again.
+            </p>
+          </div>
+        ) : null}
       </Card>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>

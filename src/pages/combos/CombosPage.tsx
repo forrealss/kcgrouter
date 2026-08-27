@@ -248,7 +248,7 @@ export function CombosPage() {
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-5 pb-4"
+      className="flex min-w-0 flex-col gap-5 pb-2"
       aria-label="Combo management"
     >
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -421,7 +421,7 @@ export function CombosPage() {
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid min-h-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((combo) => {
             const members = membersByCombo[combo.id] ?? [];
             const meta = getStrategyMeta(combo.strategy);

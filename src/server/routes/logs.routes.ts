@@ -8,15 +8,12 @@ export const logsRoutes: Record<string, RouteHandler> = {
       return Response.json({ error: "Log ID is required" }, { status: 400 });
     }
 
+    // A log with no stored payload is a normal outcome (admin entries, or logs
+    // from before payload capture), not a failure. Returning 404 made the client
+    // render a scary error for the expected case, so report empty bodies and let
+    // the UI say "nothing captured".
     const payloads = RequestLog.getPayloads(logId);
-    if (!payloads) {
-      return Response.json(
-        { error: "Payload detail not found" },
-        { status: 404 },
-      );
-    }
-
-    return Response.json(payloads);
+    return Response.json(payloads ?? { requestBody: null, responseBody: null });
   },
 
   "GET /api/logs": (req) => {

@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  ActivityIcon,
   BotIcon,
+  ExternalLinkIcon,
   FilterIcon,
   RefreshCwIcon,
   ScissorsIcon,
@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -24,48 +23,59 @@ import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
 } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTokenSaver } from "@/hooks/useTokenSaver";
 import { cn } from "@/lib/utils";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
+/** Compact big token counts so the metric strip stays readable. */
+function formatCompact(value: number): string {
+  const units = [
+    { limit: 999_500_000, divisor: 1_000_000_000, suffix: "B" },
+    { limit: 999_500, divisor: 1_000_000, suffix: "M" },
+    { limit: 10_000, divisor: 1_000, suffix: "K" },
+  ];
+  for (const { limit, divisor, suffix } of units) {
+    if (value < limit) continue;
+    const scaled = value / divisor;
+    return `${scaled.toFixed(scaled >= 10 ? 0 : 1).replace(/\.0$/, "")}${suffix}`;
+  }
+  return numberFormatter.format(value);
+}
+
 type ModifierPatch = { enabled?: boolean; level?: string };
 
-type ModifierLevel = {
+interface ModifierLevel {
   id: string;
   label: string;
   description: string;
-};
+}
 
 const CAVEMAN_LEVELS: ModifierLevel[] = [
   {
     id: "lite",
     label: "Lite",
-    description: "No filler/hedging. Keep articles + full sentences.",
+    description: "No filler or hedging. Keeps articles and full sentences.",
   },
   {
     id: "full",
     label: "Full",
-    description: "Drop articles, fragments OK. Classic caveman.",
+    description: "Drops articles, allows fragments. Classic caveman.",
   },
   {
     id: "ultra",
     label: "Ultra",
-    description: "Strip conjunctions. One word when one word enough.",
+    description: "Strips conjunctions. One word when one word is enough.",
   },
 ];
 
@@ -73,12 +83,12 @@ const PONYTAIL_LEVELS: ModifierLevel[] = [
   {
     id: "lite",
     label: "Lite",
-    description: "Build what's asked, name the lazier alternative.",
+    description: "Builds what was asked, names the lazier alternative.",
   },
   {
     id: "full",
     label: "Full",
-    description: "Ladder enforced. Stdlib/native first. Shortest diff.",
+    description: "Ladder enforced. Stdlib first, shortest diff wins.",
   },
   {
     id: "ultra",
@@ -92,7 +102,7 @@ const metricTone = {
   violet: "border-chart-2/30 bg-chart-2/10 text-chart-2",
   cyan: "border-chart-3/30 bg-chart-3/10 text-chart-3",
   amber: "border-chart-4/30 bg-chart-4/10 text-chart-4",
-  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+  muted: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 
 type MetricTone = keyof typeof metricTone;
@@ -100,12 +110,14 @@ type MetricTone = keyof typeof metricTone;
 function MetricCell({
   label,
   value,
+  hint,
   icon: Icon,
   loading,
   tone = "primary",
 }: {
   label: string;
   value: string;
+  hint?: string;
   icon: LucideIcon;
   loading?: boolean;
   tone?: MetricTone;
@@ -125,10 +137,17 @@ function MetricCell({
           {label}
         </p>
         {loading ? (
-          <Skeleton className="mt-1 h-5 w-20" />
+          <Skeleton className="mt-1 h-5 w-16" />
         ) : (
-          <p className="glow-primary font-mono text-base font-semibold tracking-tight tabular-nums">
-            {value}
+          <p className="flex items-baseline gap-1.5">
+            <span className="font-mono text-base font-semibold tracking-tight tabular-nums">
+              {value}
+            </span>
+            {hint ? (
+              <span className="truncate text-[11px] text-muted-foreground">
+                {hint}
+              </span>
+            ) : null}
           </p>
         )}
       </div>
@@ -136,101 +155,20 @@ function MetricCell({
   );
 }
 
-function StatusLed({
-  active,
-  label,
-  tone = "ok",
-}: {
-  active: boolean;
-  label: string;
-  tone?: "ok" | "warn";
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide">
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          active &&
-            tone === "ok" &&
-            "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70",
-          active &&
-            tone === "warn" &&
-            "bg-amber-400 shadow-[0_0_6px] shadow-amber-400/60",
-          !active && "bg-muted-foreground/50",
-        )}
-      />
-      <span className={active ? "text-emerald-500" : "text-muted-foreground"}>
-        {label}
-      </span>
-    </span>
-  );
-}
-
 function formatUpdatedAt(updatedAt: string): string {
   const date = new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) return "Updated recently";
-
-  return `Updated ${new Intl.DateTimeFormat(undefined, {
+  if (Number.isNaN(date.getTime())) return "recently";
+  return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(date)}`;
+  }).format(date);
 }
 
-function SettingsSkeleton() {
-  return (
-    <>
-      <Card className="!py-0 overflow-hidden">
-        <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4 [&>*]:bg-card">
-          {Array.from({ length: 4 }).map((_value, index) => (
-            <MetricCell
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-              key={`token-metric-${index}`}
-              label="Loading"
-              value=""
-              icon={ActivityIcon}
-              loading
-            />
-          ))}
-        </div>
-      </Card>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-0 overflow-hidden lg:col-span-2">
-          <div className="border-b border-border/50 px-5 pb-3 pt-4">
-            <Skeleton className="h-5 w-40" />
-          </div>
-          <div className="flex flex-col gap-3 px-5 py-5">
-            <Skeleton className="h-12 w-full" />
-            {Array.from({ length: 6 }).map((_value, index) => (
-              <Skeleton
-                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                key={`filter-skeleton-${index}`}
-                className="h-9 w-full"
-              />
-            ))}
-          </div>
-        </Card>
-        <div className="flex flex-col gap-4">
-          {Array.from({ length: 2 }).map((_value, index) => (
-            <Card
-              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-              key={`modifier-skeleton-${index}`}
-              className="gap-0 overflow-hidden"
-            >
-              <div className="border-b border-border/50 px-5 pb-3 pt-4">
-                <Skeleton className="h-5 w-28" />
-              </div>
-              <div className="flex flex-col gap-3 px-5 pb-5 pt-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
-
+/**
+ * One modifier (Caveman / Ponytail). Intensity is a segmented control rather
+ * than a Select: there are only three values and their differences matter, so
+ * hiding them behind a dropdown costs a click to read the options.
+ */
 function ModifierCard({
   title,
   description,
@@ -244,7 +182,7 @@ function ModifierCard({
   isSaving,
 }: {
   title: string;
-  description: React.ReactNode;
+  description: string;
   icon: LucideIcon;
   link: string;
   switchId: string;
@@ -257,86 +195,125 @@ function ModifierCard({
   const selectedLevel = levels.find((item) => item.id === level);
 
   return (
-    <Card
-      className="gap-0 overflow-hidden transition-colors duration-200 hover:bg-accent/20"
-      aria-busy={isSaving}
-    >
-      <CardHeader className="px-5 pb-3 pt-4">
-        <div className="flex items-start gap-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
-            <Icon className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <CardTitle className="text-sm font-medium">{title}</CardTitle>
-            <CardDescription className="mt-1 text-xs">
-              {description}{" "}
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-foreground"
-                aria-label={`${title} repository`}
-              >
-                source
-              </a>
-            </CardDescription>
-          </div>
+    <Card className="gap-0 overflow-hidden py-0" aria-busy={isSaving}>
+      <CardHeader className="grid-cols-[auto_1fr_auto] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+        <span
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-md border",
+            enabled
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border/70 bg-card text-muted-foreground",
+          )}
+        >
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <CardDescription className="text-xs">{description}</CardDescription>
         </div>
-        <CardAction>
-          <StatusLed active={enabled} label={enabled ? "ON" : "OFF"} />
-        </CardAction>
+        <Switch
+          id={switchId}
+          checked={enabled}
+          disabled={isSaving}
+          onCheckedChange={(checked) => void onPersist({ enabled: checked })}
+          aria-label={`${enabled ? "Disable" : "Enable"} ${title}`}
+        />
       </CardHeader>
-      <CardContent className="flex flex-col gap-4 px-5 pb-5">
-        <Field
-          orientation="horizontal"
-          data-disabled={isSaving || !enabled || undefined}
-        >
-          <FieldContent>
-            <FieldLabel htmlFor={switchId}>
-              Enable {title.toLowerCase()}
-            </FieldLabel>
-            <FieldDescription>
-              Apply this modifier to every new request.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            id={switchId}
-            checked={enabled}
-            disabled={isSaving}
-            onCheckedChange={(checked) => void onPersist({ enabled: checked })}
-          />
-        </Field>
-        <Field
-          orientation="horizontal"
-          data-disabled={isSaving || !enabled || undefined}
-        >
-          <FieldContent>
-            <FieldLabel>Intensity</FieldLabel>
-            <FieldDescription>
-              {enabled
-                ? (selectedLevel?.description ?? "Select an intensity level.")
-                : "Enable the modifier to select an intensity."}
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={level}
-            disabled={!enabled || isSaving}
-            onValueChange={(value) => void onPersist({ level: value })}
+
+      <CardContent className="flex flex-col gap-3 px-5 py-4">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-muted-foreground">Intensity</p>
+          <fieldset
+            className="grid grid-cols-3 gap-1.5"
+            aria-label={`${title} intensity`}
           >
-            <SelectTrigger className="w-24 shrink-0 font-mono text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {levels.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
+            {levels.map((item) => {
+              const isSelected = item.id === level;
+              return (
+                <Button
+                  key={item.id}
+                  type="button"
+                  variant={isSelected ? "secondary" : "outline"}
+                  size="sm"
+                  disabled={!enabled || isSaving}
+                  aria-pressed={isSelected}
+                  onClick={() => void onPersist({ level: item.id })}
+                  className={cn(
+                    isSelected && "border-primary/50 text-foreground",
+                  )}
+                >
                   {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+                </Button>
+              );
+            })}
+          </fieldset>
+          <p className="min-h-8 text-xs text-muted-foreground">
+            {enabled
+              ? (selectedLevel?.description ?? "Pick an intensity level.")
+              : `Turn ${title} on to choose an intensity.`}
+          </p>
+        </div>
+
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          <ExternalLinkIcon className="size-3" aria-hidden />
+          Source repository
+        </a>
       </CardContent>
     </Card>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <>
+      <Card aria-hidden className="!py-0 overflow-hidden">
+        <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4 [&>*]:bg-card">
+          {["a", "b", "c", "d"].map((key) => (
+            <div
+              key={key}
+              className="flex min-w-0 items-center gap-3 px-3 py-3.5 sm:px-4"
+            >
+              <Skeleton className="size-8 rounded-md" />
+              <div className="flex flex-col gap-1.5">
+                <Skeleton className="h-2.5 w-16" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card aria-hidden className="gap-0 overflow-hidden py-0 lg:col-span-2">
+          <div className="border-b border-border/60 bg-muted/20 px-5 py-3.5">
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex flex-col gap-3 px-5 py-4">
+            <Skeleton className="h-12 w-full" />
+            {["a", "b", "c", "d", "e", "f"].map((key) => (
+              <Skeleton key={key} className="h-9 w-full" />
+            ))}
+          </div>
+        </Card>
+        <div className="flex flex-col gap-4">
+          {["a", "b"].map((key) => (
+            <Card key={key} aria-hidden className="gap-0 overflow-hidden py-0">
+              <div className="border-b border-border/60 bg-muted/20 px-5 py-3.5">
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="flex flex-col gap-3 px-5 py-4">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -353,58 +330,31 @@ export function TokenSaverPage() {
     persistPonytail,
   } = useTokenSaver();
 
-  const activeFilters =
-    settings?.filters.filter((filter) => filter.active).length ?? 0;
   const filterCount = settings?.filters.length ?? 0;
-  const isActive = settings?.enabled ?? false;
+  const activeModifiers =
+    (settings?.cavemanEnabled ? 1 : 0) + (settings?.ponytailEnabled ? 1 : 0);
 
   return (
     <div className="flex min-w-0 flex-col gap-5 pb-2">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
-            Optimization / compression
-          </p>
-          <h2 className="text-xl font-semibold tracking-tight">Token Saver</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Compress tool output before it reaches the model context.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 font-mono text-[11px]">
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                isLoading || isSaving
-                  ? "animate-pulse bg-amber-400"
-                  : isActive
-                    ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-                    : "bg-muted-foreground/50",
-              )}
-            />
-            {isLoading || isSaving
-              ? "SYNCING"
-              : isActive
-                ? "ACTIVE"
-                : "BYPASSED"}
-          </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void loadSettings()}
-            disabled={isLoading || isSaving}
-            aria-busy={isLoading || isSaving}
-          >
-            <RefreshCwIcon
-              className={cn(
-                "size-3.5",
-                (isLoading || isSaving) && "animate-spin",
-              )}
-            />
-            Refresh
-          </Button>
-        </div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Shrink tool output and model prompts before they reach the context
+          window.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void loadSettings()}
+          disabled={isLoading || isSaving}
+          aria-busy={isLoading || isSaving}
+          className="w-fit"
+        >
+          <RefreshCwIcon
+            data-icon="inline-start"
+            className={cn((isLoading || isSaving) && "animate-spin")}
+          />
+          {isSaving ? "Saving" : isLoading ? "Refreshing" : "Refresh"}
+        </Button>
       </header>
 
       {loadError && settings ? (
@@ -425,29 +375,32 @@ export function TokenSaverPage() {
         </Alert>
       ) : null}
 
-      {isLoading ? <SettingsSkeleton /> : null}
+      {saveError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Could not save your change</AlertTitle>
+          <AlertDescription>
+            {saveError} The previous value was restored.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {isLoading ? <PageSkeleton /> : null}
 
       {!isLoading && (loadError || !settings) ? (
-        <Card>
-          <CardContent className="py-6">
-            <Alert variant="destructive">
-              <AlertTitle>Token saver could not be loaded</AlertTitle>
-              <AlertDescription className="flex flex-wrap items-center gap-3">
-                <span>
-                  {loadError ?? "No settings returned by the server."}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void loadSettings()}
-                >
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Token saver could not be loaded</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{loadError ?? "No settings returned by the server."}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadSettings()}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {!isLoading && settings ? (
@@ -455,16 +408,18 @@ export function TokenSaverPage() {
           <Card className="!py-0 overflow-hidden">
             <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4 [&>*]:bg-card">
               <MetricCell
-                label="Total saved"
-                value={numberFormatter.format(settings.totalTokensSaved)}
+                label="Tokens saved"
+                value={formatCompact(settings.totalTokensSaved)}
+                hint="all time"
                 icon={ZapIcon}
                 tone="violet"
               />
               <MetricCell
-                label="Core filters"
-                value={`${numberFormatter.format(activeFilters)}/${numberFormatter.format(filterCount)}`}
+                label="Output filters"
+                value={String(filterCount)}
+                hint={settings.enabled ? "applied" : "on standby"}
                 icon={FilterIcon}
-                tone={isActive ? "ok" : "primary"}
+                tone={settings.enabled ? "primary" : "muted"}
               />
               <MetricCell
                 label="Caveman"
@@ -474,7 +429,7 @@ export function TokenSaverPage() {
                     : "OFF"
                 }
                 icon={ScissorsIcon}
-                tone={settings.cavemanEnabled ? "cyan" : "primary"}
+                tone={settings.cavemanEnabled ? "cyan" : "muted"}
               />
               <MetricCell
                 label="Ponytail"
@@ -484,135 +439,145 @@ export function TokenSaverPage() {
                     : "OFF"
                 }
                 icon={SparklesIcon}
-                tone={settings.ponytailEnabled ? "amber" : "primary"}
+                tone={settings.ponytailEnabled ? "amber" : "muted"}
               />
             </div>
           </Card>
 
-          {saveError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Could not save your preference</AlertTitle>
-              <AlertDescription className="flex flex-wrap items-center gap-3">
-                <span>{saveError}</span>
-                <span className="font-mono text-[10px] uppercase text-muted-foreground">
-                  Changes were reverted
+          <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+            <Card className="gap-0 overflow-hidden py-0 lg:col-span-2">
+              <CardHeader className="grid-cols-[auto_1fr] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-md border",
+                    settings.enabled
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-border/70 bg-card text-muted-foreground",
+                  )}
+                >
+                  <FilterIcon className="size-4" />
                 </span>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="gap-0 overflow-hidden lg:col-span-2">
-              <CardHeader className="px-5 pb-3 pt-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
-                    <FilterIcon className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <CardTitle className="text-sm font-medium">
-                      Output filters
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs">
-                      Per-tool compression rules.
-                    </CardDescription>
-                  </div>
+                <div className="min-w-0">
+                  <CardTitle className="text-sm font-medium">
+                    Output filters
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Compress tool results before they enter the context.
+                  </CardDescription>
                 </div>
-                <CardAction>
-                  <Badge
-                    variant={isActive ? "default" : "outline"}
-                    className="font-mono text-[10px]"
-                  >
-                    {isActive ? "DEFAULT ON" : "DEFAULT OFF"}
-                  </Badge>
-                </CardAction>
               </CardHeader>
-              <CardContent className="flex flex-col gap-5 px-5 pb-5">
-                <FieldGroup>
-                  <Field
-                    orientation="horizontal"
-                    data-disabled={isSaving || undefined}
-                  >
-                    <FieldContent>
-                      <FieldLabel htmlFor="token-saver-enabled">
-                        Enable token saver by default
-                      </FieldLabel>
-                      <FieldDescription>
-                        Apply available output filters to new sessions.
-                      </FieldDescription>
-                    </FieldContent>
-                    <Switch
-                      id="token-saver-enabled"
-                      checked={settings.enabled}
-                      disabled={isSaving}
-                      onCheckedChange={(checked) =>
-                        void persistEnabled(checked)
-                      }
-                    />
-                  </Field>
-                </FieldGroup>
 
-                <FieldSet>
-                  <FieldLegend
-                    variant="label"
-                    className="flex items-center gap-2"
-                  >
-                    Supported filters
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      {activeFilters}/{filterCount} ready
+              <CardContent className="flex flex-col gap-4 px-5 py-4">
+                <Field
+                  orientation="horizontal"
+                  data-disabled={isSaving || undefined}
+                  className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3"
+                >
+                  <FieldContent>
+                    <FieldLabel
+                      htmlFor="token-saver-enabled"
+                      className="text-sm"
+                    >
+                      Enable by default
+                    </FieldLabel>
+                    <FieldDescription className="text-xs">
+                      Applies to new requests. A client can still override this
+                      per request.
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch
+                    id="token-saver-enabled"
+                    checked={settings.enabled}
+                    disabled={isSaving}
+                    onCheckedChange={(checked) => void persistEnabled(checked)}
+                  />
+                </Field>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Filters applied
+                    </p>
+                    <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                      {filterCount}
                     </span>
-                  </FieldLegend>
-                  <FieldGroup className="gap-0 overflow-hidden rounded-lg border">
-                    {settings.filters.map((filter) => {
-                      const detail = filterDetails[filter.name];
-                      return (
-                        <div
-                          key={filter.name}
-                          className="flex items-center justify-between gap-4 border-b border-border/50 px-3 py-2.5 last:border-0 transition-colors hover:bg-muted/40"
-                        >
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <span
-                              className={cn(
-                                "size-1.5 shrink-0 rounded-full",
-                                filter.active
-                                  ? "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70"
-                                  : "bg-muted-foreground/50",
-                              )}
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate font-mono text-xs text-foreground/90">
+                  </div>
+                  {/*
+                    Every supported filter runs whenever token saver is on — the
+                    API reports them all as active and there is no per-filter
+                    toggle. The old READY/SKIP badges implied a state that could
+                    never differ, so the list documents behaviour instead.
+                  */}
+                  <TooltipProvider delayDuration={200}>
+                    <ul className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-lg border border-border/60">
+                      {settings.filters.map((filter) => {
+                        const detail = filterDetails[filter.name];
+                        return (
+                          <li
+                            key={filter.name}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2.5 transition-colors",
+                              settings.enabled
+                                ? "hover:bg-accent/30"
+                                : "bg-muted/20",
+                            )}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span
+                                className={cn(
+                                  "block truncate text-xs font-medium",
+                                  !settings.enabled && "text-muted-foreground",
+                                )}
+                              >
                                 {detail.label}
-                              </p>
-                              <p className="truncate text-[10px] text-muted-foreground">
+                              </span>
+                              <span className="block truncate text-[11px] text-muted-foreground">
                                 {detail.description}
-                              </p>
-                            </div>
-                          </div>
-                          <StatusLed
-                            active={filter.active}
-                            label={filter.active ? "READY" : "SKIP"}
-                          />
-                        </div>
-                      );
-                    })}
-                  </FieldGroup>
-                </FieldSet>
+                              </span>
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <code className="hidden shrink-0 truncate rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block sm:max-w-40">
+                                  {detail.example}
+                                </code>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Removes: {detail.example}
+                              </TooltipContent>
+                            </Tooltip>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </TooltipProvider>
+                  {!settings.enabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      These run only when token saver is enabled, or when a
+                      request opts in explicitly.
+                    </p>
+                  ) : null}
+                </div>
               </CardContent>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 px-5 py-3">
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {formatUpdatedAt(settings.updatedAt)}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-5 py-2.5">
+                <span className="text-[11px] text-muted-foreground">
+                  Updated {formatUpdatedAt(settings.updatedAt)}
                 </span>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-normal text-muted-foreground"
+                >
+                  {activeModifiers === 0
+                    ? "No prompt modifiers"
+                    : `${activeModifiers} prompt modifier${activeModifiers === 1 ? "" : "s"} on`}
+                </Badge>
               </div>
             </Card>
 
             <div className="flex flex-col gap-4">
               <ModifierCard
                 title="Caveman"
-                description={
-                  <>
-                    Terse responses, no fluff. Adapted from
-                    JuliusBrussee/caveman.
-                  </>
-                }
+                description="Terse replies, no filler."
                 icon={BotIcon}
                 link="https://github.com/JuliusBrussee/caveman"
                 switchId="caveman-enabled"
@@ -624,12 +589,7 @@ export function TokenSaverPage() {
               />
               <ModifierCard
                 title="Ponytail"
-                description={
-                  <>
-                    Minimal code, YAGNI-first. Adapted from
-                    DietrichGebert/ponytail.
-                  </>
-                }
+                description="Minimal code, YAGNI first."
                 icon={SparklesIcon}
                 link="https://github.com/DietrichGebert/ponytail"
                 switchId="ponytail-enabled"

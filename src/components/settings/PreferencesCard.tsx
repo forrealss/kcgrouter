@@ -2,7 +2,6 @@ import { LockKeyholeIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useState } from "react";
 import { ChangePasswordDialog } from "@/components/settings/ChangePasswordDialog";
 import { ThemeToggle } from "@/components/settings/ThemeToggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,28 +22,24 @@ function PreferencesCard() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   return (
-    <Card className="gap-5 overflow-hidden">
-      <CardHeader className="px-5 pb-0">
-        <div className="flex items-start gap-3">
-          <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"
-            aria-hidden
-          >
-            <SlidersHorizontalIcon className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <CardTitle className="text-sm font-medium">Preferences</CardTitle>
-            <CardDescription className="mt-1 text-xs">
-              Account security and dashboard appearance.
-            </CardDescription>
-          </div>
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardHeader className="grid-cols-[auto_1fr] grid-rows-1 items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-3.5">
+        <span
+          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-muted-foreground"
+          aria-hidden
+        >
+          <SlidersHorizontalIcon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <CardTitle className="text-sm font-medium">Preferences</CardTitle>
+          <CardDescription className="text-xs">
+            Sign-in credential and dashboard appearance.
+          </CardDescription>
         </div>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          LOCAL
-        </Badge>
       </CardHeader>
-      <CardContent className="px-5">
-        <FieldGroup className="gap-0 overflow-hidden rounded-lg border">
+
+      <CardContent className="flex flex-col gap-0 px-5 py-4">
+        <FieldGroup className="gap-0 overflow-hidden rounded-lg border border-border/60">
           <Field
             orientation="horizontal"
             className="px-3 py-3 transition-colors hover:bg-muted/30"
@@ -55,7 +50,7 @@ function PreferencesCard() {
                 Password
               </FieldLabel>
               <FieldDescription className="text-[11px]">
-                Update the dashboard sign-in credential.
+                Rotates the credential used to sign in to this dashboard.
               </FieldDescription>
             </FieldContent>
             <Button

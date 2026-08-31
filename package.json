@@ -1,7 +1,25 @@
 {
   "name": "kcgrouter",
-  "version": "0.13.0",
+  "version": "0.13.3",
   "description": "Lightweight AI proxy gateway — route chat completions to upstream providers",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/forrealss/kcgrouter.git"
+  },
+  "homepage": "https://github.com/forrealss/kcgrouter#readme",
+  "bugs": {
+    "url": "https://github.com/forrealss/kcgrouter/issues"
+  },
+  "keywords": [
+    "ai",
+    "proxy",
+    "gateway",
+    "llm",
+    "openai",
+    "anthropic",
+    "router"
+  ],
   "type": "module",
   "bin": {
     "kcgrouter": "./bin/kcgrouter.ts"
@@ -16,10 +34,12 @@
     "scripts/postinstall.mjs",
     "bunfig.toml",
     "tsconfig.json",
+    "LICENSE",
     "!src/**/__tests__/**",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "!src/test-setup.ts"
+    "!src/test-setup.ts",
+    "!dist/**/*.map"
   ],
   "engines": {
     "bun": ">=1.2.3"

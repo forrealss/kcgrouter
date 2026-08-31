@@ -13,7 +13,10 @@ const result = await Bun.build({
   plugins: [tailwind],
   minify: true,
   target: "browser",
-  sourcemap: "linked",
+  // "none": sourcemaps are dev-only tooling, not needed by end users, and
+  // `chunk-*.js.map` alone was ~5MB uncompressed — the majority of the
+  // published npm tarball's unpacked size.
+  sourcemap: "none",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
   },

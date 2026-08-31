@@ -3,6 +3,7 @@ import {
   ANTHROPIC_KEEPALIVE_FRAME,
   ANTHROPIC_SSE_HEADERS,
 } from "../services/anthropic-sse-encoder.service";
+import * as ApiKeyScope from "../services/api-key-scope.service";
 import { withEarlyStreamKeepalive } from "../services/early-stream-keepalive";
 import { listAllEnabledModels } from "../services/model-registry.service";
 import { handleChatRequest } from "../services/router.service";
@@ -34,7 +35,7 @@ function toResponse(result: {
 }
 
 export const v1Routes: Record<string, RouteHandler> = {
-  "POST /v1/chat/completions": async (req) => {
+  "POST /v1/chat/completions": async (req, _params, context) => {
     const body = await req.json();
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
     const caveman = req.headers.get("x-caveman") as "on" | "off" | null;
@@ -50,6 +51,7 @@ export const v1Routes: Record<string, RouteHandler> = {
         cavemanOverride: caveman ?? undefined,
         ponytailOverride: ponytail ?? undefined,
         stream: true,
+        apiKeyId: context?.apiKeyId ?? null,
       }).then((result) => toResponse(result));
 
       return withEarlyStreamKeepalive(handlerPromise, {
@@ -65,12 +67,13 @@ export const v1Routes: Record<string, RouteHandler> = {
       cavemanOverride: caveman ?? undefined,
       ponytailOverride: ponytail ?? undefined,
       stream: false,
+      apiKeyId: context?.apiKeyId ?? null,
     });
 
     return toResponse(result);
   },
 
-  "POST /v1/messages": async (req) => {
+  "POST /v1/messages": async (req, _params, context) => {
     const body = await req.json();
     const tokenSaver = req.headers.get("x-token-saver") as "on" | "off" | null;
     const caveman = req.headers.get("x-caveman") as "on" | "off" | null;
@@ -86,6 +89,7 @@ export const v1Routes: Record<string, RouteHandler> = {
         cavemanOverride: caveman ?? undefined,
         ponytailOverride: ponytail ?? undefined,
         stream: true,
+        apiKeyId: context?.apiKeyId ?? null,
       }).then((result) => toResponse(result));
 
       // Anthropic frames terminate with their own message_stop, so the
@@ -107,6 +111,7 @@ export const v1Routes: Record<string, RouteHandler> = {
       cavemanOverride: caveman ?? undefined,
       ponytailOverride: ponytail ?? undefined,
       stream: false,
+      apiKeyId: context?.apiKeyId ?? null,
     });
 
     return toResponse(result);
@@ -135,9 +140,30 @@ export const v1Routes: Record<string, RouteHandler> = {
     });
   },
 
-  "GET /v1/models": () => {
+  "GET /v1/models": (_req, _params, context) => {
     const models = listAllEnabledModels();
-    const data = models.map((m) => ({
+
+    // Advertise only what the calling key may actually run. Listing models a
+    // request would then be refused for makes the catalogue actively
+    // misleading to clients that populate a model picker from it.
+    const restrictions = context?.apiKeyId
+      ? ApiKeyScope.getRestrictions(context.apiKeyId)
+      : null;
+
+    const visible = restrictions
+      ? models.filter(
+          (m) =>
+            !ApiKeyScope.checkTarget(restrictions, {
+              providerId: m.providerId,
+              providerName: m.prefix,
+              providerPrefix: m.prefix,
+              modelName: m.modelId,
+              comboId: null,
+            }),
+        )
+      : models;
+
+    const data = visible.map((m) => ({
       id: `${m.prefix}/${m.modelId}`,
       object: "model" as const,
       created: Math.floor(new Date(m.createdAt).getTime() / 1000),

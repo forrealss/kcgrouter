@@ -47,11 +47,20 @@ export function listEnabledModels(providerId: string): ProviderModel[] {
   return rows.map(rowToModel);
 }
 
+/**
+ * Every enabled model across all providers, in one query.
+ *
+ * `providerName` rides along because callers that group models by provider
+ * (the API-key scope picker) would otherwise have to fetch each provider
+ * separately — the N+1 this exists to avoid.
+ */
 export function listAllEnabledModels(): Array<
-  ProviderModel & { prefix: string }
+  ProviderModel & { prefix: string; providerName: string }
 > {
-  const rows = query<ProviderModelRow & { prefix: string }>(
-    `SELECT pm.*, p.prefix
+  const rows = query<
+    ProviderModelRow & { prefix: string; provider_name: string }
+  >(
+    `SELECT pm.*, p.prefix, p.name AS provider_name
      FROM provider_models pm
      JOIN providers p ON p.id = pm.provider_id
      WHERE pm.enabled = 1
@@ -60,6 +69,7 @@ export function listAllEnabledModels(): Array<
   return rows.map((r) => ({
     ...rowToModel(r),
     prefix: r.prefix,
+    providerName: r.provider_name,
   }));
 }
 

@@ -4,6 +4,7 @@ import {
   KeyRoundIcon,
   PlusIcon,
   RefreshCwIcon,
+  ShieldIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -55,21 +56,37 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import {
+  type ApiKey,
+  type ApiKeyRestrictionsPayload,
+  type ApiKeyScopeDraft,
+  type CreatedApiKey,
+  draftFromKey,
+} from "@/types/api-key";
+import { ApiKeyScopeDialog } from "./ApiKeyScopeDialog";
 
-type ApiKey = {
-  id: string;
-  label: string;
-  has_key: boolean;
-  created_at: string;
-  last_used_at: string | null;
-  /** Last 4 chars, so a key is identifiable without revealing it. */
-  last4: string | null;
-};
+const numFmt = new Intl.NumberFormat("en-US");
 
-type CreatedApiKey = {
-  id: string;
-  plaintextKey: string;
-};
+/**
+ * One-line summary of a key's scope for the list row.
+ *
+ * Deliberately terse: the row needs to answer "is this key restricted at all"
+ * at a glance, with the specifics living in the access dialog.
+ */
+function scopeSummary(key: ApiKey): string | null {
+  const parts: string[] = [];
+  if (key.allowed_provider_ids)
+    parts.push(`${key.allowed_provider_ids.length} provider`);
+  if (key.allowed_models) parts.push(`${key.allowed_models.length} model`);
+  if (key.allowed_combo_ids)
+    parts.push(`${key.allowed_combo_ids.length} combo`);
+  if (key.token_limit != null) {
+    parts.push(
+      `${numFmt.format(key.tokens_used)}/${numFmt.format(key.token_limit)} tokens`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 function formatDate(value: string | null): string {
   if (!value) return "Never";
@@ -99,6 +116,12 @@ function ApiKeyManager() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
     "idle",
   );
+  /** The key whose access dialog is open, or null when it is closed. */
+  const [scopeKey, setScopeKey] = useState<ApiKey | null>(null);
+  const [scopeDraft, setScopeDraft] = useState<ApiKeyScopeDraft | null>(null);
+  const [isSavingScope, setIsSavingScope] = useState(false);
+  const [scopeError, setScopeError] = useState<string | null>(null);
+  const [isResettingUsage, setIsResettingUsage] = useState(false);
 
   const loadKeys = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -215,6 +238,65 @@ function ApiKeyManager() {
     }
   }
 
+  function openScopeDialog(key: ApiKey) {
+    setScopeKey(key);
+    setScopeDraft(draftFromKey(key));
+    setScopeError(null);
+  }
+
+  function handleScopeDialogChange(open: boolean) {
+    if (isSavingScope) return;
+    if (!open) {
+      setScopeKey(null);
+      setScopeDraft(null);
+      setScopeError(null);
+    }
+  }
+
+  async function handleSaveScope(payload: ApiKeyRestrictionsPayload) {
+    if (!scopeKey) return;
+    setIsSavingScope(true);
+    setScopeError(null);
+
+    try {
+      await apiClient.patch(
+        `/api/settings/api-keys/${encodeURIComponent(scopeKey.id)}`,
+        payload,
+      );
+      await loadKeys();
+      toast.success(`Access updated for "${scopeKey.label}"`);
+      setScopeKey(null);
+      setScopeDraft(null);
+    } catch (error) {
+      setScopeError(getApiErrorMessage(error));
+    } finally {
+      setIsSavingScope(false);
+    }
+  }
+
+  async function handleResetUsage() {
+    if (!scopeKey) return;
+    setIsResettingUsage(true);
+    setScopeError(null);
+
+    try {
+      await apiClient.post(
+        `/api/settings/api-keys/${encodeURIComponent(scopeKey.id)}/reset-usage`,
+        {},
+      );
+      const refreshed = await apiClient.get<ApiKey[]>("/api/settings/api-keys");
+      setKeys(refreshed);
+      // Keep the dialog open on the same key so the zeroed counters are visible.
+      const updated = refreshed.find((k) => k.id === scopeKey.id);
+      if (updated) setScopeKey(updated);
+      toast.success("Usage counters reset");
+    } catch (error) {
+      setScopeError(getApiErrorMessage(error));
+    } finally {
+      setIsResettingUsage(false);
+    }
+  }
+
   const keyCount = keys?.length ?? 0;
   const legacyCount = keys?.filter((key) => !key.has_key).length ?? 0;
 
@@ -306,6 +388,9 @@ function ApiKeyManager() {
                 const isRevoking = revokingKeyId === key.id;
                 const isCopying = copyingKeyId === key.id;
                 const isCopied = copiedKeyId === key.id;
+                const summary = scopeSummary(key);
+                const isOverLimit =
+                  key.token_limit != null && key.tokens_used >= key.token_limit;
 
                 return (
                   <div
@@ -341,6 +426,25 @@ function ApiKeyManager() {
                               Legacy
                             </Badge>
                           ) : null}
+                          {summary ? (
+                            <Badge
+                              variant="secondary"
+                              className="shrink-0 gap-1 text-[10px] font-normal"
+                            >
+                              <ShieldIcon className="size-3" />
+                              Scoped
+                            </Badge>
+                          ) : null}
+                          {/* An exhausted budget is why requests start failing,
+                              so it is surfaced on the row itself. */}
+                          {isOverLimit ? (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 gap-1 text-[10px] font-normal text-destructive"
+                            >
+                              Limit reached
+                            </Badge>
+                          ) : null}
                         </span>
                         {/* Both dates matter: creation tells you how old the key
                             is, last-used whether anything still relies on it. */}
@@ -351,9 +455,25 @@ function ApiKeyManager() {
                             ? `last used ${formatDate(key.last_used_at)}`
                             : "never used"}
                         </span>
+                        {summary ? (
+                          <span className="truncate font-mono text-[10px] text-muted-foreground">
+                            {summary}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 pl-11 sm:shrink-0 sm:pl-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openScopeDialog(key)}
+                        aria-label={`Edit access for ${key.label}`}
+                        title="Providers, models, combos, and token limit"
+                      >
+                        <ShieldIcon data-icon="inline-start" />
+                        Access
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
@@ -502,6 +622,25 @@ function ApiKeyManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {scopeKey && scopeDraft ? (
+        <ApiKeyScopeDialog
+          open
+          onOpenChange={handleScopeDialogChange}
+          keyLabel={scopeKey.label}
+          draft={scopeDraft}
+          onDraftChange={setScopeDraft}
+          onSave={(payload) => void handleSaveScope(payload)}
+          isSaving={isSavingScope}
+          saveError={scopeError}
+          usage={{
+            tokensUsed: scopeKey.tokens_used,
+            requestCount: scopeKey.request_count,
+          }}
+          onResetUsage={() => void handleResetUsage()}
+          isResettingUsage={isResettingUsage}
+        />
+      ) : null}
 
       <Dialog
         open={Boolean(plaintextKey)}

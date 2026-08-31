@@ -143,7 +143,11 @@ const server = serve({
 
       const matched = matchRoute(method, pathname);
       if (matched) {
-        return matched.handler(req, matched.params);
+        // The key id rides along so the router can enforce that key's
+        // provider/model scope and token budget.
+        return matched.handler(req, matched.params, {
+          apiKeyId: auth.keyId,
+        });
       }
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,

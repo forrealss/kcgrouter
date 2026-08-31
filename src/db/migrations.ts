@@ -17,10 +17,13 @@ import * as m015 from "./migrations/015_add_account_cooldown";
 import * as m016 from "./migrations/016_add_request_log_retries";
 import * as m017 from "./migrations/017_add_provider_retry_config";
 import * as m018 from "./migrations/018_add_usage_sort_indexes";
+import * as m019 from "./migrations/019_add_api_key_restrictions";
+import * as m020 from "./migrations/020_add_api_key_sha256";
 import * as s001 from "./seeders/001_seed_builtin_providers";
 import * as s002 from "./seeders/002_seed_default_app_settings";
 import * as s003 from "./seeders/003_seed_provider_models";
 import * as s004 from "./seeders/004_seed_token_saver_stats";
+import * as s005 from "./seeders/005_backfill_api_key_sha256";
 
 interface MigrationRow {
   id: number;
@@ -55,9 +58,11 @@ const migrations: MigrationModule[] = [
   m016,
   m017,
   m018,
+  m019,
+  m020,
 ].sort((a, b) => a.id - b.id);
 
-const seeders: SeederModule[] = [s001, s002, s003, s004];
+const seeders: SeederModule[] = [s001, s002, s003, s004, s005];
 
 export { DEFAULT_PASSWORD } from "./seeders/002_seed_default_app_settings";
 

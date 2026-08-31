@@ -31,6 +31,20 @@ export const providersRoutes: Record<string, RouteHandler> = {
     return Response.json(provider);
   },
 
+  /**
+   * Every enabled model across all providers, in one response.
+   *
+   * Exists so a client building a cross-provider model picker does not have to
+   * call `/api/providers/:id/models` once per provider: with 50 providers that
+   * was 50 parallel requests per dialog open, which made the picker unusable.
+   *
+   * The resolver prefers exact matches over patterns, so this is reached before
+   * `GET /api/providers/models/:transport` treats "all" as a transport name.
+   */
+  "GET /api/providers/models/all": () => {
+    return Response.json(ModelRegistry.listAllEnabledModels());
+  },
+
   "GET /api/providers/models/:transport": (_req, params) => {
     const transport = params?.transport as ProviderTransport;
     if (!transport || !VALID_TRANSPORTS.includes(transport)) {

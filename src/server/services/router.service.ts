@@ -9,6 +9,7 @@ import {
   ANTHROPIC_SSE_HEADERS,
   encodeAnthropicStream,
 } from "./anthropic-sse-encoder.service";
+import * as ApiKeyScope from "./api-key-scope.service";
 import * as ComboEngine from "./combo-engine.service";
 import * as EventBus from "./event-bus";
 import {
@@ -37,6 +38,12 @@ export interface RouterInput {
   cavemanOverride?: "on" | "off";
   ponytailOverride?: "on" | "off";
   stream: boolean;
+  /**
+   * Which API key authenticated the request, or null when it did not come
+   * through key auth (internal callers, connection tests). A null key is
+   * unrestricted — scope only applies to keys that have it configured.
+   */
+  apiKeyId?: string | null;
 }
 
 export interface RouterResult {
@@ -232,6 +239,8 @@ interface RecordSuccessInput {
   estimatedCost: number;
   requestBody: string;
   responseBody: unknown;
+  /** Key whose token budget this request draws down, if any. */
+  apiKeyId: string | null;
 }
 
 /**
@@ -255,6 +264,7 @@ function recordSuccess(input: RecordSuccessInput): void {
     estimatedCost,
     requestBody,
     responseBody,
+    apiKeyId,
   } = input;
 
   UsageRecorder.record({
@@ -280,6 +290,12 @@ function recordSuccess(input: RecordSuccessInput): void {
     timestamp: Date.now(),
   });
   QuotaTracker.recordUsage(account.id, usage.inputTokens + usage.outputTokens);
+  // Draw the same tokens down against the calling key's budget. Separate from
+  // the per-account quota: one key can span providers, and one provider serves
+  // many keys.
+  if (apiKeyId) {
+    ApiKeyScope.recordUsage(apiKeyId, usage.inputTokens + usage.outputTokens);
+  }
   ProviderRegistry.recordAccountSuccess(account.id);
   RequestLog.record({
     requestId,
@@ -435,6 +451,8 @@ interface AccountAttemptParams {
     inputCostPer1M: number | null;
     outputCostPer1M: number | null;
   } | null;
+  /** Key to bill the resulting tokens to, or null when unauthenticated. */
+  apiKeyId: string | null;
 }
 
 /**
@@ -459,6 +477,7 @@ async function attemptAccount(
     rawBody,
     comboId,
     cost,
+    apiKeyId,
   } = params;
 
   const adapter = getAdapter(provider.transport);
@@ -512,6 +531,7 @@ async function attemptAccount(
             estimatedCost: estimatedCost(usage),
             requestBody: JSON.stringify(rawBody),
             responseBody: buildStreamResponseBody(collectedChunks),
+            apiKeyId,
           });
         },
       },
@@ -545,6 +565,7 @@ async function attemptAccount(
     estimatedCost: estimatedCost(response.usage),
     requestBody: JSON.stringify(rawBody),
     responseBody,
+    apiKeyId,
   });
 
   return {
@@ -567,6 +588,8 @@ async function handlePrefixRoute(
   tokenSaverEstimate: number,
   includeUsage: boolean,
   rawBody: unknown,
+  apiKeyId: string | null,
+  restrictions: ApiKeyScope.ApiKeyRestrictions,
 ): Promise<RouterResult> {
   // Find provider by prefix
   const provider = ProviderRegistry.getProviderByPrefix(providerPrefix);
@@ -581,6 +604,28 @@ async function handlePrefixRoute(
       sourceFormat,
       stream,
       message,
+    });
+  }
+
+  // The provider and model are both known up front here, so the key's scope
+  // resolves in one check rather than per failover hop.
+  const denial = ApiKeyScope.checkTarget(restrictions, {
+    providerId: provider.id,
+    providerName: provider.name,
+    providerPrefix: provider.prefix,
+    modelName,
+    comboId: null,
+  });
+  if (denial) {
+    return routingError({
+      requestId,
+      status: 403,
+      error: new Error(denial.message),
+      comboId: null,
+      modelName,
+      sourceFormat,
+      stream,
+      message: denial.message,
     });
   }
 
@@ -626,6 +671,7 @@ async function handlePrefixRoute(
         rawBody,
         comboId: null,
         cost: null,
+        apiKeyId,
       });
     } catch (err) {
       lastError = err;
@@ -668,6 +714,8 @@ async function handleComboRoute(
   tokenSaverEstimate: number,
   includeUsage: boolean,
   rawBody: unknown,
+  apiKeyId: string | null,
+  restrictions: ApiKeyScope.ApiKeyRestrictions,
 ): Promise<RouterResult> {
   const combo = ComboEngine.getCombo(comboName);
   if (!combo) {
@@ -684,7 +732,32 @@ async function handleComboRoute(
     });
   }
 
+  // The combo itself is checked once — it does not change across failover — so
+  // a key scoped away from this combo is refused before any member is tried.
+  if (
+    restrictions.allowedComboIds != null &&
+    !restrictions.allowedComboIds.includes(combo.id)
+  ) {
+    const message = `This API key is not allowed to use combo "${combo.name}"`;
+    return routingError({
+      requestId,
+      status: 403,
+      error: new Error(message),
+      comboId: combo.id,
+      modelName: comboName,
+      sourceFormat,
+      stream,
+      message,
+    });
+  }
+
   const excludedMemberIds: string[] = [];
+  /**
+   * Members skipped because the key may not reach their provider or model.
+   * Tracked separately from upstream failures so an all-denied chain can report
+   * a 403 rather than a misleading "members exhausted" 503.
+   */
+  let lastDenial: ApiKeyScope.Denial | null = null;
 
   while (true) {
     const member =
@@ -693,6 +766,21 @@ async function handleComboRoute(
         : ComboEngine.nextFallback(combo.id, excludedMemberIds);
 
     if (!member) {
+      // Every remaining member was ruled out by the key's scope rather than by
+      // an upstream failure, so this is a permissions answer, not capacity.
+      if (lastDenial) {
+        return routingError({
+          requestId,
+          status: 403,
+          error: new Error(lastDenial.message),
+          comboId: combo.id,
+          modelName: comboName,
+          sourceFormat,
+          stream,
+          message: lastDenial.message,
+        });
+      }
+
       const message = "All combo members exhausted";
       return routingError({
         requestId,
@@ -715,6 +803,23 @@ async function handleComboRoute(
       continue;
     }
 
+    // Re-checked on every hop: each member resolves to its own provider and
+    // model, so a single up-front check on the combo name would let a key reach
+    // targets it was never granted.
+    const denial = ApiKeyScope.checkTarget(restrictions, {
+      providerId: provider.id,
+      providerName: provider.name,
+      providerPrefix: provider.prefix,
+      modelName: member.modelName,
+      comboId: combo.id,
+      comboName: combo.name,
+    });
+    if (denial) {
+      lastDenial = denial;
+      excludedMemberIds.push(member.id);
+      continue;
+    }
+
     const startedAt = Date.now();
 
     try {
@@ -731,6 +836,7 @@ async function handleComboRoute(
         rawBody,
         comboId: combo.id,
         cost: member,
+        apiKeyId,
       });
     } catch (err) {
       excludedMemberIds.push(member.id);
@@ -833,6 +939,31 @@ export async function handleChatRequest(
   const { providerPrefix, modelName } = parseModel(input.targetSelector);
   const includeUsage = wantsUsageChunk(input.rawBody);
 
+  // 3b. Resolve the calling key's scope once. A request with no key (internal
+  // callers, connection tests) is unrestricted, as is a key with nothing
+  // configured — the behaviour every key had before scoping existed.
+  const apiKeyId = input.apiKeyId ?? null;
+  const restrictions = apiKeyId
+    ? (ApiKeyScope.getRestrictions(apiKeyId) ?? ApiKeyScope.UNRESTRICTED)
+    : ApiKeyScope.UNRESTRICTED;
+
+  // Tokens are only counted after a response completes, so a request that
+  // crosses the cap finishes and the next one is refused here.
+  if (apiKeyId && !ApiKeyScope.hasBudget(apiKeyId)) {
+    const message =
+      "This API key has reached its token limit. Raise the limit or reset its usage.";
+    return routingError({
+      requestId,
+      status: 429,
+      error: new Error(message),
+      comboId: null,
+      modelName: input.targetSelector,
+      sourceFormat: input.sourceFormat,
+      stream: input.stream,
+      message,
+    });
+  }
+
   // 4. Route based on prefix or combo
   if (providerPrefix) {
     return handlePrefixRoute(
@@ -845,6 +976,8 @@ export async function handleChatRequest(
       tokensSavedEstimate,
       includeUsage,
       input.rawBody,
+      apiKeyId,
+      restrictions,
     );
   }
 
@@ -857,5 +990,7 @@ export async function handleChatRequest(
     tokensSavedEstimate,
     includeUsage,
     input.rawBody,
+    apiKeyId,
+    restrictions,
   );
 }

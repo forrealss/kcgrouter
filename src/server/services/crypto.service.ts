@@ -59,6 +59,22 @@ export async function verifyApiKeyHash(
   return Bun.password.verify(key, hash);
 }
 
+/**
+ * Deterministic digest of an API key, used as the lookup index for auth.
+ *
+ * Unlike a password, an API key from generateApiKey() carries 256 bits of
+ * entropy, so there is no dictionary to attack and a deliberately slow KDF
+ * buys nothing. argon2id costs ~190ms per comparison even when it fails, which
+ * forced key auth to scan every row; a digest that can be indexed turns that
+ * into a single query.
+ *
+ * This is a lookup key, not a password hash — never use it for user-chosen
+ * secrets, where the missing salt and work factor would matter.
+ */
+export function sha256ApiKey(key: string): string {
+  return new Bun.CryptoHasher("sha256").update(key).digest("hex");
+}
+
 export function generateApiKey(): string {
   const bytes = randomBytes(32);
   return `kcg_${bytes.toString("hex")}`;

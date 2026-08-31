@@ -1,8 +1,44 @@
+import * as ApiKeyScope from "../services/api-key-scope.service";
 import * as EncryptionHealth from "../services/encryption-health.service";
 import * as SettingsService from "../services/settings.service";
 import { getSupportedFilters } from "../services/token-saver.service";
 import { getVersionInfo } from "../services/version.service";
 import type { RouteHandler } from "./types";
+
+/**
+ * Wire shape for a key's scope. Mirrors the snake_case the API key payloads
+ * already use, and distinguishes an absent field (leave alone) from an explicit
+ * null (clear the restriction).
+ */
+interface ApiKeyRestrictionsBody {
+  allowed_provider_ids?: string[] | null;
+  allowed_models?: string[] | null;
+  allowed_combo_ids?: string[] | null;
+  token_limit?: number | null;
+}
+
+/**
+ * Translate the wire body into a service update, copying only the keys the
+ * caller actually sent so a partial PATCH cannot blank the other lists.
+ */
+function parseRestrictionsBody(
+  body: ApiKeyRestrictionsBody,
+): ApiKeyScope.ApiKeyRestrictionsUpdate {
+  const update: ApiKeyScope.ApiKeyRestrictionsUpdate = {};
+  if ("allowed_provider_ids" in body) {
+    update.allowedProviderIds = body.allowed_provider_ids ?? null;
+  }
+  if ("allowed_models" in body) {
+    update.allowedModels = body.allowed_models ?? null;
+  }
+  if ("allowed_combo_ids" in body) {
+    update.allowedComboIds = body.allowed_combo_ids ?? null;
+  }
+  if ("token_limit" in body) {
+    update.tokenLimit = body.token_limit ?? null;
+  }
+  return update;
+}
 
 export const settingsRoutes: Record<string, RouteHandler> = {
   "GET /api/settings/version": async () => {
@@ -113,18 +149,53 @@ export const settingsRoutes: Record<string, RouteHandler> = {
   },
 
   "POST /api/settings/api-keys": async (req) => {
-    const body = (await req.json()) as { label?: string };
+    const body = (await req.json()) as {
+      label?: string;
+    } & ApiKeyRestrictionsBody;
     if (!body.label) {
       return Response.json({ error: "label is required" }, { status: 400 });
     }
 
     try {
-      const result = await SettingsService.createApiKey(body.label);
+      const result = await SettingsService.createApiKey(
+        body.label,
+        parseRestrictionsBody(body),
+      );
       return Response.json(result, { status: 201 });
     } catch (err) {
       return Response.json(
         { error: err instanceof Error ? err.message : "Failed" },
         { status: 400 },
+      );
+    }
+  },
+
+  "PATCH /api/settings/api-keys/:id": async (req, params) => {
+    const body = (await req.json()) as ApiKeyRestrictionsBody;
+    try {
+      const restrictions = ApiKeyScope.updateRestrictions(
+        params?.id ?? "",
+        parseRestrictionsBody(body),
+      );
+      return Response.json(restrictions);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed";
+      return Response.json(
+        { error: message },
+        { status: message === "API key not found" ? 404 : 400 },
+      );
+    }
+  },
+
+  "POST /api/settings/api-keys/:id/reset-usage": async (_req, params) => {
+    try {
+      ApiKeyScope.resetUsage(params?.id ?? "");
+      return Response.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed";
+      return Response.json(
+        { error: message },
+        { status: message === "API key not found" ? 404 : 400 },
       );
     }
   },

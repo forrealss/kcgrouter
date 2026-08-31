@@ -22,9 +22,30 @@ export interface ApiKeyRow {
   label: string;
   key_hash: string;
   key_enc: string | null;
+  /**
+   * SHA-256 of the plaintext key — the indexed fast path for auth.
+   *
+   * NULL only for keys created before migration 009, which have no `key_enc`
+   * to derive it from; those fall back to the argon2 `key_hash` comparison.
+   */
+  key_sha256: string | null;
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  /**
+   * Per-key scoping, each a JSON array of ids/names or NULL.
+   *
+   * NULL and `[]` mean different things: NULL is "unrestricted" (the behaviour
+   * every key had before these columns existed), `[]` is "allow nothing".
+   */
+  allowed_provider_ids: string | null;
+  allowed_models: string | null;
+  allowed_combo_ids: string | null;
+  /** Cumulative token cap; NULL = unlimited, mirroring provider_accounts. */
+  token_limit: number | null;
+  tokens_used: number;
+  request_count: number;
+  usage_reset_at: string | null;
 }
 
 export interface ProviderRow {

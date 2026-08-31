@@ -2,7 +2,6 @@ import { ArrowLeftIcon, ServerCrashIcon } from "lucide-react";
 import { ProviderDetailConnections } from "@/components/providers/ProviderDetailConnections";
 import { ProviderDetailHeader } from "@/components/providers/ProviderDetailHeader";
 import { ProviderDetailModels } from "@/components/providers/ProviderDetailModels";
-import { ProviderDetailRetry } from "@/components/providers/ProviderDetailRetry";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -44,6 +43,7 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     deletingAccountId,
     testingAccountId,
     accountTestStatus,
+    isReorderingAccounts,
     testingModelId,
     modelTestStatus,
     fetchingModels,
@@ -53,6 +53,8 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     handleDeleteAccount,
     handleAccountSaved,
     handleTestConnection,
+    handleToggleAccount,
+    handleReorderAccounts,
     handleToggleModel,
     handleAddModel,
     handleDeleteModel,
@@ -94,15 +96,9 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
             ))}
           </div>
         </Card>
-        <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
-          <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
-            <SectionSkeleton rows={2} />
-            <SectionSkeleton rows={4} />
-          </div>
-          <div className="min-w-0 xl:col-span-3">
-            <SectionSkeleton rows={6} />
-          </div>
-        </div>
+        {/* Mirrors the real layout: full-width connections, then models. */}
+        <SectionSkeleton rows={2} />
+        <SectionSkeleton rows={6} />
       </section>
     );
   }
@@ -137,45 +133,51 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
         accounts={accounts}
         models={models}
         lastError={getLatestAccountError(accounts)}
+        onSaveRetryConfig={handleSaveRetryConfig}
       />
-      <div className="grid min-w-0 gap-5 xl:grid-cols-5 xl:items-start">
-        <div className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-6 xl:col-span-2">
-          <ProviderDetailConnections
-            provider={provider}
-            accounts={accounts}
-            deletingAccountId={deletingAccountId}
-            testingAccountId={testingAccountId}
-            accountTestStatus={accountTestStatus}
-            onDeleteAccount={handleDeleteAccount}
-            onAccountSaved={handleAccountSaved}
-            onTestConnection={handleTestConnection}
-          />
-          <ProviderDetailRetry
-            provider={provider}
-            onSave={handleSaveRetryConfig}
-          />
-        </div>
-        <div className="min-w-0 xl:col-span-3">
-          <ProviderDetailModels
-            provider={provider}
-            models={models}
-            accounts={accounts}
-            testingModelId={testingModelId}
-            modelTestStatus={modelTestStatus}
-            onToggleModel={handleToggleModel}
-            onAddModel={handleAddModel}
-            onDeleteModel={handleDeleteModel}
-            onTestModel={handleTestModel}
-            onFetchModels={handleFetchModels}
-            fetchingModels={fetchingModels}
-            modelCandidates={modelCandidates}
-            fetchDialogOpen={fetchDialogOpen}
-            importingModels={importingModels}
-            onImportModels={handleImportModels}
-            onCloseFetchDialog={handleCloseFetchDialog}
-          />
-        </div>
-      </div>
+      {/*
+        Connections leads at full width. Its rows are the widest content on the
+        page — position controls, label, status, quota, last used, and three
+        actions — and the failover order they express is the first thing an
+        operator checks here.
+      */}
+      <ProviderDetailConnections
+        provider={provider}
+        accounts={accounts}
+        deletingAccountId={deletingAccountId}
+        testingAccountId={testingAccountId}
+        accountTestStatus={accountTestStatus}
+        isReorderingAccounts={isReorderingAccounts}
+        onDeleteAccount={handleDeleteAccount}
+        onAccountSaved={handleAccountSaved}
+        onTestConnection={handleTestConnection}
+        onToggleAccount={handleToggleAccount}
+        onReorderAccounts={handleReorderAccounts}
+      />
+
+      {/*
+        Models takes the full width. Retry Policy no longer has its own card —
+        its Configure button lives on the header's stat row instead — so
+        Models is the only thing left below Connections.
+      */}
+      <ProviderDetailModels
+        provider={provider}
+        models={models}
+        accounts={accounts}
+        testingModelId={testingModelId}
+        modelTestStatus={modelTestStatus}
+        onToggleModel={handleToggleModel}
+        onAddModel={handleAddModel}
+        onDeleteModel={handleDeleteModel}
+        onTestModel={handleTestModel}
+        onFetchModels={handleFetchModels}
+        fetchingModels={fetchingModels}
+        modelCandidates={modelCandidates}
+        fetchDialogOpen={fetchDialogOpen}
+        importingModels={importingModels}
+        onImportModels={handleImportModels}
+        onCloseFetchDialog={handleCloseFetchDialog}
+      />
     </section>
   );
 }

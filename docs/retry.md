@@ -7,8 +7,9 @@ Kode:
 - `src/server/providers/retry.ts` — retry per-request
 - `src/server/services/provider-registry.service.ts` — cooldown/backoff akun
 - `src/server/services/router.service.ts` — failover prefix & combo
-- `src/server/services/quota-tracker.service.ts` — `isAvailable` (cooldown-aware)
+- `src/server/services/quota-tracker.service.ts` — `isAvailable` (cooldown- & enabled-aware)
 - `src/db/migrations/015_add_account_cooldown.ts` — kolom `cooldown_until`, `backoff_level`
+- `src/db/migrations/021_add_account_enabled_and_order.ts` — kolom `enabled`, `sort_order`
 
 ---
 
@@ -234,8 +235,8 @@ recordAccountError(id, msg, kind)   // set status='error' + cooldown_until + bac
 recordAccountSuccess(id)            // reset status='active', cooldown, backoff, last_error
 ```
 
-Akun dianggap tersedia (`isAccountAvailable`) selama **status ≠ expired dan
-cooldown-nya sudah lewat** — sebuah akun ber-status `error` yang cooldown-nya
+Akun dianggap tersedia (`isAccountAvailable`) selama **enabled, status ≠ expired,
+dan cooldown-nya sudah lewat** — sebuah akun ber-status `error` yang cooldown-nya
 kedaluwarsa otomatis bisa dipakai lagi. Inilah jalur auto-recovery: **tidak ada
 cron, tidak ada job reaktivasi** — akun kembali berfungsi pada request berikutnya
 setelah cooldown habis.
@@ -251,7 +252,47 @@ semua state error.
   dipakai di `resolveTarget`, `nextFallback`, dan round-robin — jadi member yang
   cooldown tidak akan terpilih.
 - **Quota tracker** (`quota-tracker.service.ts`): `isAvailable` memeriksa
-  `cooldown_until` di samping batas kuota token.
+  flag `enabled` dan `cooldown_until` di samping batas kuota token.
+
+### 3.5 Disable manual vs cooldown otomatis
+
+Cooldown itu keputusan router; **disable itu keputusan operator**. Keduanya
+disimpan di kolom berbeda dan tidak boleh saling menimpa:
+
+| | Kolom | Siapa yang set | Berakhir kapan |
+|---|---|---|---|
+| Cooldown | `cooldown_until`, `status` | router, saat upstream gagal | otomatis, saat window habis |
+| Disable | `enabled` | operator, dari UI | hanya kalau dinyalakan lagi manual |
+
+Alasan `enabled` tidak ditumpangkan ke kolom `status`: `recordAccountSuccess`
+mereset `status` ke `'active'`, jadi satu request sukses akan menyalakan kembali
+koneksi yang sengaja dimatikan. Sebaliknya, menyalakan koneksi **tidak** ikut
+menghapus `last_error` atau cooldown — kalau iya, tombol itu jadi pintu belakang
+untuk mereset kegagalan upstream yang nyata.
+
+Cek `enabled` harus ada di **dua** tempat, karena kedua jalur routing memakai
+fungsi yang berbeda:
+
+- `ProviderRegistry.isAccountAvailable` — dipakai prefix route
+- `QuotaTracker.isAvailable` — satu-satunya yang dipakai resolusi combo
+
+Tanpa cek di `QuotaTracker.isAvailable`, koneksi yang di-disable tetap melayani
+traffic combo.
+
+### 3.6 Urutan failover
+
+`listAccounts` mengurutkan `sort_order ASC, created_at DESC`, dan
+`handlePrefixRoute` mencoba akun **sesuai urutan array itu** — jadi koneksi
+paling atas di UI adalah yang dipakai pertama. Urutannya diatur dari halaman
+provider — drag & drop, atau menu per-baris (Move up / Move down / Try first)
+sebagai jalur keyboard — lewat `PATCH /api/providers/:id/accounts/reorder`.
+
+Catatan: urutan ini hanya berlaku untuk **prefix route**. Combo punya urutannya
+sendiri lewat kolom `priority` per member, diatur di halaman Combos.
+
+Migrasi `021_add_account_enabled_and_order.ts` menambah `enabled` + `sort_order`
+dan mem-backfill urutan awal dari `created_at DESC`, supaya upgrade tidak
+mengubah koneksi mana yang melayani traffic pertama.
 
 ---
 
@@ -273,10 +314,15 @@ for (account of availableAccounts)
           lanjut ke akun berikutnya
 
 setelah loop:
-  tidak ada akun sama sekali → 404
-  semua akun sedang cooldown → 503
-  semua sudah dicoba & gagal → 502 (dengan pesan error terakhir)
+  tidak ada akun sama sekali    → 404
+  semua koneksi di-disable      → 503 ("all connections are disabled")
+  semua akun sedang cooldown    → 503 ("are cooling down")
+  semua sudah dicoba & gagal    → 502 (dengan pesan error terakhir)
 ```
+
+Pesan 503-nya dibedakan sengaja: melaporkan "cooling down" padahal koneksinya
+memang dimatikan operator akan mengirim orang mencari masalah upstream yang
+tidak ada.
 
 ### 4.2 Combo route — failover antar member
 
@@ -352,6 +398,8 @@ bun test src/server/services/__tests__/provider-registry.test.ts # cooldown + ba
 bun test src/server/services/__tests__/quota-tracker.test.ts     # isAvailable cooldown-aware
 bun test src/server/services/__tests__/request-log.test.ts       # getRetryStats aggregate + retries round-trip
 bun test src/server/routes/__tests__/v1.routes.test.ts           # failover 502→200, 503 semua cooldown
+bun test src/server/services/__tests__/account-order.test.ts        # enable/disable + reorder, disable tahan recordAccountSuccess
+bun test src/server/services/__tests__/account-routing-order.test.ts # end-to-end: koneksi teratas dipakai dulu, disable dilewati
 ```
 
 Skenario kunci: 502 berturut lalu 200 (failover berhasil), semua akun cooldown

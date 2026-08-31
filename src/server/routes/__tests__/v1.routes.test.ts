@@ -250,15 +250,16 @@ describe("POST /v1/chat/completions (prefix route failover)", () => {
 
   test("falls over to the next account when the first one fails", async () => {
     const provider = makeProvider("A");
-    // listAccounts returns newest first, so create the good account before the
-    // bad one — the bad account is then the first one the router tries.
-    ProviderRegistry.addAccount(provider.id, {
-      label: "good",
-      apiKey: "sk_good_key",
-    });
+    // Accounts are tried in their explicit sort_order, which addAccount appends
+    // to — so the first one created is the first the router tries. The bad
+    // account has to come first for this to exercise failover.
     const bad = ProviderRegistry.addAccount(provider.id, {
       label: "bad",
       apiKey: "sk_bad_key",
+    });
+    ProviderRegistry.addAccount(provider.id, {
+      label: "good",
+      apiKey: "sk_good_key",
     });
 
     const res = await postCompletions({

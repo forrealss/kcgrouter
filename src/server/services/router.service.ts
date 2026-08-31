@@ -639,9 +639,15 @@ async function handlePrefixRoute(
 
   if (availableAccounts.length === 0) {
     const noAccounts = accounts.length === 0;
+    // Distinguish "switched off" from "cooling down": reporting a cooldown when
+    // every connection is simply disabled sends the operator hunting for an
+    // upstream fault that does not exist.
+    const allDisabled = !noAccounts && accounts.every((a) => !a.enabled);
     const message = noAccounts
       ? `No accounts found for provider "${provider.name}"`
-      : `All accounts for provider "${provider.name}" are cooling down`;
+      : allDisabled
+        ? `All connections for provider "${provider.name}" are disabled`
+        : `All accounts for provider "${provider.name}" are cooling down`;
     return routingError({
       requestId,
       status: noAccounts ? 404 : 503,

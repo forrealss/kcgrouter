@@ -3,6 +3,7 @@ import {
   CircleSlashIcon,
   type LucideIcon,
   PlugZapIcon,
+  PowerOffIcon,
   TimerIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -62,8 +63,17 @@ export const providerHealthMeta: Record<ProviderHealth, StatusMeta> = {
   },
 };
 
-/** Per-connection status, including the synthetic "cooldown" state. */
-export type AccountStatusKey = "active" | "error" | "expired" | "cooldown";
+/**
+ * Per-connection status, including the synthetic "cooldown" and "disabled"
+ * states. Neither is a value of the stored `status` column: cooldown is derived
+ * from `cooldownUntil`, and disabled from the separate `enabled` flag.
+ */
+export type AccountStatusKey =
+  | "active"
+  | "error"
+  | "expired"
+  | "cooldown"
+  | "disabled";
 
 export const accountStatusMeta: Record<AccountStatusKey, StatusMeta> = {
   active: {
@@ -71,6 +81,12 @@ export const accountStatusMeta: Record<AccountStatusKey, StatusMeta> = {
     dot: "bg-success shadow-[0_0_6px] shadow-success/70",
     text: "text-success",
     icon: CheckCircle2Icon,
+  },
+  disabled: {
+    label: "Disabled",
+    dot: "bg-muted-foreground/40",
+    text: "text-muted-foreground",
+    icon: PowerOffIcon,
   },
   error: {
     label: "Failing",
@@ -96,12 +112,20 @@ export function resolveProviderHealth(
   accounts: ProviderAccount[],
 ): ProviderHealth {
   if (accounts.length === 0) return "unconfigured";
-  const hasActive = accounts.some((account) => account.status === "active");
-  const hasError = accounts.some((account) => account.status === "error");
+
+  // A disabled connection serves no traffic, so it cannot make the provider
+  // look online. Judge health on the ones actually in rotation, and report a
+  // provider whose every connection is switched off as unconfigured rather
+  // than healthy.
+  const inRotation = accounts.filter((account) => account.enabled);
+  if (inRotation.length === 0) return "unconfigured";
+
+  const hasActive = inRotation.some((account) => account.status === "active");
+  const hasError = inRotation.some((account) => account.status === "error");
   if (hasActive && hasError) return "degraded";
   if (hasError) return "error";
   if (hasActive) return "online";
-  if (accounts.every((account) => account.status === "expired")) {
+  if (inRotation.every((account) => account.status === "expired")) {
     return "expired";
   }
   return "unconfigured";
@@ -117,6 +141,10 @@ export function cooldownRemainingSeconds(cooldownUntil: string | null): number {
 export function resolveAccountStatus(
   account: ProviderAccount,
 ): AccountStatusKey {
+  // Disabled outranks everything else: it is the reason the connection is out
+  // of rotation, and showing "Cooling down" for a switched-off connection would
+  // suggest it is about to come back on its own.
+  if (!account.enabled) return "disabled";
   return cooldownRemainingSeconds(account.cooldownUntil) > 0
     ? "cooldown"
     : account.status;

@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
-import { get, query, run } from "../../db/client";
+import { get, getDb, query, run } from "../../db/client";
 import type {
   AccountStatus,
   ProviderAccountRow,
@@ -33,6 +33,8 @@ export interface NewAccountInput {
   label: string;
   apiKey: string;
   quotaLimitTokens?: number | null;
+  /** Operator's on/off switch; omitted on a patch leaves it unchanged. */
+  enabled?: boolean;
 }
 
 export interface Provider {
@@ -53,6 +55,14 @@ export interface ProviderAccount {
   providerId: string;
   label: string;
   status: AccountStatus;
+  /**
+   * Operator's on/off switch. Kept apart from `status` because that field is
+   * owned by the error-recovery cycle and reset to 'active' on the next
+   * success — which would silently undo a manual disable.
+   */
+  enabled: boolean;
+  /** Failover position within the provider, lowest first. */
+  sortOrder: number;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
   lastError: string | null;
@@ -120,11 +130,13 @@ export function isAccountCoolingDown(account: ProviderAccount): boolean {
 }
 
 /**
- * Whether an account can serve a request right now: not permanently expired
- * and not inside a cooldown window. An `error`-status account whose cooldown
- * expired is usable again — this is the auto-recovery path.
+ * Whether an account can serve a request right now: switched on, not
+ * permanently expired, and not inside a cooldown window. An `error`-status
+ * account whose cooldown expired is usable again — this is the auto-recovery
+ * path. A disabled account is never usable, however healthy it looks.
  */
 export function isAccountAvailable(account: ProviderAccount): boolean {
+  if (!account.enabled) return false;
   if (account.status === "expired") return false;
   return !isAccountCoolingDown(account);
 }
@@ -182,6 +194,10 @@ function rowToAccount(row: ProviderAccountRow): ProviderAccount {
     providerId: row.provider_id,
     label: row.label,
     status: row.status,
+    // Default to enabled: rows written before migration 021 have no value, and
+    // the pre-existing behaviour was that every connection served traffic.
+    enabled: (row.enabled ?? 1) !== 0,
+    sortOrder: row.sort_order ?? 0,
     quotaLimitTokens: row.quota_limit_tokens,
     lastUsedAt: row.last_used_at,
     lastError: row.last_error,
@@ -397,12 +413,21 @@ export function addAccount(
   const credentialEnc = encrypt(input.apiKey);
   const now = new Date().toISOString();
 
+  // Append to the end of the provider's failover order, so adding a connection
+  // never displaces the one currently serving traffic first.
+  const tail = get<{ next: number }>(
+    "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next FROM provider_accounts WHERE provider_id = ?",
+    providerId,
+  );
+  const sortOrder = tail?.next ?? 0;
+
   run(
-    `INSERT INTO provider_accounts (id, provider_id, label, status, credential_enc, quota_limit_tokens, created_at)
-     VALUES (?, ?, ?, 'active', ?, ?, ?)`,
+    `INSERT INTO provider_accounts (id, provider_id, label, status, enabled, sort_order, credential_enc, quota_limit_tokens, created_at)
+     VALUES (?, ?, ?, 'active', 1, ?, ?, ?, ?)`,
     id,
     providerId,
     input.label.trim(),
+    sortOrder,
     credentialEnc,
     input.quotaLimitTokens ?? null,
     now,
@@ -418,6 +443,8 @@ export function addAccount(
     providerId,
     label: input.label.trim(),
     status: "active",
+    enabled: true,
+    sortOrder,
     quotaLimitTokens: input.quotaLimitTokens ?? null,
     lastUsedAt: null,
     lastError: null,
@@ -469,6 +496,14 @@ export function updateAccount(
     values.push(patch.quotaLimitTokens ?? null);
   }
 
+  // Only the flag moves. Re-enabling deliberately leaves `status`, `last_error`
+  // and any cooldown untouched: switching a connection back on should not be a
+  // backdoor way to clear a real upstream failure.
+  if (patch.enabled !== undefined) {
+    updates.push("enabled = ?");
+    values.push(patch.enabled ? 1 : 0);
+  }
+
   if (updates.length > 0) {
     values.push(accountId);
     run(
@@ -487,12 +522,83 @@ export function updateAccount(
 
 export function removeAccount(accountId: string): void {
   const existing = get<ProviderAccountRow>(
-    "SELECT id FROM provider_accounts WHERE id = ?",
+    "SELECT id, provider_id FROM provider_accounts WHERE id = ?",
     accountId,
   );
   if (!existing) throw new Error("Provider account not found");
 
-  run("DELETE FROM provider_accounts WHERE id = ?", accountId);
+  // Delete and re-close the gap in one transaction, so the remaining rows keep
+  // a dense 0..n-1 order and a concurrent read never sees a hole.
+  getDb().transaction(() => {
+    run("DELETE FROM provider_accounts WHERE id = ?", accountId);
+
+    const remaining = query<{ id: string }>(
+      "SELECT id FROM provider_accounts WHERE provider_id = ? ORDER BY sort_order ASC, created_at DESC",
+      existing.provider_id,
+    );
+    remaining.forEach((row, index) => {
+      run(
+        "UPDATE provider_accounts SET sort_order = ? WHERE id = ?",
+        index,
+        row.id,
+      );
+    });
+  })();
+}
+
+/**
+ * Set the provider's failover order from an explicit list of account ids.
+ *
+ * Index becomes `sort_order`, so the first id is what `handlePrefixRoute` tries
+ * first. Ids are scoped to the provider in the WHERE clause, so an id belonging
+ * to another provider cannot be smuggled in to reshuffle it.
+ *
+ * Wrapped in a transaction: a partial application would leave two connections
+ * claiming the same position, making the failover order ambiguous.
+ */
+export function reorderAccounts(
+  providerId: string,
+  orderedAccountIds: string[],
+): void {
+  const provider = getProvider(providerId);
+  if (!provider) throw new Error("Provider not found");
+
+  const known = new Set(
+    query<{ id: string }>(
+      "SELECT id FROM provider_accounts WHERE provider_id = ?",
+      providerId,
+    ).map((row) => row.id),
+  );
+
+  const unknown = orderedAccountIds.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw new Error(
+      `These accounts do not belong to this provider: ${unknown.join(", ")}`,
+    );
+  }
+
+  // A partial list would leave the omitted rows sharing positions with the
+  // reordered ones, so require the full set rather than silently half-applying.
+  if (orderedAccountIds.length !== known.size) {
+    throw new Error(
+      `Expected all ${known.size} account ids, received ${orderedAccountIds.length}`,
+    );
+  }
+
+  if (new Set(orderedAccountIds).size !== orderedAccountIds.length) {
+    throw new Error("Duplicate account ids in the requested order");
+  }
+
+  getDb().transaction(() => {
+    orderedAccountIds.forEach((id, index) => {
+      run(
+        "UPDATE provider_accounts SET sort_order = ? WHERE id = ? AND provider_id = ?",
+        index,
+        id,
+        providerId,
+      );
+    });
+  })();
 }
 
 export function getAccount(accountId: string): ProviderAccount | null {
@@ -504,9 +610,16 @@ export function getAccount(accountId: string): ProviderAccount | null {
   return rowToAccount(row);
 }
 
+/**
+ * The provider's connections in failover order — index 0 is tried first.
+ *
+ * `handlePrefixRoute` walks this array in order, so the sort is what makes the
+ * topmost connection the one that serves traffic first. `created_at DESC` stays
+ * as the tiebreaker to keep the result deterministic when positions collide.
+ */
 export function listAccounts(providerId: string): ProviderAccount[] {
   const rows = query<ProviderAccountRow>(
-    "SELECT * FROM provider_accounts WHERE provider_id = ? ORDER BY created_at DESC",
+    "SELECT * FROM provider_accounts WHERE provider_id = ? ORDER BY sort_order ASC, created_at DESC",
     providerId,
   );
   return rows.map(rowToAccount);

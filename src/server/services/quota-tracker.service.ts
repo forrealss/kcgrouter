@@ -27,15 +27,22 @@ export function getState(accountId: string): QuotaState {
 export function isAvailable(accountId: string): boolean {
   const state = getState(accountId);
 
-  // Get quota_limit_tokens + error cooldown from provider_accounts
+  // Get the enabled flag, quota_limit_tokens + error cooldown from provider_accounts
   const row = get<{
+    enabled: number | null;
     quota_limit_tokens: number | null;
     cooldown_until: string | null;
   }>(
-    "SELECT quota_limit_tokens, cooldown_until FROM provider_accounts WHERE id = ?",
+    "SELECT enabled, quota_limit_tokens, cooldown_until FROM provider_accounts WHERE id = ?",
     accountId,
   );
   if (!row) return false;
+
+  // Switched off by the operator. Checked here rather than only in
+  // ProviderRegistry.isAccountAvailable because combo resolution consults this
+  // function alone — without it a disabled connection would still serve combo
+  // traffic. Null-tolerant for rows written before migration 021.
+  if ((row.enabled ?? 1) === 0) return false;
 
   // Account is cooling down after an upstream error — skip it.
   if (

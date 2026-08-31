@@ -65,6 +65,15 @@ export interface ProviderAccountRow {
   provider_id: string;
   label: string;
   status: "active" | "error" | "expired";
+  /**
+   * Operator's manual on/off switch (1 = enabled).
+   *
+   * Deliberately separate from `status`, which the error-recovery cycle owns
+   * and resets to 'active' on the next success.
+   */
+  enabled: number;
+  /** Failover position within the provider, lowest first. */
+  sort_order: number;
   credential_enc: string;
   quota_limit_tokens: number | null;
   last_used_at: string | null;

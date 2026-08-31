@@ -37,6 +37,15 @@ export interface ProviderAccount {
   providerId: string;
   label: string;
   status: AccountStatus;
+  /**
+   * Whether the operator has this connection switched on.
+   *
+   * Independent of `status`: a disabled connection is skipped for routing no
+   * matter how healthy it looks, and re-enabling it does not clear an error.
+   */
+  enabled: boolean;
+  /** Failover position within the provider — index 0 is tried first. */
+  sortOrder: number;
   quotaLimitTokens: number | null;
   lastUsedAt: string | null;
   lastError: string | null;

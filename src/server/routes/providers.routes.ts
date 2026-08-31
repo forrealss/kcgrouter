@@ -242,13 +242,24 @@ export const providersRoutes: Record<string, RouteHandler> = {
       label?: string;
       apiKey?: string;
       quotaLimitTokens?: number | null;
+      enabled?: boolean;
     };
     try {
       const account = ProviderRegistry.updateAccount(params?.id ?? "", {
         label: body.label,
         apiKey: body.apiKey,
         quotaLimitTokens: body.quotaLimitTokens,
+        enabled: body.enabled,
       });
+      // Enabling or disabling changes whether the connection serves traffic, so
+      // it is worth a specific log line rather than a generic "updated".
+      const message =
+        body.enabled !== undefined &&
+        body.label === undefined &&
+        body.apiKey === undefined &&
+        body.quotaLimitTokens === undefined
+          ? `Account "${account.label}" ${body.enabled ? "enabled" : "disabled"}`
+          : `Account "${account.label}" updated`;
       RequestLog.record({
         type: "admin",
         source: "admin",
@@ -257,10 +268,45 @@ export const providersRoutes: Record<string, RouteHandler> = {
         model: null,
         sourceFormat: null,
         stream: false,
-        message: `Account "${account.label}" updated`,
+        message,
         latencyMs: null,
       });
       return Response.json(account);
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Failed" },
+        { status: 400 },
+      );
+    }
+  },
+
+  "PATCH /api/providers/:id/accounts/reorder": async (req, params) => {
+    const body = (await req.json()) as { orderedAccountIds?: string[] };
+    if (!Array.isArray(body.orderedAccountIds)) {
+      return Response.json(
+        { error: "orderedAccountIds is required" },
+        { status: 400 },
+      );
+    }
+
+    const providerId = params?.id ?? "";
+    try {
+      ProviderRegistry.reorderAccounts(providerId, body.orderedAccountIds);
+      const provider = ProviderRegistry.getProvider(providerId);
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: null,
+        sourceFormat: null,
+        stream: false,
+        message: provider
+          ? `Connection order of provider "${provider.name}" changed`
+          : "Provider connections reordered",
+        latencyMs: null,
+      });
+      return Response.json({ ok: true });
     } catch (err) {
       return Response.json(
         { error: err instanceof Error ? err.message : "Failed" },

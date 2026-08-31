@@ -29,6 +29,7 @@ export function useProviderDetail(providerId: string) {
   const [accountTestStatus, setAccountTestStatus] = useState<
     Record<string, TestStatusValue>
   >({});
+  const [isReorderingAccounts, setIsReorderingAccounts] = useState(false);
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
   const [modelTestStatus, setModelTestStatus] = useState<
     Record<string, TestStatusValue>
@@ -76,11 +77,64 @@ export function useProviderDetail(providerId: string) {
       await apiClient.delete(
         `/api/providers/accounts/${encodeURIComponent(account.id)}`,
       );
-      setAccounts((prev) => prev.filter((a) => a.id !== account.id));
-    } catch {
-      // ignore
+      // Refetch rather than filtering locally: deleting compacts the failover
+      // order server-side, so the remaining rows' sortOrder has changed.
+      await loadData();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
     } finally {
       setDeletingAccountId(null);
+    }
+  }
+
+  /**
+   * Flip a connection's enabled flag, mirroring handleToggleModel: optimistic
+   * update, reconcile from the response, roll back and surface the error.
+   */
+  async function handleToggleAccount(account: ProviderAccount) {
+    const optimistic = !account.enabled;
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === account.id ? { ...a, enabled: optimistic } : a,
+      ),
+    );
+    try {
+      const updated = await apiClient.patch<ProviderAccount>(
+        `/api/providers/accounts/${encodeURIComponent(account.id)}`,
+        { enabled: optimistic },
+      );
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? updated : a)),
+      );
+    } catch (err) {
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === account.id ? { ...a, enabled: account.enabled } : a,
+        ),
+      );
+      toast.error(getApiErrorMessage(err));
+    }
+  }
+
+  /**
+   * Persist a new failover order. The caller passes the already-reordered list
+   * so the UI can render the drop immediately; on failure the server order is
+   * refetched rather than guessed at.
+   */
+  async function handleReorderAccounts(ordered: ProviderAccount[]) {
+    const previous = accounts;
+    setAccounts(ordered);
+    setIsReorderingAccounts(true);
+    try {
+      await apiClient.patch<{ ok: true }>(
+        `/api/providers/${encodeURIComponent(providerId)}/accounts/reorder`,
+        { orderedAccountIds: ordered.map((a) => a.id) },
+      );
+    } catch (err) {
+      setAccounts(previous);
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setIsReorderingAccounts(false);
     }
   }
 
@@ -331,6 +385,7 @@ export function useProviderDetail(providerId: string) {
     deletingAccountId,
     testingAccountId,
     accountTestStatus,
+    isReorderingAccounts,
     testingModelId,
     modelTestStatus,
     fetchingModels,
@@ -340,6 +395,8 @@ export function useProviderDetail(providerId: string) {
     handleDeleteAccount,
     handleAccountSaved,
     handleTestConnection,
+    handleToggleAccount,
+    handleReorderAccounts,
     handleToggleModel,
     handleAddModel,
     handleDeleteModel,

@@ -3,7 +3,10 @@ import {
   KeyRoundIcon,
   LayersIcon,
   RotateCcwIcon,
+  Settings2Icon,
 } from "lucide-react";
+import { useState } from "react";
+import { RetryConfigDialog } from "@/components/providers/RetryConfigDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +24,7 @@ import type {
   Provider,
   ProviderAccount,
   ProviderModel,
+  RetryConfig,
 } from "@/types/provider";
 
 interface ProviderDetailHeaderProps {
@@ -28,6 +32,7 @@ interface ProviderDetailHeaderProps {
   accounts: ProviderAccount[];
   models: ProviderModel[];
   lastError?: AccountErrorSummary | null;
+  onSaveRetryConfig: (config: RetryConfig | null) => Promise<boolean>;
 }
 
 type StatTone = "default" | "ok" | "warn";
@@ -38,19 +43,26 @@ function StatCell({
   value,
   hint,
   tone = "default",
+  action,
 }: {
   icon: typeof KeyRoundIcon;
   label: string;
   value: string;
   hint: string;
   tone?: StatTone;
+  /**
+   * Slot for a cell that is also a settings entry point (Retry policy's
+   * Configure button) rather than a pure readout. Optional so the other two
+   * cells, which have nowhere to send a click, stay exactly as before.
+   */
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-3 bg-card px-5 py-3">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40 text-muted-foreground">
         <Icon className="size-4" />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
@@ -67,6 +79,7 @@ function StatCell({
           <span className="truncate text-xs text-muted-foreground">{hint}</span>
         </p>
       </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -76,12 +89,14 @@ export function ProviderDetailHeader({
   accounts,
   models,
   lastError,
+  onSaveRetryConfig,
 }: ProviderDetailHeaderProps) {
   const { navigate } = useRouter();
   const meta = transportMeta[provider.transport];
   const isDark = useDarkMode();
   const health = providerHealthMeta[resolveProviderHealth(accounts)];
   const HealthIcon = health.icon;
+  const [isRetryDialogOpen, setIsRetryDialogOpen] = useState(false);
 
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
   const enabledModels = models.filter((m) => m.enabled).length;
@@ -191,6 +206,21 @@ export function ProviderDetailHeader({
             label="Retry policy"
             value={retryOverrides > 0 ? String(retryOverrides) : "0"}
             hint={retryOverrides > 0 ? "custom rules" : "using defaults"}
+            action={
+              // Icon-only until the cell has room for a label: at the sm
+              // breakpoint this is one of three ~200px cells, too narrow for
+              // "0 using defaults" plus a labelled button on one line.
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setIsRetryDialogOpen(true)}
+                aria-label="Configure retry policy"
+              >
+                <Settings2Icon />
+                <span className="hidden lg:inline">Configure</span>
+              </Button>
+            }
           />
         </div>
 
@@ -221,6 +251,16 @@ export function ProviderDetailHeader({
           </div>
         ) : null}
       </Card>
+
+      {isRetryDialogOpen ? (
+        <RetryConfigDialog
+          open
+          onOpenChange={setIsRetryDialogOpen}
+          providerName={provider.name}
+          config={provider.retryConfig}
+          onSave={onSaveRetryConfig}
+        />
+      ) : null}
     </div>
   );
 }

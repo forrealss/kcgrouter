@@ -10,11 +10,23 @@ import {
   HashIcon,
   type LucideIcon,
   SlidersHorizontalIcon,
+  Trash2Icon,
   XIcon,
   ZapIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +210,7 @@ export function UsageTable({
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [payloadLoading, setPayloadLoading] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
   /** Models seen in loaded rows, so the picker offers real values to match. */
   const [knownModels, setKnownModels] = useState<string[]>([]);
 
@@ -267,6 +280,23 @@ export function UsageTable({
 
   function handleClearFilters() {
     setFilters(initialFilters);
+  }
+
+  /**
+   * Wipes the whole usage_records table server-side — the request/response
+   * payload columns are what actually balloons the sqlite file, so this is
+   * the counterpart to the logs page's "Clear logs" for usage history.
+   */
+  async function handleClearHistory() {
+    setIsClearingHistory(true);
+    try {
+      await apiClient.delete("/api/usage/history");
+      setRecords([]);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
+    } finally {
+      setIsClearingHistory(false);
+    }
   }
 
   /**
@@ -357,18 +387,62 @@ export function UsageTable({
 
   return (
     <Card className="gap-0 !py-0 overflow-hidden">
-      <CardHeader className="gap-1 border-b border-border/60 bg-muted/20 px-4 py-3.5 sm:px-5">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium">
-          Request history
-          {hasActiveFilters ? (
-            <Badge variant="secondary" className="text-[10px]">
-              filtered
-            </Badge>
-          ) : null}
-        </CardTitle>
-        <CardDescription className="text-xs">
-          The 50 most recent requests. Click a row to inspect its payload.
-        </CardDescription>
+      <CardHeader className="flex flex-col items-start gap-3 border-b border-border/60 bg-muted/20 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            Request history
+            {hasActiveFilters ? (
+              <Badge variant="secondary" className="text-[10px]">
+                filtered
+              </Badge>
+            ) : null}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            The 50 most recent requests. Click a row to inspect its payload.
+          </CardDescription>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isClearingHistory || records.length === 0}
+              className="w-fit shrink-0 self-start text-muted-foreground hover:border-destructive/40 hover:text-destructive sm:self-auto"
+            >
+              {isClearingHistory ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Trash2Icon data-icon="inline-start" />
+              )}
+              Clear history
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear all usage history?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Every stored request record, including its payloads, will be
+                permanently deleted. This is what shrinks the sqlite file — the
+                summary metrics and graph above will reset too. This does not
+                affect the request/response logs.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => void handleClearHistory()}
+                disabled={isClearingHistory}
+              >
+                {isClearingHistory ? (
+                  <Spinner data-icon="inline-start" />
+                ) : null}
+                Clear history
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-0 px-0 py-0">

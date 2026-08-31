@@ -78,6 +78,15 @@ function rowToRecord(
   };
 }
 
+/**
+ * Wipe every usage record. The request/response payload columns are the main
+ * driver of the sqlite file bloating to multi-GB sizes over time, so this is
+ * the counterpart to RequestLog.clearAll() for the usage history table.
+ */
+export function clearAll(): void {
+  run("DELETE FROM usage_records");
+}
+
 export function record(entry: UsageRecordEntry): void {
   const id = `ur_${randomBytes(12).toString("hex")}`;
   const now = new Date().toISOString();

@@ -104,4 +104,9 @@ export const usageRoutes: Record<string, RouteHandler> = {
     const payloads = UsageRecorder.getPayloads(id);
     return Response.json(payloads ?? { requestBody: null, responseBody: null });
   },
+
+  "DELETE /api/usage/history": () => {
+    UsageRecorder.clearAll();
+    return Response.json({ ok: true });
+  },
 };

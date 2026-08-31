@@ -6,6 +6,10 @@ import type {
   TokenSaverStatsRow,
 } from "../../db/schema";
 import {
+  DEFAULT_PASSWORD,
+  MIN_PASSWORD_LENGTH,
+} from "../../lib/password-strength";
+import {
   decrypt,
   encrypt,
   generateApiKey,
@@ -21,6 +25,47 @@ function getSettings(): AppSettingsRow {
   return row;
 }
 
+/**
+ * Re-exported so callers can keep importing it from the service. The value
+ * lives in lib/password-strength.ts because the dialog's strength meter needs
+ * the same number — a second copy here would be free to drift out of sync.
+ */
+export { MIN_PASSWORD_LENGTH };
+
+/**
+ * Whether the dashboard is still protected by the seeded default password.
+ *
+ * Derived by verifying the stored hash against DEFAULT_PASSWORD rather than
+ * from a persisted flag, so existing installs report correctly without a
+ * migration and the answer can never drift out of sync with reality.
+ */
+export async function isUsingDefaultPassword(): Promise<boolean> {
+  const settings = getSettings();
+  return verifyPassword(DEFAULT_PASSWORD, settings.password_hash);
+}
+
+/**
+ * Reject passwords that are too short or equal to the seeded default.
+ *
+ * Enforced here (not just in the UI) because the forced-change dialog is a
+ * client-side prompt — the server is what actually has to hold the line.
+ */
+function assertPasswordAcceptable(password: string): void {
+  // Checked before the length rule: the default ("admin") is shorter than the
+  // minimum, so the generic length error would otherwise mask the far more
+  // useful "don't reuse the default" message.
+  if (password === DEFAULT_PASSWORD) {
+    throw new Error(
+      "New password cannot be the default password. Choose a different one.",
+    );
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    );
+  }
+}
+
 export async function changePassword(
   currentPassword: string,
   newPassword: string,
@@ -28,6 +73,8 @@ export async function changePassword(
   const settings = getSettings();
   const valid = await verifyPassword(currentPassword, settings.password_hash);
   if (!valid) throw new Error("Current password is incorrect");
+
+  assertPasswordAcceptable(newPassword);
 
   const newHash = await hashPassword(newPassword);
   run(

@@ -3,19 +3,32 @@ import {
   login,
   setSessionCookieHeaders,
 } from "../services/session.service";
-import { changePassword } from "../services/settings.service";
+import {
+  changePassword,
+  isUsingDefaultPassword,
+} from "../services/settings.service";
 import type { RouteHandler } from "./types";
 
 export const authRoutes: Record<string, RouteHandler> = {
-  "GET /api/auth/session": () => {
+  "GET /api/auth/session": async () => {
     // Reached only with a valid session cookie — the /api/* middleware
     // short-circuits with 401 before this handler otherwise. Used by the
     // frontend to distinguish authenticated vs unauthenticated, now that the
     // theme endpoint is public.
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    //
+    // `mustChangePassword` drives the forced-change dialog: while it is true
+    // the server also rejects every other /api/* route, so the client has no
+    // useful state to render until the password is rotated.
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        mustChangePassword: await isUsingDefaultPassword(),
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   },
 
   "POST /api/auth/login": async (req) => {
@@ -74,8 +87,12 @@ export const authRoutes: Record<string, RouteHandler> = {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
+      // A wrong current password is an auth failure (401); a rejected *new*
+      // password is a validation failure (400). Reporting both as 401 made the
+      // client treat "too short" as "wrong credentials".
+      const status = message === "Current password is incorrect" ? 401 : 400;
       return new Response(JSON.stringify({ error: message }), {
-        status: 401,
+        status,
         headers: { "Content-Type": "application/json" },
       });
     }

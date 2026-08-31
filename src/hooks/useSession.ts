@@ -14,11 +14,13 @@ export type SessionStatus =
 
 type LoginResponse = { ok: true };
 type ThemeResponse = { theme: Theme };
+type SessionResponse = { ok: true; mustChangePassword?: boolean };
 
 export function useSession() {
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeResponse["theme"] | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     if (!theme) return;
@@ -44,7 +46,8 @@ export function useSession() {
     }
 
     try {
-      await apiClient.get<{ ok: true }>("/api/auth/session");
+      const session = await apiClient.get<SessionResponse>("/api/auth/session");
+      setMustChangePassword(session.mustChangePassword === true);
       setStatus("authenticated");
     } catch (requestError) {
       if (
@@ -75,8 +78,17 @@ export function useSession() {
   const logout = useCallback(async () => {
     await apiClient.post<LoginResponse>("/api/auth/logout");
     setError(null);
+    setMustChangePassword(false);
     setStatus("unauthenticated");
   }, []);
 
-  return { status, error, theme, login, logout, refresh };
+  return {
+    status,
+    error,
+    theme,
+    mustChangePassword,
+    login,
+    logout,
+    refresh,
+  };
 }

@@ -29,14 +29,21 @@ export const usageRoutes: Record<string, RouteHandler> = {
       ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 500)
       : 50;
 
+    // Assign inside the guard so the type predicate actually narrows: testing
+    // `rawSort && !isHistorySort(rawSort)` and then passing `rawSort` along
+    // leaves it as a plain string as far as the compiler is concerned.
     const rawSort = url.searchParams.get("sort");
-    if (rawSort && !UsageRecorder.isHistorySort(rawSort)) {
-      return Response.json(
-        {
-          error: `Invalid sort. Must be one of: ${UsageRecorder.HISTORY_SORT_KEYS.join(", ")}`,
-        },
-        { status: 400 },
-      );
+    let sort: UsageRecorder.HistorySort | undefined;
+    if (rawSort !== null) {
+      if (!UsageRecorder.isHistorySort(rawSort)) {
+        return Response.json(
+          {
+            error: `Invalid sort. Must be one of: ${UsageRecorder.HISTORY_SORT_KEYS.join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
+      sort = rawSort;
     }
 
     const history = UsageRecorder.getHistory({
@@ -45,7 +52,7 @@ export const usageRoutes: Record<string, RouteHandler> = {
       fromDate,
       toDate,
       limit,
-      sort: rawSort ?? undefined,
+      sort,
     });
     return Response.json(history);
   },

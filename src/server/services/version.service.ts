@@ -67,8 +67,12 @@ function comparePrerelease(
   if (b.length === 0) return -1;
 
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    // Indexing below the shared length always yields an element, but
+    // noUncheckedIndexedAccess widens it to `| undefined`. Skipping the
+    // (unreachable) undefined case keeps the comparison total without a cast.
     const x = a[i];
     const y = b[i];
+    if (x === undefined || y === undefined) continue;
     if (x === y) continue;
     if (typeof x === "number" && typeof y === "number") return x < y ? -1 : 1;
     if (typeof x === "number") return -1;

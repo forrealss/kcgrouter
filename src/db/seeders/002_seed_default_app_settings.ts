@@ -1,6 +1,7 @@
+import { DEFAULT_PASSWORD } from "../../lib/password-strength";
 import { get, getDb } from "../client";
 
-export const DEFAULT_PASSWORD = "admin";
+export { DEFAULT_PASSWORD };
 
 export function seed(): void {
   const existing = get<{ id: number }>(

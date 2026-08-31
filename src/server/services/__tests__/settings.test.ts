@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
+import { DEFAULT_PASSWORD } from "../../../db/seeders/002_seed_default_app_settings";
 import { hashPassword } from "../crypto.service";
 import {
   changePassword,
@@ -9,7 +10,9 @@ import {
   getTheme,
   getTokenSaverDefault,
   getTokenSaverStats,
+  isUsingDefaultPassword,
   listApiKeys,
+  MIN_PASSWORD_LENGTH,
   recordTokenSaverSavings,
   revokeApiKey,
   setPasswordHash,
@@ -122,9 +125,12 @@ describe("SettingsService", () => {
     });
 
     test("Property 42b: fails with wrong current password", async () => {
-      await expect(changePassword("wrong-password", "new-pw")).rejects.toThrow(
-        "Current password is incorrect",
-      );
+      // The candidate password is deliberately long enough to pass the
+      // strength check, so this asserts the credential check and not the
+      // length rule.
+      await expect(
+        changePassword("wrong-password", "valid-new-password"),
+      ).rejects.toThrow("Current password is incorrect");
     });
 
     test("Property 42c: password actually changes after successful call", async () => {
@@ -132,10 +138,55 @@ describe("SettingsService", () => {
       await changePassword(INITIAL_PW, newPw);
 
       // Old password should no longer work
-      await expect(changePassword(INITIAL_PW, "another")).rejects.toThrow();
+      await expect(
+        changePassword(INITIAL_PW, "yet-another-password"),
+      ).rejects.toThrow("Current password is incorrect");
 
       // New password should work
       await changePassword(newPw, INITIAL_PW);
+    });
+
+    test("rejects a new password shorter than the minimum", async () => {
+      await expect(changePassword(INITIAL_PW, "short")).rejects.toThrow(
+        `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
+    });
+
+    test("rejects reusing the seeded default password", async () => {
+      await expect(
+        changePassword(INITIAL_PW, DEFAULT_PASSWORD),
+      ).rejects.toThrow("cannot be the default password");
+    });
+
+    test("a rejected change leaves the current password intact", async () => {
+      await expect(changePassword(INITIAL_PW, "short")).rejects.toThrow();
+      // The original password must still be accepted.
+      await changePassword(INITIAL_PW, INITIAL_PW);
+    });
+  });
+
+  // --- Default-password detection (drives the forced-change dialog) ---
+
+  describe("isUsingDefaultPassword", () => {
+    test("false while a custom password is set", async () => {
+      await setPasswordHash(await hashPassword(INITIAL_PW));
+      expect(await isUsingDefaultPassword()).toBe(false);
+    });
+
+    test("true once the stored hash matches the seeded default", async () => {
+      await setPasswordHash(await hashPassword(DEFAULT_PASSWORD));
+      expect(await isUsingDefaultPassword()).toBe(true);
+
+      // Restore so later suites are unaffected.
+      await setPasswordHash(await hashPassword(INITIAL_PW));
+    });
+
+    test("flips to false after rotating away from the default", async () => {
+      await setPasswordHash(await hashPassword(DEFAULT_PASSWORD));
+      expect(await isUsingDefaultPassword()).toBe(true);
+
+      await changePassword(DEFAULT_PASSWORD, INITIAL_PW);
+      expect(await isUsingDefaultPassword()).toBe(false);
     });
   });
 

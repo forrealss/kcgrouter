@@ -2,6 +2,7 @@ import "./index.css";
 import { AlertCircleIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { defaultPath } from "@/components/layout/Sidebar";
+import { ChangePasswordDialog } from "@/components/settings/ChangePasswordDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -56,6 +57,20 @@ export function App() {
   if (pathname === "/login") {
     navigate(defaultPath);
     return null;
+  }
+
+  // Still on the seeded default password: the server rejects every other
+  // /api/* route until it is rotated, so render the shell behind a dialog that
+  // cannot be dismissed rather than a dashboard full of failed requests.
+  if (session.mustChangePassword) {
+    return (
+      <ChangePasswordDialog
+        open
+        forced
+        onOpenChange={() => {}}
+        onSuccess={() => void session.refresh()}
+      />
+    );
   }
 
   return <AppShell onLogout={session.logout} />;

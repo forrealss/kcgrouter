@@ -6,6 +6,7 @@ import { runMigrations } from "./db/migrations";
 import { ensureSecrets } from "./env";
 import { setProcessName } from "./lib/process-name";
 import { authenticateApiKey } from "./server/middleware/api-key-auth.middleware";
+import { enforcePasswordChange } from "./server/middleware/password-change-gate.middleware";
 import { authenticateSession } from "./server/middleware/session-auth.middleware";
 import { authRoutes } from "./server/routes/auth.routes";
 import { cliToolsRoutes } from "./server/routes/cli-tools.routes";
@@ -163,6 +164,12 @@ const server = serve({
       if (!isPublic) {
         const auth = authenticateSession(req);
         if (!auth.ok) return auth.response;
+
+        // While the dashboard still uses the seeded default password, refuse
+        // every authenticated route except the ones needed to see that state
+        // and fix it.
+        const gate = await enforcePasswordChange(method, pathname);
+        if (!gate.ok) return gate.response;
       }
 
       const matched = matchRoute(method, pathname);

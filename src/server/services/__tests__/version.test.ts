@@ -12,7 +12,12 @@ let restoreFetch: (() => void) | null = null;
 
 function stubFetch(handler: () => Promise<Response>): void {
   const original = globalThis.fetch;
-  globalThis.fetch = (() => handler()) as typeof fetch;
+  // `typeof fetch` carries a `preconnect` property that a plain function does
+  // not have, so a direct cast is rejected. Copying the original's own
+  // properties onto the stub keeps the shape intact.
+  const stub = (() => handler()) as unknown as typeof fetch;
+  Object.assign(stub, { preconnect: original.preconnect });
+  globalThis.fetch = stub;
   restoreFetch = () => {
     globalThis.fetch = original;
   };

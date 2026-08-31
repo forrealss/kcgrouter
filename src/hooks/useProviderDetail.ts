@@ -225,15 +225,58 @@ export function useProviderDetail(providerId: string) {
     }
   }
 
-  async function handleAddModel(modelId: string, modelName: string) {
+  /**
+   * Register a model by hand. Token limits are optional — when omitted the
+   * model has no stored window and downstream clients fall back to their own
+   * defaults, so the dialog offers them for models the router can't fetch.
+   *
+   * Returns whether the model was created so the caller can keep the dialog
+   * open (with the entered values intact) on failure.
+   */
+  async function handleAddModel(input: {
+    modelId: string;
+    modelName: string;
+    contextLength?: number | null;
+    maxOutputTokens?: number | null;
+  }): Promise<boolean> {
     try {
       await apiClient.post(
         `/api/providers/${encodeURIComponent(providerId)}/models`,
-        { modelId, modelName },
+        {
+          modelId: input.modelId,
+          modelName: input.modelName,
+          contextLength: input.contextLength ?? undefined,
+          maxOutputTokens: input.maxOutputTokens ?? undefined,
+        },
       );
-      void loadData();
-    } catch {
-      // ignore
+      await loadData();
+      toast.success(`Model "${input.modelName}" added`);
+      return true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+      return false;
+    }
+  }
+
+  /**
+   * Edit a registered model's token limits. Only the fields passed are
+   * changed, so editing the context window leaves the output cap untouched.
+   */
+  async function handleUpdateModelLimits(
+    model: ProviderModel,
+    limits: { contextLength?: number | null; maxOutputTokens?: number | null },
+  ): Promise<boolean> {
+    try {
+      const updated = await apiClient.patch<ProviderModel>(
+        `/api/providers/models/${encodeURIComponent(model.id)}`,
+        limits,
+      );
+      setModels((prev) => prev.map((m) => (m.id === model.id ? updated : m)));
+      toast.success(`Limits updated for "${model.modelName}"`);
+      return true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+      return false;
     }
   }
 
@@ -399,6 +442,7 @@ export function useProviderDetail(providerId: string) {
     handleReorderAccounts,
     handleToggleModel,
     handleAddModel,
+    handleUpdateModelLimits,
     handleDeleteModel,
     handleTestModel,
     handleFetchModels,

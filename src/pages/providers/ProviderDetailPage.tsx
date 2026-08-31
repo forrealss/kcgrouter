@@ -57,6 +57,7 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
     handleReorderAccounts,
     handleToggleModel,
     handleAddModel,
+    handleUpdateModelLimits,
     handleDeleteModel,
     handleTestModel,
     handleFetchModels,
@@ -168,6 +169,7 @@ export function ProviderDetailPage({ providerId }: ProviderDetailPageProps) {
         modelTestStatus={modelTestStatus}
         onToggleModel={handleToggleModel}
         onAddModel={handleAddModel}
+        onUpdateModelLimits={handleUpdateModelLimits}
         onDeleteModel={handleDeleteModel}
         onTestModel={handleTestModel}
         onFetchModels={handleFetchModels}

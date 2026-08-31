@@ -2,10 +2,12 @@ import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { get, run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import {
+  addModel,
   importModels,
   listModels,
   previewOpenAIModels,
   previewQoderModels,
+  updateModelLimits,
 } from "../model-registry.service";
 import { createProvider, deleteProvider } from "../provider-registry.service";
 
@@ -290,5 +292,76 @@ describe("previewOpenAIModels", () => {
     } finally {
       deleteProvider(provider.id);
     }
+  });
+});
+
+describe("updateModelLimits", () => {
+  beforeAll(() => {
+    runMigrations();
+  });
+
+  function withModel<T>(fn: (modelDbId: string) => T): T {
+    const provider = createProvider({
+      name: `LimitsTest-${Math.random().toString(16).slice(2, 8)}`,
+      transport: "openai",
+      baseUrl: "https://api.example.com/v1",
+      prefix: `lim${Math.random().toString(16).slice(2, 8)}`,
+    });
+    try {
+      const model = addModel(provider.id, "some-model", "Some Model");
+      return fn(model.id);
+    } finally {
+      deleteProvider(provider.id);
+    }
+  }
+
+  test("sets both limits from unset", () => {
+    withModel((id) => {
+      const updated = updateModelLimits(id, {
+        contextLength: 1_000_000,
+        maxOutputTokens: 64_000,
+      });
+      expect(updated.contextLength).toBe(1_000_000);
+      expect(updated.maxOutputTokens).toBe(64_000);
+    });
+  });
+
+  test("undefined leaves a field untouched", () => {
+    withModel((id) => {
+      updateModelLimits(id, { contextLength: 200_000, maxOutputTokens: 8_000 });
+      const updated = updateModelLimits(id, { contextLength: 500_000 });
+      expect(updated.contextLength).toBe(500_000);
+      // maxOutputTokens was not in the payload, so it survives.
+      expect(updated.maxOutputTokens).toBe(8_000);
+    });
+  });
+
+  test("null clears a limit", () => {
+    withModel((id) => {
+      updateModelLimits(id, { contextLength: 200_000, maxOutputTokens: 8_000 });
+      const updated = updateModelLimits(id, { contextLength: null });
+      expect(updated.contextLength).toBeNull();
+      expect(updated.maxOutputTokens).toBe(8_000);
+    });
+  });
+
+  test("rejects non-positive or fractional values", () => {
+    withModel((id) => {
+      expect(() => updateModelLimits(id, { contextLength: 0 })).toThrow(
+        /positive whole number/,
+      );
+      expect(() => updateModelLimits(id, { contextLength: -5 })).toThrow(
+        /positive whole number/,
+      );
+      expect(() => updateModelLimits(id, { maxOutputTokens: 1.5 })).toThrow(
+        /positive whole number/,
+      );
+    });
+  });
+
+  test("throws for an unknown model", () => {
+    expect(() =>
+      updateModelLimits("pm_does_not_exist", { contextLength: 1000 }),
+    ).toThrow(/Model not found/);
   });
 });

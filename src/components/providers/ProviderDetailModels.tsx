@@ -5,11 +5,13 @@ import {
   LayersIcon,
   PlusIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
   Trash2Icon,
   XCircleIcon,
-  XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { AddModelDialog } from "@/components/providers/AddModelDialog";
+import { EditModelLimitsDialog } from "@/components/providers/EditModelLimitsDialog";
 import { FetchModelsDialog } from "@/components/providers/FetchModelsDialog";
 import {
   AlertDialog,
@@ -69,7 +71,16 @@ interface ProviderDetailModelsProps {
   testingModelId: string | null;
   modelTestStatus: Record<string, TestStatusValue>;
   onToggleModel: (model: ProviderModel) => void;
-  onAddModel: (modelId: string, modelName: string) => void;
+  onAddModel: (input: {
+    modelId: string;
+    modelName: string;
+    contextLength?: number | null;
+    maxOutputTokens?: number | null;
+  }) => Promise<boolean> | boolean;
+  onUpdateModelLimits: (
+    model: ProviderModel,
+    limits: { contextLength?: number | null; maxOutputTokens?: number | null },
+  ) => Promise<boolean> | boolean;
   onDeleteModel: (modelId: string) => void;
   onTestModel: (model: ProviderModel, accountId: string) => void;
   onFetchModels?: () => void;
@@ -89,6 +100,7 @@ export function ProviderDetailModels({
   modelTestStatus,
   onToggleModel,
   onAddModel,
+  onUpdateModelLimits,
   onDeleteModel,
   onTestModel,
   onFetchModels,
@@ -100,9 +112,7 @@ export function ProviderDetailModels({
   onCloseFetchDialog,
 }: ProviderDetailModelsProps) {
   const [isAddModelOpen, setIsAddModelOpen] = useState(false);
-  const [newModelId, setNewModelId] = useState("");
-  const [newModelName, setNewModelName] = useState("");
-  const [isAddingModel, setIsAddingModel] = useState(false);
+  const [editingModel, setEditingModel] = useState<ProviderModel | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ModelFilter>("all");
 
@@ -137,19 +147,6 @@ export function ProviderDetailModels({
         );
       });
   }, [models, filter, query]);
-
-  async function handleAddModel() {
-    if (!newModelId.trim() || !newModelName.trim()) return;
-    setIsAddingModel(true);
-    try {
-      await onAddModel(newModelId.trim(), newModelName.trim());
-      setNewModelId("");
-      setNewModelName("");
-      setIsAddModelOpen(false);
-    } finally {
-      setIsAddingModel(false);
-    }
-  }
 
   function handleTestModel(model: ProviderModel) {
     const firstAccount = accounts[0];
@@ -191,79 +188,14 @@ export function ProviderDetailModels({
           <Button
             type="button"
             size="sm"
-            variant={isAddModelOpen ? "secondary" : "outline"}
-            onClick={() => setIsAddModelOpen(!isAddModelOpen)}
-            aria-expanded={isAddModelOpen}
+            variant="outline"
+            onClick={() => setIsAddModelOpen(true)}
           >
-            {isAddModelOpen ? (
-              <XIcon data-icon="inline-start" />
-            ) : (
-              <PlusIcon data-icon="inline-start" />
-            )}
-            {isAddModelOpen ? "Cancel" : "Add manually"}
+            <PlusIcon data-icon="inline-start" />
+            Add manually
           </Button>
         </CardAction>
       </CardHeader>
-
-      {isAddModelOpen ? (
-        <form
-          className="flex flex-col gap-3 border-b border-primary/20 bg-primary/5 px-5 py-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleAddModel();
-          }}
-        >
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="flex-1">
-              <label
-                htmlFor="new-model-id"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Model ID
-              </label>
-              <Input
-                id="new-model-id"
-                placeholder="gpt-4o"
-                value={newModelId}
-                onChange={(e) => setNewModelId(e.target.value)}
-                className="mt-1 font-mono text-sm"
-              />
-            </div>
-            <div className="flex-1">
-              <label
-                htmlFor="new-model-name"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Display name
-              </label>
-              <Input
-                id="new-model-name"
-                placeholder="GPT-4o"
-                value={newModelName}
-                onChange={(e) => setNewModelName(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              className="self-end"
-              disabled={
-                isAddingModel || !newModelId.trim() || !newModelName.trim()
-              }
-            >
-              {isAddingModel ? <Spinner data-icon="inline-start" /> : null}
-              Add model
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Requests will route as{" "}
-            <code className="font-mono">
-              {provider.prefix}/{newModelId.trim() || "model-id"}
-            </code>
-          </p>
-        </form>
-      ) : null}
 
       {models.length === 0 ? (
         <CardContent className="px-5 py-4">
@@ -415,14 +347,39 @@ export function ProviderDetailModels({
                         </div>
                       </div>
 
-                      {model.contextLength ? (
-                        <Badge
-                          variant="outline"
-                          className="hidden shrink-0 font-mono text-[11px] font-normal tabular-nums text-muted-foreground sm:inline-flex"
-                        >
-                          {formatContextLabel(model.contextLength)}
-                        </Badge>
-                      ) : null}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => setEditingModel(model)}
+                            className="hidden shrink-0 rounded-full sm:inline-flex focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                          >
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "cursor-pointer font-mono text-[11px] font-normal tabular-nums transition-colors hover:border-ring hover:bg-accent",
+                                model.contextLength
+                                  ? "text-muted-foreground"
+                                  : "border-dashed text-muted-foreground/70",
+                              )}
+                            >
+                              {model.contextLength ? (
+                                formatContextLabel(model.contextLength)
+                              ) : (
+                                <>
+                                  <SlidersHorizontalIcon className="size-3" />
+                                  Set context
+                                </>
+                              )}
+                            </Badge>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {model.contextLength
+                            ? "Click to edit token limits"
+                            : "No context window stored — click to set one"}
+                        </TooltipContent>
+                      </Tooltip>
 
                       <div className="flex shrink-0 items-center gap-1">
                         <Tooltip>
@@ -516,6 +473,24 @@ export function ProviderDetailModels({
           )}
         </>
       )}
+
+      <AddModelDialog
+        open={isAddModelOpen}
+        onOpenChange={setIsAddModelOpen}
+        provider={provider}
+        onAddModel={onAddModel}
+      />
+
+      <EditModelLimitsDialog
+        model={editingModel}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setEditingModel(null);
+        }}
+        routeId={
+          editingModel ? `${provider.prefix}/${editingModel.modelId}` : ""
+        }
+        onSave={onUpdateModelLimits}
+      />
 
       {canFetchModels &&
       onFetchModels &&

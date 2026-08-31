@@ -513,6 +513,49 @@ export const providersRoutes: Record<string, RouteHandler> = {
     }
   },
 
+  "PATCH /api/providers/models/:modelId": async (req, params) => {
+    const modelId = params?.modelId ?? "";
+    const body = (await req.json()) as {
+      contextLength?: number | null;
+      maxOutputTokens?: number | null;
+    };
+
+    if (
+      body.contextLength === undefined &&
+      body.maxOutputTokens === undefined
+    ) {
+      return Response.json(
+        { error: "contextLength or maxOutputTokens is required" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const model = ModelRegistry.updateModelLimits(modelId, {
+        contextLength: body.contextLength,
+        maxOutputTokens: body.maxOutputTokens,
+      });
+      RequestLog.record({
+        type: "admin",
+        source: "admin",
+        providerAccountId: null,
+        comboId: null,
+        model: model.modelId,
+        sourceFormat: null,
+        stream: false,
+        message: `Model "${model.modelName}" limits updated (context: ${model.contextLength ?? "unset"}, max output: ${model.maxOutputTokens ?? "unset"})`,
+        latencyMs: null,
+      });
+      return Response.json(model);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed";
+      return Response.json(
+        { error: message },
+        { status: message === "Model not found" ? 404 : 400 },
+      );
+    }
+  },
+
   "PATCH /api/providers/models/:modelId/toggle": (_req, params) => {
     const modelId = params?.modelId ?? "";
     try {

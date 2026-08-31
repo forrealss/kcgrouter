@@ -138,6 +138,51 @@ export function addModel(
   };
 }
 
+/**
+ * Update a model's token limits. `null` clears a limit, `undefined` leaves it
+ * as-is — so the caller can edit the context window without touching the
+ * output cap, and vice versa.
+ */
+export function updateModelLimits(
+  id: string,
+  limits: {
+    contextLength?: number | null;
+    maxOutputTokens?: number | null;
+  },
+): ProviderModel {
+  const existing = getModel(id);
+  if (!existing) throw new Error("Model not found");
+
+  for (const [field, value] of Object.entries(limits)) {
+    if (value === undefined || value === null) continue;
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`${field} must be a positive whole number`);
+    }
+  }
+
+  const nextContext =
+    limits.contextLength === undefined
+      ? existing.contextLength
+      : limits.contextLength;
+  const nextMaxOutput =
+    limits.maxOutputTokens === undefined
+      ? existing.maxOutputTokens
+      : limits.maxOutputTokens;
+
+  run(
+    "UPDATE provider_models SET context_length = ?, max_output_tokens = ? WHERE id = ?",
+    nextContext,
+    nextMaxOutput,
+    id,
+  );
+
+  return {
+    ...existing,
+    contextLength: nextContext,
+    maxOutputTokens: nextMaxOutput,
+  };
+}
+
 export function enableModel(id: string): void {
   run("UPDATE provider_models SET enabled = 1 WHERE id = ?", id);
 }

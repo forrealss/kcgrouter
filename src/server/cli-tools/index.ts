@@ -5,12 +5,14 @@
 import { claudeTool } from "./claude";
 import { coworkTool } from "./cowork";
 import { opencodeTool } from "./opencode";
+import { piTool } from "./pi";
 import type { CLIToolDefinition } from "./registry";
 
 export const cliTools: CLIToolDefinition[] = [
   claudeTool,
   coworkTool,
   opencodeTool,
+  piTool,
 ];
 
 export function getTool(id: string): CLIToolDefinition | undefined {

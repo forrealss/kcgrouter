@@ -114,9 +114,9 @@ export function ProviderDetailModels({
   const hasConnection = accounts.length > 0;
 
   /**
-   * Sorted by name only — never by `enabled`. Sorting on the toggled field
-   * would reorder the list mid-click, making it look like a different row
-   * flipped than the one the user pressed.
+   * Enabled models first, then disabled. Within each group, newest first
+   * (by `createdAt`) so a model just added or fetched surfaces immediately
+   * instead of getting buried alphabetically.
    */
   const visibleModels = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,7 +130,12 @@ export function ProviderDetailModels({
           model.modelName.toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => a.modelName.localeCompare(b.modelName));
+      .sort((a, b) => {
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
   }, [models, filter, query]);
 
   async function handleAddModel() {

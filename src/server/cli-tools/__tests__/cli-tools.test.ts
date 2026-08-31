@@ -7,9 +7,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { runMigrations } from "../../../db/migrations";
+import { addModel } from "../../services/model-registry.service";
+import { createProvider } from "../../services/provider-registry.service";
 import { claudeTool } from "../claude";
 import { coworkTool } from "../cowork";
 import { opencodeTool } from "../opencode";
+import { piTool } from "../pi";
 
 // Isolate all home-dir writes from the real user home. Bun caches
 // os.homedir() at process start, so set HOME at runtime doesn't work —
@@ -297,5 +301,115 @@ describe("opencodeTool (OpenCode)", () => {
       activeModel: "cc/claude-sonnet-5",
     });
     expect(opencodeTool.read().details?.apiKey).toBeNull();
+  });
+});
+
+describe("piTool (Pi)", () => {
+  const modelsConfigPath = () => join(testHome, ".pi", "agent", "models.json");
+  const settingsConfigPath = () =>
+    join(testHome, ".pi", "agent", "settings.json");
+
+  test("read returns not-configured before any apply", () => {
+    const status = piTool.read();
+    expect(typeof status.installed).toBe("boolean");
+    expect(status.configured).toBe(false);
+  });
+
+  test("apply writes provider config into models.json and sets defaults", () => {
+    piTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      apiKey: "sk-test",
+      models: ["cc/claude-sonnet-5", "cc/claude-opus-5"],
+      activeModel: "cc/claude-sonnet-5",
+    });
+
+    const modelsConfig = readJsonFile(modelsConfigPath());
+    const providers = modelsConfig.providers as Record<string, unknown>;
+    const provider = providers.kcgrouter as Record<string, unknown>;
+    expect(provider.baseUrl).toBe("http://localhost:4000/v1");
+    expect(provider.api).toBe("openai-completions");
+    expect(provider.apiKey).toBe("sk-test");
+    // No matching DB provider/model exists yet in this isolated test env,
+    // so entries fall back to bare {id} (Pi's own defaults apply).
+    expect(provider.models).toEqual([
+      { id: "cc/claude-sonnet-5" },
+      { id: "cc/claude-opus-5" },
+    ]);
+
+    const settings = readJsonFile(settingsConfigPath());
+    expect(settings.defaultProvider).toBe("kcgrouter");
+    expect(settings.defaultModel).toBe("cc/claude-sonnet-5");
+  });
+
+  test("read reflects the applied config", () => {
+    const status = piTool.read();
+    expect(status.configured).toBe(true);
+    expect(status.details?.baseUrl).toBe("http://localhost:4000/v1");
+    expect(status.details?.apiKey).toBe("sk-test");
+    expect(status.details?.activeModel).toBe("cc/claude-sonnet-5");
+    const models = status.details?.models as string[];
+    expect(models).toContain("cc/claude-sonnet-5");
+    expect(models).toContain("cc/claude-opus-5");
+  });
+
+  test("re-apply with empty apiKey clears a previously saved one", () => {
+    piTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      apiKey: "",
+      models: ["cc/claude-sonnet-5"],
+      activeModel: "cc/claude-sonnet-5",
+    });
+    expect(piTool.read().details?.apiKey).toBeNull();
+  });
+
+  test("remove deletes the provider and clears defaults but keeps unrelated settings", () => {
+    const settings = readJsonFile(settingsConfigPath());
+    settings.theme = "dark";
+    writeFileSync(settingsConfigPath(), JSON.stringify(settings, null, 2));
+
+    piTool.remove();
+
+    const status = piTool.read();
+    expect(status.configured).toBe(false);
+    expect(status.details?.activeModel).toBeNull();
+
+    const afterSettings = readJsonFile(settingsConfigPath());
+    expect(afterSettings.theme).toBe("dark");
+    expect(afterSettings.defaultProvider).toBeUndefined();
+    expect(afterSettings.defaultModel).toBeUndefined();
+  });
+
+  test("apply enriches models with real contextWindow/maxTokens from the DB", () => {
+    runMigrations();
+    const provider = createProvider({
+      name: "Pi Test Provider",
+      transport: "openai",
+      baseUrl: "https://api.example.com/v1",
+      prefix: "pitest",
+    });
+    addModel(
+      provider.id,
+      "big-context-model",
+      "Big Context Model",
+      1_000_000,
+      64_000,
+    );
+
+    piTool.apply({
+      baseUrl: "http://localhost:4000/v1",
+      models: ["pitest/big-context-model"],
+      activeModel: "pitest/big-context-model",
+    });
+
+    const modelsConfig = readJsonFile(modelsConfigPath());
+    const providers = modelsConfig.providers as Record<string, unknown>;
+    const kcgrouterProvider = providers.kcgrouter as Record<string, unknown>;
+    expect(kcgrouterProvider.models).toEqual([
+      {
+        id: "pitest/big-context-model",
+        contextWindow: 1_000_000,
+        maxTokens: 64_000,
+      },
+    ]);
   });
 });

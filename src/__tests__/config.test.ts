@@ -10,10 +10,12 @@ import {
   getPort,
   getRecordedVersion,
   getServerPort,
+  isDefaultPasswordHintEnabled,
   isValidPort,
   loadConfig,
   recordVersion,
   saveConfig,
+  setDefaultPasswordHintEnabled,
 } from "../config";
 
 const originalHome = process.env.KCGRouter_HOME;
@@ -208,6 +210,46 @@ describe("app config", () => {
       withTempHome(() => {
         saveConfig({ port: -5 });
         expect(getConfiguredPort()).toBeUndefined();
+      });
+    });
+  });
+
+  describe("default password hint", () => {
+    test("is enabled on a fresh install with no config file", () => {
+      withTempHome(() => {
+        expect(isDefaultPasswordHintEnabled()).toBe(true);
+      });
+    });
+
+    test("stays enabled when the config exists but omits the flag", () => {
+      withTempHome(() => {
+        saveConfig({ port: 8080 });
+        expect(isDefaultPasswordHintEnabled()).toBe(true);
+      });
+    });
+
+    test("only an explicit false disables it", () => {
+      withTempHome(() => {
+        setDefaultPasswordHintEnabled(false);
+        expect(isDefaultPasswordHintEnabled()).toBe(false);
+        expect(loadConfig().showDefaultPasswordHint).toBe(false);
+      });
+    });
+
+    test("can be re-enabled", () => {
+      withTempHome(() => {
+        setDefaultPasswordHintEnabled(false);
+        setDefaultPasswordHintEnabled(true);
+        expect(isDefaultPasswordHintEnabled()).toBe(true);
+      });
+    });
+
+    test("writing the flag preserves the configured port", () => {
+      withTempHome(() => {
+        saveConfig({ port: 4321 });
+        setDefaultPasswordHintEnabled(false);
+        expect(getConfiguredPort()).toBe(4321);
+        expect(isDefaultPasswordHintEnabled()).toBe(false);
       });
     });
   });

@@ -8,6 +8,15 @@ export interface AppConfig {
   port?: number;
   /** App version last recorded at startup (used to detect upgrades). */
   version?: string;
+  /**
+   * Whether the login screen may reveal the seeded default password.
+   *
+   * Defaults to true so a fresh install can tell its operator how to get in,
+   * and is flipped to false automatically once the password is changed — the
+   * hint has served its purpose by then and would only leak a credential.
+   * Set it to false by hand to suppress the hint from the start.
+   */
+  showDefaultPasswordHint?: boolean;
 }
 
 export const DEFAULT_PORT = 3000;
@@ -129,6 +138,21 @@ export function getAppVersion(): string {
 /** Version last recorded in config.json (undefined when never recorded). */
 export function getRecordedVersion(): string | undefined {
   return loadConfig().version;
+}
+
+/**
+ * Whether config.json still permits showing the default-password hint.
+ *
+ * Absent means "yes": a fresh install has no config file at all, and that is
+ * exactly the case the hint exists for. Only an explicit `false` disables it.
+ */
+export function isDefaultPasswordHintEnabled(): boolean {
+  return loadConfig().showDefaultPasswordHint !== false;
+}
+
+/** Persist the hint flag (called with false once the password is rotated). */
+export function setDefaultPasswordHintEnabled(enabled: boolean): void {
+  saveConfig({ showDefaultPasswordHint: enabled });
 }
 
 /** Persist a version to config.json (defaults to the running app version). */

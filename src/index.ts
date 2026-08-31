@@ -151,15 +151,17 @@ const server = serve({
       });
     },
 
-    "/api/*": async (req) => {
+    "/api/*": async (req, server) => {
       const url = new URL(req.url);
       const pathname = url.pathname;
       const method = req.method;
 
-      // Public API routes: login, and reading the theme (the login page needs
-      // the saved theme before a session exists). Everything else needs auth.
+      // Public API routes: login, the default-password hint, and reading the
+      // theme — all needed by the login page before a session exists.
+      // Everything else needs auth.
       const isPublic =
         pathname === "/api/auth/login" ||
+        (pathname === "/api/auth/default-password-hint" && method === "GET") ||
         (pathname === "/api/settings/theme" && method === "GET");
       if (!isPublic) {
         const auth = authenticateSession(req);
@@ -174,7 +176,9 @@ const server = serve({
 
       const matched = matchRoute(method, pathname);
       if (matched) {
-        return matched.handler(req, matched.params);
+        return matched.handler(req, matched.params, {
+          clientAddress: server.requestIP(req)?.address ?? null,
+        });
       }
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,

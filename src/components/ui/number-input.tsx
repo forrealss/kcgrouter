@@ -67,7 +67,13 @@ function NumberInput({
         value={value}
         min={min}
         max={max}
-        step={step}
+        // Native step validation is deliberately disabled: the stepper
+        // buttons below implement their own JS-level increments via `step`,
+        // and the two don't have to align. Without this, a `step` that
+        // doesn't evenly divide `min` (e.g. min=1, step=1000) makes the
+        // browser reject perfectly valid round values like 1,000,000 with a
+        // "nearest valid values are X and Y" error on submit.
+        step="any"
         disabled={disabled}
         onChange={(event) => onValueChange(event.target.value)}
         className={cn(

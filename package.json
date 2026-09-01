@@ -1,6 +1,6 @@
 {
   "name": "kcgrouter",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "Lightweight AI proxy gateway — route chat completions to upstream providers",
   "license": "MIT",
   "repository": {

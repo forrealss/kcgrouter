@@ -7,7 +7,15 @@ import {
   MAX_OUTPUT_TOKENS,
   sanitizeFunctionName,
 } from "../payload";
-
+import {
+  cleanJSONSchemaForAntigravity,
+  defaultParameterSchema,
+} from "../schema";
+import {
+  DEFAULT_THINKING_AG_SIGNATURE,
+  clearThoughtSignatures,
+  storeThoughtSignature,
+} from "../thought-signature";
 function baseRequest(
   overrides: Partial<CanonicalRequest> = {},
 ): CanonicalRequest {
@@ -155,8 +163,15 @@ describe("buildAntigravityPayload", () => {
     };
 
     const [firstContent, secondContent] = request.contents;
-    const call = firstContent?.parts[0]?.functionCall as { name: string };
+    const call = firstContent?.parts[0]?.functionCall as {
+      id: string;
+      name: string;
+    };
+    expect(call?.id).toBe("t1");
     expect(call?.name).toBe("read_file");
+    expect(firstContent?.parts[0]?.thoughtSignature).toBe(
+      DEFAULT_THINKING_AG_SIGNATURE,
+    );
     expect(firstContent?.role).toBe("model");
     // functionResponse must ride in a user role
     expect(secondContent?.role).toBe("user");
@@ -164,6 +179,39 @@ describe("buildAntigravityPayload", () => {
 
     expect(request.tools[0]?.functionDeclarations[0]?.name).toBe("read_file");
     expect(request.toolConfig.functionCallingConfig.mode).toBe("VALIDATED");
+  });
+
+  test("replays a cached signature instead of using the fallback", () => {
+    storeThoughtSignature("t1", "upstream-signature", "acct_1");
+    try {
+      const payload = buildAntigravityPayload(
+        baseRequest({
+          messages: [
+            {
+              role: "assistant",
+              content: [
+                {
+                  type: "tool_call",
+                  id: "t1",
+                  name: "read_file",
+                  arguments: { path: "/x" },
+                },
+              ],
+            },
+          ],
+        }),
+        "m",
+        { sessionKey: "acct_1" },
+      );
+      const request = payload.request as {
+        contents: { parts: Record<string, unknown>[] }[];
+      };
+      expect(request.contents[0]?.parts[0]?.thoughtSignature).toBe(
+        "upstream-signature",
+      );
+    } finally {
+      clearThoughtSignatures();
+    }
   });
 
   test("fills a default schema for tools without parameters", () => {
@@ -195,6 +243,106 @@ describe("buildAntigravityPayload", () => {
       maxOutputTokens: number;
     };
     expect(generationConfig.maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  test("sanitizes tool schemas like 9router's cleanJSONSchemaForAntigravity", () => {
+    const payload = buildAntigravityPayload(
+      baseRequest({
+        tools: [
+          {
+            name: "complex_tool",
+            description: "d",
+            parameters: {
+              $schema: "http://json-schema.org/draft-07/schema#",
+              type: "object",
+              additionalProperties: false,
+              propertyNames: { type: "string" },
+              properties: {
+                name: {
+                  type: ["string", "null"],
+                  minLength: 1,
+                  exclusiveMinimum: 0,
+                },
+                tags: { type: "array", items: { type: "string" } },
+                mode: { const: "auto" },
+                where: { anyOf: [{ type: "string" }, { type: "number" }] },
+              },
+            },
+          },
+        ],
+      }),
+      "m",
+      { sessionKey: "k" },
+    );
+
+    const request = payload.request as {
+      tools: {
+        functionDeclarations: { parameters: Record<string, unknown> }[];
+      }[];
+    };
+    const raw = JSON.stringify(
+      request.tools[0]?.functionDeclarations[0]?.parameters,
+    );
+
+    // Unsupported keywords are stripped recursively
+    expect(raw).not.toContain("$schema");
+    expect(raw).not.toContain("propertyNames");
+    expect(raw).not.toContain("exclusiveMinimum");
+    expect(raw).not.toContain("additionalProperties");
+    expect(raw).not.toContain("minLength");
+
+    const params = request.tools[0]?.functionDeclarations[0]?.parameters as {
+      type: string;
+      properties: Record<string, Record<string, unknown>>;
+      required?: string[];
+    };
+    // type arrays flatten to the first concrete type
+    expect(params.properties.name?.type).toBe("string");
+    // const converts to enum + type string
+    expect(params.properties.mode).toEqual({
+      type: "string",
+      enum: ["auto"],
+    });
+    // anyOf flattens to the best variant
+    expect(params.properties.where).toEqual({ type: "string" });
+    // nested items keep their type
+    expect(params.properties.tags?.items).toEqual({ type: "string" });
+    // empty required arrays are removed
+    expect(params.required).toBeUndefined();
+  });
+
+  test("fills a reason placeholder into empty object schemas", () => {
+    const payload = buildAntigravityPayload(
+      baseRequest({
+        tools: [
+          {
+            name: "hollow",
+            description: "d",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      }),
+      "m",
+      { sessionKey: "k" },
+    );
+    const request = payload.request as {
+      tools: {
+        functionDeclarations: { parameters: Record<string, unknown> }[];
+      }[];
+    };
+    const params = request.tools[0]?.functionDeclarations[0]?.parameters as {
+      properties: { reason?: unknown };
+      required?: string[];
+    };
+    expect(params.properties.reason).toBeDefined();
+    expect(params.required).toEqual(["reason"]);
+  });
+
+  test("uses the default reason schema for tools without parameters", () => {
+    expect(defaultParameterSchema().type).toBe("object");
+    expect(
+      cleanJSONSchemaForAntigravity(null).properties,
+    ).toBeDefined();
   });
 
   test("generates a fallback projectId when none is provided", () => {

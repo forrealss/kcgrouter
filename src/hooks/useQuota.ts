@@ -29,11 +29,14 @@ export function useQuota() {
     }
   }, []);
 
-  const loadProviderUsage = useCallback(async () => {
+  const loadProviderUsage = useCallback(async (forceRefresh = false) => {
     setIsLoadingUsage(true);
     try {
-      const response =
-        await apiClient.get<ProviderUsageData[]>("/api/quota/usage");
+      // The manual Refresh button passes forceRefresh so cached remote quota
+      // (3-minute TTL) is bypassed; the initial page mount uses the cache.
+      const response = await apiClient.get<ProviderUsageData[]>(
+        forceRefresh ? "/api/quota/usage?refresh=1" : "/api/quota/usage",
+      );
       setProviderUsage(response);
     } catch {
       // ignore error

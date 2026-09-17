@@ -154,7 +154,7 @@ export function QuotaPage() {
 
   const refreshAll = () => {
     void loadQuota();
-    void loadProviderUsage();
+    void loadProviderUsage(true);
   };
 
   return (
@@ -267,8 +267,9 @@ export function QuotaPage() {
             </EmptyMedia>
             <EmptyTitle>No quota-reporting connections</EmptyTitle>
             <EmptyDescription>
-              Only Kiro, Command Code, and Qoder report remaining quota. Add a
-              connection for one of them, or set a token cap on any connection.
+              Only Kiro, Command Code, Qoder, and Antigravity report remaining
+              quota. Add a connection for one of them, or set a token cap on any
+              connection.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

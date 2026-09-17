@@ -19,6 +19,11 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { extractSystemText, parseToolArguments } from "../helpers";
+import { cleanJSONSchemaForAntigravity, defaultParameterSchema } from "./schema";
+import {
+  DEFAULT_THINKING_AG_SIGNATURE,
+  getThoughtSignature,
+} from "./thought-signature";
 import type { CanonicalRequest } from "../types";
 
 /** Gemini rejects unknown thinking/reasoning fields at the body root. */
@@ -94,29 +99,56 @@ interface GeminiContent {
   parts: Record<string, unknown>[];
 }
 
-/** Translate canonical messages into Gemini contents (role user/model). */
-function buildContents(req: CanonicalRequest): GeminiContent[] {
+/**
+ * Translate canonical messages into Gemini contents (role user/model).
+ *
+ * The OpenAI/Anthropic compatibility layers do not expose Gemini's thought
+ * signature. Keep the upstream value when we have it, otherwise replay the
+ * same first-call fallback used by 9router. Gemini accepts the signature as a
+ * sibling of `functionCall`, not nested inside it.
+ */
+function buildContents(
+  req: CanonicalRequest,
+  sessionKey: string,
+): GeminiContent[] {
   const contents: GeminiContent[] = [];
+  const toolNamesById = new Map<string, string>();
+
+  for (const message of req.messages) {
+    for (const part of message.content) {
+      if (part.type === "tool_call") {
+        toolNamesById.set(part.id, sanitizeFunctionName(part.name));
+      }
+    }
+  }
 
   for (const m of req.messages) {
     const parts: Record<string, unknown>[] = [];
+    let firstFunctionCallSeen = false;
 
     for (const part of m.content) {
       if (part.type === "text") {
         parts.push({ text: part.text });
       } else if (part.type === "tool_call") {
-        parts.push({
-          functionCall: {
-            name: sanitizeFunctionName(part.name),
-            args: parseToolArguments(part.arguments) ?? {},
-          },
-        });
+        const callSignature =
+          part.thoughtSignature ||
+          getThoughtSignature(part.id, sessionKey) ||
+          (!firstFunctionCallSeen ? DEFAULT_THINKING_AG_SIGNATURE : undefined);
+        const functionCall: Record<string, unknown> = {
+          id: part.id,
+          name: sanitizeFunctionName(part.name),
+          args: parseToolArguments(part.arguments) ?? {},
+        };
+        const functionPart: Record<string, unknown> = { functionCall };
+        if (callSignature) functionPart.thoughtSignature = callSignature;
+        parts.push(functionPart);
+        firstFunctionCallSeen = true;
       } else if (part.type === "tool_result") {
-        // Gemini functionResponse must carry the *tool name* — canonical only
-        // has the call id, so use a stable synthetic name.
+        // Gemini requires the response id/name to match the original call.
         parts.push({
           functionResponse: {
-            name: "tool",
+            id: part.toolCallId,
+            name: toolNamesById.get(part.toolCallId) || "tool",
             response: { result: part.content },
           },
         });
@@ -164,14 +196,8 @@ function buildTools(
       // Google rejects empty/missing parameters — give it a no-op schema.
       parameters:
         tool.parameters && typeof tool.parameters === "object"
-          ? tool.parameters
-          : {
-              type: "object",
-              properties: {
-                reason: { type: "string", description: "Brief explanation" },
-              },
-              required: ["reason"],
-            },
+          ? cleanJSONSchemaForAntigravity(tool.parameters)
+          : defaultParameterSchema(),
     });
   }
 
@@ -192,7 +218,8 @@ export function buildAntigravityPayload(
   opts: AntigravityPayloadOptions,
 ): Record<string, unknown> {
   const projectId = opts.projectId || generateProjectId();
-  const contents = buildContents(req);
+  const sessionKey = opts.sessionKey;
+  const contents = buildContents(req, sessionKey);
 
   const generationConfig: Record<string, unknown> = {};
   if (req.maxTokens != null) {

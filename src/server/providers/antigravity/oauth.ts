@@ -42,6 +42,166 @@ const SCOPES = [
 export const OAUTH_CALLBACK_PORT = 51193;
 export const OAUTH_TIMEOUT_MS = 300_000;
 
+/** Seconds before the callback page attempts to close itself. */
+export const OAUTH_CALLBACK_CLOSE_SECONDS = 10;
+
+// --- callback page (self-contained, themed like the dashboard) ---
+
+export type CallbackPageKind = "success" | "error";
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+const ICON_CHECK =
+  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_ALERT =
+  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+/**
+ * The dashboard's design tokens (styles/globals.css), inlined because the
+ * callback server runs on its own port and cannot load app assets. Light and
+ * dark follow the OS (`prefers-color-scheme`) — the callback origin has no
+ * access to the dashboard's stored theme, and the app's default "system"
+ * mode resolves the same way.
+ */
+function renderCallbackPage(
+  kind: CallbackPageKind,
+  title: string,
+  description: string,
+  detail?: string,
+): string {
+  const success = kind === "success";
+  const closeSeconds = OAUTH_CALLBACK_CLOSE_SECONDS;
+  const detailBlock = detail
+    ? `<p class="detail">${escapeHtml(detail)}</p>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>kcgrouter — Antigravity login</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: oklch(0.985 0.004 264); color: oklch(0.28 0.024 264);
+  }
+  .card {
+    width: 100%; max-width: 400px;
+    background: oklch(1 0 0);
+    border: 1px solid oklch(0.89 0.012 264);
+    border-radius: 0.75rem;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+  }
+  .icon {
+    width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 999px;
+    display: grid; place-items: center;
+  }
+  .icon-success { background: oklch(0.5 0.11 131 / 0.14); color: oklch(0.5 0.11 131); }
+  .icon-error { background: oklch(0.52 0.19 15 / 0.12); color: oklch(0.52 0.19 15); }
+  h1 { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; }
+  .desc { font-size: 0.8125rem; line-height: 1.55; color: oklch(0.5 0.028 263); margin: 0; }
+  .detail {
+    margin: 14px 0 0; padding: 10px 12px; text-align: left; word-break: break-word;
+    border-radius: 0.5rem; border: 1px solid oklch(0.89 0.012 264);
+    background: oklch(0.96 0.008 264);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.6875rem; line-height: 1.5; color: oklch(0.5 0.028 263);
+  }
+  .timer {
+    height: 4px; width: 220px; max-width: 100%; margin: 22px auto 10px;
+    border-radius: 999px; overflow: hidden; background: oklch(0.96 0.008 264);
+  }
+  .timer-fill {
+    height: 100%; width: 100%; border-radius: 999px; transform-origin: left;
+    animation: shrink ${closeSeconds}s linear forwards;
+  }
+  .success .timer-fill { background: oklch(0.5 0.11 131); }
+  .error .timer-fill { background: oklch(0.52 0.19 15); }
+  @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) {
+    .timer-fill { animation: none; }
+  }
+  .countdown {
+    margin: 0 0 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.14em;
+    color: oklch(0.5 0.028 263);
+  }
+  .close {
+    appearance: none; cursor: pointer;
+    border: 1px solid oklch(0.89 0.012 264); border-radius: 0.5rem;
+    background: transparent; color: inherit;
+    padding: 7px 16px; font-size: 0.8125rem; font-weight: 500;
+    font-family: inherit;
+  }
+  .close:hover { background: oklch(0.96 0.008 264); }
+  @media (prefers-color-scheme: dark) {
+    body { background: oklch(0.19 0.022 264); color: oklch(0.9 0.012 263); }
+    .card {
+      background: oklch(0.225 0.025 264);
+      border-color: oklch(0.34 0.03 264);
+      box-shadow: 0 1px 2px oklch(0 0 0 / 0.4);
+    }
+    .icon-success { background: oklch(0.77 0.1 131 / 0.16); color: oklch(0.77 0.1 131); }
+    .icon-error { background: oklch(0.66 0.15 15 / 0.16); color: oklch(0.66 0.15 15); }
+    .desc, .detail, .countdown { color: oklch(0.68 0.03 263); }
+    .detail { border-color: oklch(0.34 0.03 264); background: oklch(0.19 0.022 264); }
+    .timer { background: oklch(0.3 0.028 264); }
+    .success .timer-fill { background: oklch(0.77 0.1 131); }
+    .error .timer-fill { background: oklch(0.66 0.15 15); }
+    .close { border-color: oklch(0.34 0.03 264); }
+    .close:hover { background: oklch(0.26 0.027 264); }
+  }
+</style>
+</head>
+<body>
+<main class="card ${kind}" role="status">
+  <div class="icon icon-${kind}">${success ? ICON_CHECK : ICON_ALERT}</div>
+  <h1>${escapeHtml(title)}</h1>
+  <p class="desc">${escapeHtml(description)}</p>
+  ${detailBlock}
+  <div class="timer" aria-hidden="true"><div class="timer-fill"></div></div>
+  <p class="countdown" data-countdown>Closing in ${closeSeconds}s</p>
+  <button type="button" class="close" data-close>Close now</button>
+</main>
+<script>
+  (function () {
+    var total = ${closeSeconds};
+    var left = total;
+    var el = document.querySelector("[data-countdown]");
+    var timer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(timer);
+        el.textContent = "You can close this tab now";
+        window.close();
+        return;
+      }
+      el.textContent = "Closing in " + left + "s";
+    }, 1000);
+    document.querySelector("[data-close]").addEventListener("click", function () {
+      clearInterval(timer);
+      window.close();
+    });
+  })();
+</script>
+</body>
+</html>`;
+}
+
 /** Matches the Antigravity IDE binary's ClientMetadata platform enum. */
 export function getOAuthPlatformEnum(): number {
   const platform = process.platform;
@@ -116,7 +276,8 @@ export function startCallbackServer(
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname !== "/callback") {
-      res.writeHead(404).end();
+      res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(renderCallbackPage("error", "Not found", "Unknown path."));
       return;
     }
 
@@ -124,7 +285,15 @@ export function startCallbackServer(
     const code = url.searchParams.get("code");
     const returnedState = url.searchParams.get("state");
 
-    res.writeHead(200, { "Content-Type": "text/html" });
+    const respond = (
+      kind: CallbackPageKind,
+      title: string,
+      description: string,
+      detail?: string,
+    ) => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(renderCallbackPage(kind, title, description, detail));
+    };
 
     const fail = (err: Error) => {
       if (pending) pending.reject(err);
@@ -132,25 +301,38 @@ export function startCallbackServer(
     };
 
     if (error) {
-      res.end(
-        `<html><body><h2>Antigravity login failed</h2><p>${error}</p></body></html>`,
+      respond(
+        "error",
+        "Antigravity login failed",
+        "Google returned an error instead of an authorization code. Close this tab and try again.",
+        error,
       );
       fail(new Error(`OAuth error: ${error}`));
       return;
     }
     if (!code) {
-      res.end("<html><body><h2>Missing authorization code</h2></body></html>");
+      respond(
+        "error",
+        "Missing authorization code",
+        "The redirect did not carry an authorization code. Close this tab and restart the login.",
+      );
       fail(new Error("No authorization code in callback"));
       return;
     }
     if (returnedState !== state) {
-      res.end("<html><body><h2>State mismatch</h2></body></html>");
+      respond(
+        "error",
+        "State mismatch",
+        "The callback state did not match the login request, so it was rejected. Close this tab and try again.",
+      );
       fail(new Error("OAuth state mismatch"));
       return;
     }
 
-    res.end(
-      "<html><body><h2>Antigravity login successful</h2>You can close this tab and return to kcgrouter.</body></html>",
+    respond(
+      "success",
+      "Antigravity login successful",
+      "kcgrouter received the authorization code and will finish connecting your account. You can close this tab and return to the dashboard.",
     );
     if (pending) pending.resolve(code);
     else settled ??= { code };

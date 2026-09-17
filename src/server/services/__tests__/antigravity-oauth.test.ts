@@ -2,17 +2,17 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { run } from "../../../db/client";
 import { runMigrations } from "../../../db/migrations";
 import {
-  addAccount,
-  createProvider,
-  getDecryptedCredential,
-  type NewProviderInput,
-} from "../provider-registry.service";
-import {
   ensureFreshAccessToken,
   isOAuthAccount,
   parseOAuthBlob,
   serializeOAuthBlob,
 } from "../antigravity-oauth.service";
+import {
+  addAccount,
+  createProvider,
+  getDecryptedCredential,
+  type NewProviderInput,
+} from "../provider-registry.service";
 
 const originalFetch = globalThis.fetch;
 let refreshCallCount = 0;
@@ -25,7 +25,10 @@ function mockTokenEndpoint(): void {
     }
     refreshCallCount += 1;
     return new Response(
-      JSON.stringify({ access_token: `at_${refreshCallCount}`, expires_in: 3600 }),
+      JSON.stringify({
+        access_token: `at_${refreshCallCount}`,
+        expires_in: 3600,
+      }),
       { status: 200 },
     );
   }) as typeof fetch;

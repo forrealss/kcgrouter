@@ -162,6 +162,42 @@ describe("antigravity oauth — bound callback server", () => {
     await expect(second.waitForCode()).resolves.toBe("abc");
   });
 
+  test("success page is themed HTML with a 10s close countdown", async () => {
+    const cb = await startBoundCallbackServer();
+    opened.push(cb);
+
+    const res = await fetch(
+      `http://127.0.0.1:${cb.port}/callback?code=xyz&state=${cb.state}`,
+    );
+    const html = await res.text();
+
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(html).toContain('class="card success"');
+    expect(html).toContain("Antigravity login successful");
+    expect(html).toContain("Closing in 10s");
+    expect(html).toContain("@keyframes shrink");
+    expect(html).toContain("prefers-color-scheme: dark");
+    // Exactly one script block: the countdown itself. User-controlled content
+    // must never add another (covered by the escaping test below).
+    expect(html.indexOf("<script>")).toBe(html.lastIndexOf("<script>"));
+  });
+
+  test("error page escapes the upstream error message", async () => {
+    const cb = await startBoundCallbackServer();
+    opened.push(cb);
+
+    const res = await fetch(
+      `http://127.0.0.1:${cb.port}/callback?error=%3Cscript%3Ealert(1)%3C/script%3E&state=${cb.state}`,
+    );
+    const html = await res.text();
+
+    expect(html).toContain('class="card error"');
+    expect(html).toContain("Antigravity login failed");
+    // Raw tags must not survive escaping.
+    expect(html).not.toContain("<script>alert");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
   test("waitForCode rejects on an OAuth error redirect", async () => {
     const cb = await startBoundCallbackServer();
     opened.push(cb);

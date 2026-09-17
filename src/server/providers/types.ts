@@ -12,7 +12,14 @@ export interface CanonicalMessage {
 export type CanonicalContentPart =
   | { type: "text"; text: string }
   | { type: "image"; image: string }
-  | { type: "tool_call"; id: string; name: string; arguments: unknown }
+  | {
+      type: "tool_call";
+      id: string;
+      name: string;
+      arguments: unknown;
+      /** Gemini/Antigravity thought signature returned with the call. */
+      thoughtSignature?: string;
+    }
   | { type: "tool_result"; toolCallId: string; content: string };
 
 export interface CanonicalRequest {
@@ -42,6 +49,8 @@ export interface CanonicalStreamChunk {
   toolCallStart?: {
     toolCallId: string;
     toolName: string;
+    /** Retained internally so a follow-up tool result can replay it. */
+    thoughtSignature?: string;
   };
   toolCallDelta?: {
     toolCallId: string;

@@ -16,7 +16,15 @@ interface OpenAIMessage {
   tool_calls?: {
     id: string;
     type: "function";
-    function: { name: string; arguments: string };
+    // Some Gemini-compatible clients preserve this vendor field.
+    thought_signature?: string;
+    thoughtSignature?: string;
+    function: {
+      name: string;
+      arguments: string;
+      thought_signature?: string;
+      thoughtSignature?: string;
+    };
   }[];
   tool_call_id?: string;
 }
@@ -128,6 +136,11 @@ function openAIToCanonical(body: OpenAIRequest): CanonicalRequest {
           id: tc.id,
           name: tc.function.name,
           arguments: parsedArgs,
+          thoughtSignature:
+            tc.thought_signature ??
+            tc.thoughtSignature ??
+            tc.function.thought_signature ??
+            tc.function.thoughtSignature,
         });
       }
     }
@@ -188,11 +201,18 @@ function anthropicToCanonical(body: AnthropicRequest): CanonicalRequest {
         if (block.type === "text" && block.text) {
           parts.push({ type: "text", text: block.text });
         } else if (block.type === "tool_use" && block.id && block.name) {
+          const blockWithSignature = block as typeof block & {
+            thought_signature?: string;
+            thoughtSignature?: string;
+          };
           parts.push({
             type: "tool_call",
             id: block.id,
             name: block.name,
             arguments: block.input ?? {},
+            thoughtSignature:
+              blockWithSignature.thought_signature ??
+              blockWithSignature.thoughtSignature,
           });
         } else if (block.type === "tool_result" && block.tool_use_id) {
           parts.push({

@@ -42,3 +42,4 @@ db/*sqlite*
 .kcgrouter-dev/
 
 .freebuff
+.perch

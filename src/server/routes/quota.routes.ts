@@ -10,7 +10,7 @@ export const quotaRoutes: Record<string, RouteHandler> = {
 
     for (const provider of providers) {
       // Only show connections from providers that have a usage tracker
-      // (currently Kiro, Command Code and Qoder).
+      // (currently Kiro, Command Code, Qoder and Antigravity).
       if (!ProviderUsage.isTrackedTransport(provider.transport)) continue;
 
       const accounts = ProviderRegistry.listAccounts(provider.id);
@@ -34,9 +34,10 @@ export const quotaRoutes: Record<string, RouteHandler> = {
     return Response.json(result);
   },
 
-  "GET /api/quota/usage": async () => {
+  "GET /api/quota/usage": async (req) => {
+    const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
     try {
-      const usage = await ProviderUsage.getAllProviderUsage();
+      const usage = await ProviderUsage.getAllProviderUsage(forceRefresh);
       return Response.json(usage);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -53,8 +54,12 @@ export const quotaRoutes: Record<string, RouteHandler> = {
       return Response.json({ error: "Account ID required" }, { status: 400 });
     }
 
+    const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
     try {
-      const usage = await ProviderUsage.getProviderUsage(accountId);
+      const usage = await ProviderUsage.getProviderUsage(
+        accountId,
+        forceRefresh,
+      );
       if (!usage) {
         return Response.json(
           { error: "No usage data available" },

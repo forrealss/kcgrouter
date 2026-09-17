@@ -74,9 +74,9 @@ still works there.
 - **Combo routes** — `fallback` (priority ordered) and `round_robin`
   strategies across multiple provider accounts, with per-token cost modeling.
 - **Quota tracking** — remaining quota is fetched live from the providers that
-  report it (Kiro, Command Code, Qoder). Capped windows show headroom against
-  the cap; credit balances show the amount on hand. Plus the router's own
-  per-account token budget.
+  report it (Kiro, Command Code, Qoder, Antigravity). Capped windows show
+  headroom against the cap; credit balances show the amount on hand. Plus the
+  router's own per-account token budget.
 - **Token Saver** — eight output filters (git diff/status, grep, find, ls,
   tree, log dedup, line truncation) compress tool results before they reach the
   context window, plus optional "Caveman" and "Ponytail" prompt modifiers at

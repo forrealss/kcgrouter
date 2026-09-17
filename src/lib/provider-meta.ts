@@ -75,6 +75,7 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
   },
   antigravity: {
     label: "Google Antigravity",
+    icon: "/images/providers/antigravity.svg",
     fallbackIcon: RocketIcon,
     accentClassName: "border-chart-3/40 bg-chart-3/10 text-chart-3",
   },

@@ -1,10 +1,15 @@
 import { get, query } from "../../db/client";
 import type { ProviderTransport } from "../../db/schema";
+import { getCachedAntigravityQuota } from "../providers/antigravity/quota";
 import {
   QODER_QUOTA_USAGE_URL,
   QODER_USER_STATUS_URL,
 } from "../providers/qoder/constants";
 import { resolveQoderCredentials } from "../providers/qoder/model-catalog";
+import {
+  ensureFreshAccessToken,
+  parseOAuthBlob,
+} from "./antigravity-oauth.service";
 import { decrypt } from "./crypto.service";
 
 /**
@@ -402,15 +407,84 @@ export async function fetchQoderUsage(
   };
 }
 
+/**
+ * Antigravity usage — per-model windows plus weekly buckets from Google's
+ * Cloud Code API (see providers/antigravity/quota.ts for the payload shapes).
+ * The credential is a Google access token that expires hourly, so refresh it
+ * via the OAuth service before querying, and reuse the projectId stored at
+ * login to skip the loadCodeAssist round-trip.
+ *
+ * Results are cached 3 minutes (9router parity); `forceRefresh` bypasses the
+ * TTL for the dashboard's manual Refresh button.
+ */
+async function fetchAntigravityUsage(
+  apiKey: string,
+  accountId?: string,
+  forceRefresh = false,
+): Promise<ProviderUsageResult | null> {
+  let token = apiKey;
+  let projectId: string | undefined;
+
+  if (accountId) {
+    const fresh = await ensureFreshAccessToken(accountId);
+    if (fresh) {
+      token = fresh.apiKey;
+      projectId = fresh.projectId;
+    } else {
+      // Not an OAuth-shaped account — still try the stored blob for a
+      // projectId so fetchAntigravityQuota can skip loadCodeAssist.
+      projectId = parseOAuthBlob(
+        get<{ oauth_enc: string | null }>(
+          "SELECT oauth_enc FROM provider_accounts WHERE id = ?",
+          accountId,
+        )?.oauth_enc ?? null,
+      )?.projectId;
+    }
+  }
+
+  const result = await getCachedAntigravityQuota(
+    accountId ?? token,
+    token,
+    projectId,
+    forceRefresh,
+  );
+  if (Object.keys(result.quotas).length === 0) return null;
+
+  // Both per-model windows and weekly buckets are consumption caps, so every
+  // row renders as a progress window (no balance rows for this provider).
+  const quotas: ProviderQuota[] = Object.entries(result.quotas).map(
+    ([name, quota]) => ({
+      name,
+      used: quota.used,
+      total: quota.total,
+      resetAt: quota.resetAt,
+      kind: "window" as const,
+    }),
+  );
+
+  return {
+    provider: "antigravity",
+    accountId: "",
+    label: "",
+    plan: result.plan ?? undefined,
+    quotas,
+  };
+}
+
 const usageFetchers: Partial<
   Record<
     ProviderTransport,
-    (apiKey: string) => Promise<ProviderUsageResult | null>
+    (
+      apiKey: string,
+      accountId?: string,
+      forceRefresh?: boolean,
+    ) => Promise<ProviderUsageResult | null>
   >
 > = {
   kiro: fetchKiroUsage,
   "command-code": fetchCommandCodeUsage,
   qoder: fetchQoderUsage,
+  antigravity: fetchAntigravityUsage,
 };
 
 /**
@@ -423,6 +497,7 @@ export function isTrackedTransport(transport: ProviderTransport): boolean {
 
 export async function getProviderUsage(
   accountId: string,
+  forceRefresh = false,
 ): Promise<ProviderUsageResult | null> {
   const row = get<{
     provider_id: string;
@@ -446,7 +521,7 @@ export async function getProviderUsage(
   if (!fetcher) return null;
 
   const apiKey = decrypt(row.credential_enc);
-  const result = await fetcher(apiKey);
+  const result = await fetcher(apiKey, accountId, forceRefresh);
   if (result) {
     result.accountId = accountId;
     result.label = row.label;
@@ -454,7 +529,9 @@ export async function getProviderUsage(
   return result;
 }
 
-export async function getAllProviderUsage(): Promise<ProviderUsageResult[]> {
+export async function getAllProviderUsage(
+  forceRefresh = false,
+): Promise<ProviderUsageResult[]> {
   const accounts = query<{
     id: string;
     provider_id: string;
@@ -476,7 +553,7 @@ export async function getAllProviderUsage(): Promise<ProviderUsageResult[]> {
 
     try {
       const apiKey = decrypt(account.credential_enc);
-      const result = await fetcher(apiKey);
+      const result = await fetcher(apiKey, account.id, forceRefresh);
       if (result) {
         result.accountId = account.id;
         result.label = account.label;

@@ -1,14 +1,14 @@
 import type { ProviderTransport } from "../../db/schema";
 import {
-  antigravityAdapter,
-  antigravityConfig,
-  antigravityModels,
-} from "./antigravity";
-import {
   anthropicAdapter,
   anthropicConfig,
   anthropicModels,
 } from "./anthropic";
+import {
+  antigravityAdapter,
+  antigravityConfig,
+  antigravityModels,
+} from "./antigravity";
 import {
   commandCodeAdapter,
   commandCodeConfig,

@@ -8,6 +8,7 @@ import type {
 import { antigravityConfig } from "./config";
 import type { AntigravityCredential } from "./oauth";
 import { buildAntigravityPayload } from "./payload";
+import { storeThoughtSignature } from "./thought-signature";
 
 const PROVIDER_NAME = "Antigravity";
 
@@ -77,7 +78,10 @@ const FINISH_MAP: Record<string, CanonicalResponse["finishReason"]> = {
   RECITATION: "error",
 };
 
-function parseResponse(data: GeminiResponseShape): CanonicalResponse {
+function parseResponse(
+  data: GeminiResponseShape,
+  sessionKey: string,
+): CanonicalResponse {
   const { candidates, usageMetadata } = unwrap(data);
   const candidate = candidates?.[0];
   const parts: CanonicalResponse["message"]["content"] = [];
@@ -89,11 +93,18 @@ function parseResponse(data: GeminiResponseShape): CanonicalResponse {
       if (p.text) {
         parts.push({ type: "text", text: p.text });
       } else if (p.functionCall?.name) {
+        const toolCallId = `fc_${Date.now()}_${functionCallCounter++}`;
+        if (p.thoughtSignature) {
+          storeThoughtSignature(toolCallId, p.thoughtSignature, sessionKey);
+        }
         parts.push({
           type: "tool_call",
-          id: `fc_${Date.now()}_${functionCallCounter++}`,
+          id: toolCallId,
           name: p.functionCall.name,
           arguments: p.functionCall.args ?? {},
+          ...(p.thoughtSignature
+            ? { thoughtSignature: p.thoughtSignature }
+            : {}),
         });
       }
     }
@@ -150,8 +161,9 @@ export const antigravityAdapter: ProviderAdapter = {
       throw providerError(PROVIDER_NAME, res, text);
     }
 
+    const sessionKey = cred.accountId ?? cred.apiKey;
     const data = (await res.json()) as GeminiResponseShape;
-    return carryRetryMeta(parseResponse(data), data);
+    return carryRetryMeta(parseResponse(data, sessionKey), data);
   },
 
   async sendStream(
@@ -183,6 +195,7 @@ export const antigravityAdapter: ProviderAdapter = {
       throw providerError(PROVIDER_NAME, res, text);
     }
 
+    const sessionKey = cred.accountId ?? cred.apiKey;
     let functionCallCounter = 0;
 
     return carryRetryMeta(
@@ -203,8 +216,16 @@ export const antigravityAdapter: ProviderAdapter = {
           }
           if (part.functionCall?.name) {
             const toolCallId = `fc_${Date.now()}_${functionCallCounter++}`;
+            const thoughtSignature = part.thoughtSignature;
+            if (thoughtSignature) {
+              storeThoughtSignature(toolCallId, thoughtSignature, sessionKey);
+            }
             controller.enqueue({
-              toolCallStart: { toolCallId, toolName: part.functionCall.name },
+              toolCallStart: {
+                toolCallId,
+                toolName: part.functionCall.name,
+                ...(thoughtSignature ? { thoughtSignature } : {}),
+              },
             });
             controller.enqueue({
               toolCallDelta: {

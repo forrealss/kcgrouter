@@ -183,8 +183,14 @@ export async function testConnection(
 
 /**
  * Antigravity connection test: probe the Cloud Code quota endpoint with the
- * stored access token. A 2xx means the token and endpoint are usable; a 401/
- * 403 means the token is stale and could not be refreshed.
+ * stored access token. A 2xx means the token and endpoint are usable; a 401
+ * means the token is stale and could not be refreshed.
+ *
+ * The body must carry the account's Cloud Code `project` (resolved at login
+ * and stored in the OAuth blob). Google answers an empty-body probe with a
+ * misleading 403 SUBSCRIPTION_REQUIRED (#3501) — the same token succeeds
+ * once the project is included, and chat requests always carry it, so the
+ * empty body made healthy accounts look revoked.
  */
 async function testAntigravityConnection(
   accountId: string,
@@ -192,9 +198,11 @@ async function testAntigravityConnection(
 ): Promise<TestConnectionResult> {
   const start = Date.now();
   try {
-    // Refresh first so a stale token doesn't fail the probe.
+    // Refresh first so a stale token doesn't fail the probe. Also picks up
+    // the stored projectId for the request body.
     const fresh = await ensureFreshAccessToken(accountId);
     const token = fresh?.apiKey ?? apiKey;
+    const projectId = fresh?.projectId;
 
     const res = await fetch(
       "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
@@ -205,15 +213,19 @@ async function testAntigravityConnection(
           Authorization: `Bearer ${token}`,
           "User-Agent": "antigravity/ide/2.11.0 darwin/arm64",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify(projectId ? { project: projectId } : {}),
       },
     );
 
     if (res.status === 401 || res.status === 403) {
+      const text = await res.text();
+      const licenseRevoked = text.includes("SUBSCRIPTION_REQUIRED");
       return {
         status: "error",
         latencyMs: Date.now() - start,
-        error: "Access token rejected — re-run the OAuth login",
+        error: licenseRevoked
+          ? "Google reports the account has no Antigravity license (SUBSCRIPTION_REQUIRED) — the OAuth login itself is fine"
+          : "Access token rejected — re-run the OAuth login",
       };
     }
     if (!res.ok) {

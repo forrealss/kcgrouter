@@ -4,6 +4,7 @@ import {
   CpuIcon,
   DropletsIcon,
   type LucideIcon,
+  RocketIcon,
   SparklesIcon,
   TerminalIcon,
 } from "lucide-react";
@@ -71,5 +72,10 @@ export const transportMeta: Record<ProviderTransport, TransportMeta> = {
     darkIcon: "/images/providers/qoder-dark.webp",
     fallbackIcon: DropletsIcon,
     accentClassName: "border-chart-6/40 bg-chart-6/10 text-chart-6",
+  },
+  antigravity: {
+    label: "Google Antigravity",
+    fallbackIcon: RocketIcon,
+    accentClassName: "border-chart-3/40 bg-chart-3/10 text-chart-3",
   },
 };

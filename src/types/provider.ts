@@ -5,7 +5,8 @@ export type ProviderTransport =
   | "kiro"
   | "command-code"
   | "mimo"
-  | "qoder";
+  | "qoder"
+  | "antigravity";
 
 export interface RetryRule {
   /** Number of retries *after* the first attempt (0 = no retry). */
@@ -68,6 +69,31 @@ export interface AccountFormValues {
   label: string;
   apiKey?: string;
   quotaLimitTokens: number | null;
+  /** Antigravity OAuth login result (set by the OAuth login dialog flow). */
+  oauth?: AntigravityOAuthInput | null;
+}
+
+/**
+ * Result of a completed Antigravity OAuth login, as delivered by the
+ * /oauth/wait endpoint and forwarded to the account create/update endpoint.
+ * The server persists the refresh token encrypted and keeps the access token
+ * in the regular credential slot.
+ */
+export interface AntigravityOAuthResult {
+  accessToken: string;
+  refreshToken: string;
+  /** Seconds until the access token expires (Google default: 3599). */
+  expiresIn?: number;
+  email?: string;
+  projectId?: string;
+}
+
+/** OAuth data attached to an account create/update API call. */
+export interface AntigravityOAuthInput {
+  refreshToken: string;
+  expiresIn?: number;
+  email?: string;
+  projectId?: string;
 }
 
 export interface ProviderModel {

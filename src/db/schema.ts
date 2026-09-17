@@ -75,6 +75,14 @@ export interface ProviderAccountRow {
   /** Failover position within the provider, lowest first. */
   sort_order: number;
   credential_enc: string;
+  /**
+   * OAuth accounts (antigravity): encrypted JSON with refresh_token / email /
+   * projectId. NULL for apikey accounts. `credential_enc` holds the live
+   * access token for OAuth accounts.
+   */
+  oauth_enc: string | null;
+  /** ISO timestamp of when the stored access token expires (OAuth accounts). */
+  oauth_expires_at: string | null;
   quota_limit_tokens: number | null;
   last_used_at: string | null;
   last_error: string | null;
@@ -150,7 +158,8 @@ export type ProviderTransport =
   | "kiro"
   | "command-code"
   | "mimo"
-  | "qoder";
+  | "qoder"
+  | "antigravity";
 export type AccountStatus = "active" | "error" | "expired";
 export type ComboStrategy = "fallback" | "round_robin";
 

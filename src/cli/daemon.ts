@@ -1,8 +1,11 @@
 import {
   closeSync,
+  copyFileSync,
+  existsSync,
   mkdirSync,
   openSync,
   readFileSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -53,19 +56,77 @@ export function getTrayPid(): number | null {
   }
 }
 
+/** Cache so repeated spawns reuse the same copied binary. */
+let windowsDaemonBinCache: string | null = null;
+
+/**
+ * On Windows there is no argv[0] renaming (`exec -a`), so a daemon spawned as
+ * `bun.exe` shows up in Task Manager / `tasklist` as `bun.exe` and gets killed
+ * by anything that kills all bun processes (`taskkill /IM bun.exe`,
+ * `Stop-Process -Name bun`). Run a private copy of the bun runtime named
+ * `kcgrouterd.exe` instead. The copy is refreshed whenever the real bun
+ * binary changes (e.g. after `bun upgrade`). Falls back to the real bun
+ * binary if the copy cannot be created (AV, permissions, ...).
+ */
+function windowsDaemonBin(): string {
+  if (windowsDaemonBinCache) return windowsDaemonBinCache;
+  const realBun = process.execPath;
+  try {
+    const dest = join(KCGRouter_HOME, "kcgrouterd.exe");
+    const stale =
+      !existsSync(dest) ||
+      statSync(realBun).mtimeMs !== statSync(dest).mtimeMs ||
+      statSync(realBun).size !== statSync(dest).size;
+    if (stale) copyFileSync(realBun, dest);
+    windowsDaemonBinCache = dest;
+    return dest;
+  } catch {
+    // Fall back to the real bun binary; the daemon will then show up as
+    // "bun.exe" and be vulnerable again, but that is still better than not
+    // starting at all.
+    windowsDaemonBinCache = realBun;
+    return realBun;
+  }
+}
+
+/**
+ * Build the spawn command that runs the daemon under a name other than "bun"
+ * so AI agents / cleanup tools that kill every "bun" process don't take the
+ * kcgrouter server down with them:
+ *
+ * - Linux & macOS: `bash -c 'exec -a kcgrouterd <bun> <script>'` renames
+ *   argv[0], which is what `ps`, `pgrep -f` and `pkill -f` match against.
+ * - Windows: run the private `kcgrouterd.exe` copy (see windowsDaemonBin),
+ *   since the image name shown by `tasklist`/Task Manager comes from the
+ *   executable file name and cannot be renamed at runtime.
+ */
+function daemonCommand(
+  script: string,
+  extraArgs: string[] = [],
+): { cmd: string; args: string[] } {
+  if (process.platform === "win32") {
+    return { cmd: windowsDaemonBin(), args: [script, ...extraArgs] };
+  }
+
+  // execPath may contain spaces (e.g. "/Users/John Doe/.bun/bin/bun") — quote
+  // it for the bash -c string.
+  const quotedBun = `'${process.execPath.replace(/'/g, `'\\''`)}'`;
+  const rest = [script, ...extraArgs].join(" ");
+  return {
+    cmd: "bash",
+    args: ["-c", `exec -a kcgrouterd ${quotedBun} ${rest}`],
+  };
+}
+
 /** Spawn daemon without exiting — used by menu auto-start */
 export function spawnDaemon(cwd: string): number | null {
   if (isRunning()) return getPid();
 
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
-  const isWin = process.platform === "win32";
-  // process.execPath is the absolute path to the bun runtime, so the spawned
-  // daemon works even when launched from an autostart entry whose PATH does
-  // not include the bun bin directory.
-  const bunBin = process.execPath;
-  const cmd = isWin ? bunBin : "nohup";
-  const args = isWin ? ["src/index.ts"] : [bunBin, "src/index.ts"];
+  // Run through the renamed-binary/argv[0] wrapper so the daemon does not
+  // show up as a generic "bun" process (see daemonCommand above).
+  const { cmd, args } = daemonCommand("src/index.ts");
 
   const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {
@@ -88,12 +149,8 @@ export function spawnTrayDaemon(cwd: string): number | null {
 
   mkdirSync(KCGRouter_HOME, { recursive: true });
 
-  const isWin = process.platform === "win32";
-  const bunBin = process.execPath;
-  const cmd = isWin ? bunBin : "nohup";
-  const args = isWin
-    ? ["bin/kcgrouter.ts", "--tray"]
-    : [bunBin, "bin/kcgrouter.ts", "--tray"];
+  // Same renamed-binary/argv[0] wrapper as spawnDaemon (see daemonCommand).
+  const { cmd, args } = daemonCommand("bin/kcgrouter.ts", ["--tray"]);
 
   const logFd = openSync(LOG_FILE, "a");
   const child = spawn([cmd, ...args], {

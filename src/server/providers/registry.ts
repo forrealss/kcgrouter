@@ -1,5 +1,10 @@
 import type { ProviderTransport } from "../../db/schema";
 import {
+  antigravityAdapter,
+  antigravityConfig,
+  antigravityModels,
+} from "./antigravity";
+import {
   anthropicAdapter,
   anthropicConfig,
   anthropicModels,
@@ -24,6 +29,7 @@ const adapters: Record<ProviderTransport, ProviderAdapter> = {
   "command-code": commandCodeAdapter,
   mimo: mimoAdapter,
   qoder: qoderAdapter,
+  antigravity: antigravityAdapter,
 };
 
 const configs: Record<ProviderTransport, ProviderConfig> = {
@@ -34,6 +40,7 @@ const configs: Record<ProviderTransport, ProviderConfig> = {
   "command-code": commandCodeConfig,
   mimo: mimoConfig,
   qoder: qoderConfig,
+  antigravity: antigravityConfig,
 };
 
 const models: Record<ProviderTransport, ModelInfo[]> = {
@@ -44,6 +51,7 @@ const models: Record<ProviderTransport, ModelInfo[]> = {
   "command-code": commandCodeModels,
   mimo: mimoModels,
   qoder: qoderModels,
+  antigravity: antigravityModels,
 };
 
 export function getAdapter(transport: ProviderTransport): ProviderAdapter {

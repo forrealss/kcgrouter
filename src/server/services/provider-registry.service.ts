@@ -8,6 +8,10 @@ import type {
   ProviderTransport,
 } from "../../db/schema";
 import type { RetryConfig } from "../providers/retry";
+import {
+  parseOAuthBlob,
+  serializeOAuthBlob,
+} from "./antigravity-oauth.service";
 import { decrypt, encrypt } from "./crypto.service";
 import * as EventBus from "./event-bus";
 import type { ErrorKind } from "./quota-tracker.service";
@@ -20,6 +24,7 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "command-code",
   "mimo",
   "qoder",
+  "antigravity",
 ];
 
 export interface NewProviderInput {
@@ -35,6 +40,13 @@ export interface NewAccountInput {
   quotaLimitTokens?: number | null;
   /** Operator's on/off switch; omitted on a patch leaves it unchanged. */
   enabled?: boolean;
+  /** OAuth login result (antigravity): persists refresh token/email/projectId. */
+  oauth?: {
+    refreshToken: string;
+    email?: string;
+    projectId?: string;
+    expiresIn?: number;
+  } | null;
 }
 
 export interface Provider {
@@ -413,6 +425,21 @@ export function addAccount(
   const credentialEnc = encrypt(input.apiKey);
   const now = new Date().toISOString();
 
+  // OAuth accounts also store their long-lived secrets encrypted; apiKey here
+  // is the initial access token and `oauth.expiresIn` its lifetime.
+  let oauthEnc: string | null = null;
+  let oauthExpiresAt: string | null = null;
+  if (input.oauth?.refreshToken) {
+    oauthEnc = serializeOAuthBlob({
+      refreshToken: input.oauth.refreshToken,
+      email: input.oauth.email,
+      projectId: input.oauth.projectId,
+    });
+    oauthExpiresAt = new Date(
+      Date.now() + (input.oauth.expiresIn ?? 3600) * 1000,
+    ).toISOString();
+  }
+
   // Append to the end of the provider's failover order, so adding a connection
   // never displaces the one currently serving traffic first.
   const tail = get<{ next: number }>(
@@ -422,13 +449,15 @@ export function addAccount(
   const sortOrder = tail?.next ?? 0;
 
   run(
-    `INSERT INTO provider_accounts (id, provider_id, label, status, enabled, sort_order, credential_enc, quota_limit_tokens, created_at)
-     VALUES (?, ?, ?, 'active', 1, ?, ?, ?, ?)`,
+    `INSERT INTO provider_accounts (id, provider_id, label, status, enabled, sort_order, credential_enc, oauth_enc, oauth_expires_at, quota_limit_tokens, created_at)
+     VALUES (?, ?, ?, 'active', 1, ?, ?, ?, ?, ?, ?)`,
     id,
     providerId,
     input.label.trim(),
     sortOrder,
     credentialEnc,
+    oauthEnc,
+    oauthExpiresAt,
     input.quotaLimitTokens ?? null,
     now,
   );
@@ -486,6 +515,24 @@ export function updateAccount(
     updates.push("last_error_at = NULL");
     updates.push("cooldown_until = NULL");
     updates.push("backoff_level = 0");
+
+    // A new OAuth login accompanies the fresh access token.
+    if (patch.oauth?.refreshToken) {
+      updates.push("oauth_enc = ?");
+      updates.push("oauth_expires_at = ?");
+      values.push(
+        serializeOAuthBlob({
+          refreshToken: patch.oauth.refreshToken,
+          email: patch.oauth.email,
+          projectId: patch.oauth.projectId,
+        }),
+      );
+      values.push(
+        new Date(
+          Date.now() + (patch.oauth.expiresIn ?? 3600) * 1000,
+        ).toISOString(),
+      );
+    }
   }
 
   if (patch.quotaLimitTokens !== undefined) {
@@ -684,7 +731,9 @@ export function recordAccountSuccess(accountId: string): void {
   EventBus.publish("account:recovered", { accountId });
 }
 
-export function getDecryptedCredential(accountId: string): { apiKey: string } {
+export function getDecryptedCredential(
+  accountId: string,
+): { apiKey: string } & Record<string, unknown> {
   const row = get<ProviderAccountRow>(
     "SELECT * FROM provider_accounts WHERE id = ?",
     accountId,
@@ -692,5 +741,10 @@ export function getDecryptedCredential(accountId: string): { apiKey: string } {
   if (!row) throw new Error("Provider account not found");
 
   const apiKey = decrypt(row.credential_enc);
-  return { apiKey };
+  const oauth = parseOAuthBlob(row.oauth_enc);
+  return {
+    apiKey,
+    projectId: oauth?.projectId,
+    email: oauth?.email,
+  };
 }

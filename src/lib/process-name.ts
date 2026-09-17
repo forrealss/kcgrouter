@@ -9,6 +9,14 @@ import { writeFileSync } from "node:fs";
  * `process.title`.
  */
 export function setProcessName(name: string): void {
+  // Best-effort: rewrite the process's own argv[0] so `ps`, `pgrep -f`, and
+  // `pkill -f bun` no longer match kcgrouter's command line as a "bun" run.
+  try {
+    process.argv[0] = name;
+  } catch {
+    // Ignore: argv[0] may be read-only on some platforms/runtimes.
+  }
+
   if (process.platform === "linux") {
     try {
       // /proc/self/comm is truncated to 15 bytes (TASK_COMM_LEN).

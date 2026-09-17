@@ -174,11 +174,57 @@ const qoderModels: ModelSeed[] = [
   },
 ];
 
+const antigravityModels: ModelSeed[] = [
+  {
+    provider: "builtin-antigravity",
+    modelId: "gemini-3.8-flash-medium",
+    modelName: "Gemini 3.8 Flash (Medium)",
+    contextLength: 1048576,
+    maxOutputTokens: 64000,
+  },
+  {
+    provider: "builtin-antigravity",
+    modelId: "gemini-3.8-flash-high",
+    modelName: "Gemini 3.8 Flash (High)",
+    contextLength: 1048576,
+    maxOutputTokens: 64000,
+  },
+  {
+    provider: "builtin-antigravity",
+    modelId: "gemini-pro-agent",
+    modelName: "Gemini 3.1 Pro (High)",
+    contextLength: 1048576,
+    maxOutputTokens: 64000,
+  },
+  {
+    provider: "builtin-antigravity",
+    modelId: "claude-sonnet-4-6",
+    modelName: "Claude Sonnet 4.6 (Thinking)",
+    contextLength: 200000,
+    maxOutputTokens: 64000,
+  },
+  {
+    provider: "builtin-antigravity",
+    modelId: "claude-opus-4-6-thinking",
+    modelName: "Claude Opus 4.6 (Thinking)",
+    contextLength: 200000,
+    maxOutputTokens: 64000,
+  },
+  {
+    provider: "builtin-antigravity",
+    modelId: "gpt-oss-120b-medium",
+    modelName: "GPT-OSS 120B (Medium)",
+    contextLength: 131072,
+    maxOutputTokens: 32768,
+  },
+];
+
 const allModels = [
   ...kiroModels,
   ...commandCodeModels,
   ...mimoModels,
   ...qoderModels,
+  ...antigravityModels,
 ];
 
 export function seed(): void {

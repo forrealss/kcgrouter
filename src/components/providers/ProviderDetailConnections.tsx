@@ -767,6 +767,7 @@ export function ProviderDetailConnections({
       {isDialogOpen ? (
         <AccountFormDialog
           providerId={provider.id}
+          transport={provider.transport}
           account={editingAccount}
           open
           onOpenChange={(open) => {

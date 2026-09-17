@@ -9,6 +9,7 @@ import {
   ANTHROPIC_SSE_HEADERS,
   encodeAnthropicStream,
 } from "./anthropic-sse-encoder.service";
+import { ensureFreshAccessToken } from "./antigravity-oauth.service";
 import * as ApiKeyScope from "./api-key-scope.service";
 import * as ComboEngine from "./combo-engine.service";
 import * as EventBus from "./event-bus";
@@ -481,7 +482,14 @@ async function attemptAccount(
   } = params;
 
   const adapter = getAdapter(provider.transport);
-  const credential = ProviderRegistry.getDecryptedCredential(account.id);
+
+  // OAuth accounts (antigravity): transparently refresh the Google access
+  // token before use — falls back to the stored credential otherwise.
+  let credential = await ensureFreshAccessToken(account.id);
+  if (!credential) {
+    credential = ProviderRegistry.getDecryptedCredential(account.id);
+  }
+
   const startedAt = Date.now();
   const reqWithModel = { ...canonical, modelHint: modelName };
   // Forward the provider's stored retry policy (if any) into the adapter, so

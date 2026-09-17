@@ -1,6 +1,15 @@
 import type { ProviderTransport } from "../../db/schema";
+import {
+  exchangeCodeForTokens,
+  retrieveUserInfo,
+} from "../providers/antigravity/oauth";
 import { getDefaultModels } from "../providers/registry";
 import type { RetryConfig } from "../providers/retry";
+import {
+  createOAuthLoginSession,
+  getOAuthLoginSession,
+  removeOAuthLoginSession,
+} from "../services/antigravity-oauth-login.service";
 import * as ModelRegistry from "../services/model-registry.service";
 import * as ProviderRegistry from "../services/provider-registry.service";
 import * as RequestLog from "../services/request-log.service";
@@ -15,6 +24,7 @@ const VALID_TRANSPORTS: ProviderTransport[] = [
   "command-code",
   "mimo",
   "qoder",
+  "antigravity",
 ];
 
 export const providersRoutes: Record<string, RouteHandler> = {
@@ -203,10 +213,22 @@ export const providersRoutes: Record<string, RouteHandler> = {
       label?: string;
       apiKey?: string;
       quotaLimitTokens?: number | null;
+      oauth?: {
+        refreshToken?: string;
+        email?: string;
+        projectId?: string;
+        expiresIn?: number;
+      };
     };
     if (!body.label || !body.apiKey) {
       return Response.json(
         { error: "label and apiKey are required" },
+        { status: 400 },
+      );
+    }
+    if (body.oauth && !body.oauth.refreshToken) {
+      return Response.json(
+        { error: "oauth.refreshToken is required when oauth is provided" },
         { status: 400 },
       );
     }
@@ -216,6 +238,14 @@ export const providersRoutes: Record<string, RouteHandler> = {
         label: body.label,
         apiKey: body.apiKey,
         quotaLimitTokens: body.quotaLimitTokens,
+        oauth: body.oauth?.refreshToken
+          ? {
+              refreshToken: body.oauth.refreshToken,
+              email: body.oauth.email,
+              projectId: body.oauth.projectId,
+              expiresIn: body.oauth.expiresIn,
+            }
+          : undefined,
       });
       RequestLog.record({
         type: "admin",
@@ -243,6 +273,12 @@ export const providersRoutes: Record<string, RouteHandler> = {
       apiKey?: string;
       quotaLimitTokens?: number | null;
       enabled?: boolean;
+      oauth?: {
+        refreshToken?: string;
+        email?: string;
+        projectId?: string;
+        expiresIn?: number;
+      };
     };
     try {
       const account = ProviderRegistry.updateAccount(params?.id ?? "", {
@@ -250,6 +286,14 @@ export const providersRoutes: Record<string, RouteHandler> = {
         apiKey: body.apiKey,
         quotaLimitTokens: body.quotaLimitTokens,
         enabled: body.enabled,
+        oauth: body.oauth?.refreshToken
+          ? {
+              refreshToken: body.oauth.refreshToken,
+              email: body.oauth.email,
+              projectId: body.oauth.projectId,
+              expiresIn: body.oauth.expiresIn,
+            }
+          : undefined,
       });
       // Enabling or disabling changes whether the connection serves traffic, so
       // it is worth a specific log line rather than a generic "updated".
@@ -730,5 +774,75 @@ export const providersRoutes: Record<string, RouteHandler> = {
       return Response.json(result);
     }
     return Response.json(result, { status: 400 });
+  },
+
+  // --- Antigravity OAuth login ---
+  //
+  // Three-step flow so the stateless HTTP dashboard can drive it:
+  //   1. POST /oauth/start  → binds a local callback server, returns authUrl
+  //   2. The dashboard opens authUrl; the user consents in the browser and
+  //      Google redirects to the local callback
+  //   3. GET  /oauth/wait/:loginId → long-polls until the code arrives, then
+  //      exchanges it and resolves the Cloud Code projectId
+  //
+  // Sessions live only in memory; a server restart simply orphans the browser
+  // tab, which then shows a connection error.
+
+  "POST /api/providers/antigravity/oauth/start": async () => {
+    const session = await createOAuthLoginSession();
+    return Response.json({
+      loginId: session.loginId,
+      authUrl: session.authUrl,
+      expiresAt: session.expiresAt,
+    });
+  },
+
+  "GET /api/providers/antigravity/oauth/wait/:loginId": async (
+    _req,
+    params,
+  ) => {
+    const session = getOAuthLoginSession(params?.loginId ?? "");
+    if (!session) {
+      return Response.json(
+        { error: "Unknown or expired OAuth login session" },
+        { status: 404 },
+      );
+    }
+
+    try {
+      const code = await session.waitForCode();
+      const tokens = await exchangeCodeForTokens(code, session.redirectUri);
+      const extra = await retrieveUserInfo(tokens.accessToken);
+      removeOAuthLoginSession(session.loginId);
+      return Response.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        email: extra.email,
+        projectId: extra.projectId,
+      });
+    } catch (err) {
+      removeOAuthLoginSession(session.loginId);
+      return Response.json(
+        {
+          error:
+            err instanceof Error
+              ? err.message
+              : "Antigravity OAuth login failed",
+        },
+        { status: 400 },
+      );
+    }
+  },
+
+  "DELETE /api/providers/antigravity/oauth/:loginId": (_req, params) => {
+    const removed = removeOAuthLoginSession(params?.loginId ?? "");
+    if (!removed) {
+      return Response.json(
+        { error: "Unknown OAuth login session" },
+        { status: 404 },
+      );
+    }
+    return Response.json({ ok: true });
   },
 };

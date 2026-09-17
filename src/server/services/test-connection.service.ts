@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProviderTransport } from "../../db/schema";
 import { getAdapter } from "../providers/registry";
+import { ensureFreshAccessToken } from "./antigravity-oauth.service";
 import * as ModelRegistry from "./model-registry.service";
 import * as ProviderRegistry from "./provider-registry.service";
 
@@ -42,6 +43,7 @@ function resolveTestModelId(
     "command-code": "deepseek/deepseek-v4-flash",
     mimo: "mimo-v2-flash",
     qoder: "ultimate",
+    antigravity: "gemini-3.8-flash-medium",
   };
   return defaults[transport];
 }
@@ -142,6 +144,12 @@ export async function testConnection(
     return testCommandCodeConnection(credential.apiKey);
   }
 
+  // Antigravity: a cheap authenticated probe against the Cloud Code quota
+  // endpoint — no tokens burned, and it validates the OAuth access token.
+  if (provider.transport === "antigravity") {
+    return testAntigravityConnection(account.id, credential.apiKey);
+  }
+
   // OpenAI-compatible: GET /models first, fallback to chat completion
   if (provider.transport === "openai" || provider.transport === "mimo") {
     return testOpenAIConnection(provider.id, provider.baseUrl, credential);
@@ -163,6 +171,59 @@ export async function testConnection(
       modelId,
       provider.baseUrl,
     );
+    return { status: "ok", latencyMs: Date.now() - start };
+  } catch (err) {
+    return {
+      status: "error",
+      latencyMs: Date.now() - start,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Antigravity connection test: probe the Cloud Code quota endpoint with the
+ * stored access token. A 2xx means the token and endpoint are usable; a 401/
+ * 403 means the token is stale and could not be refreshed.
+ */
+async function testAntigravityConnection(
+  accountId: string,
+  apiKey: string,
+): Promise<TestConnectionResult> {
+  const start = Date.now();
+  try {
+    // Refresh first so a stale token doesn't fail the probe.
+    const fresh = await ensureFreshAccessToken(accountId);
+    const token = fresh?.apiKey ?? apiKey;
+
+    const res = await fetch(
+      "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "antigravity/ide/2.11.0 darwin/arm64",
+        },
+        body: JSON.stringify({}),
+      },
+    );
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        status: "error",
+        latencyMs: Date.now() - start,
+        error: "Access token rejected — re-run the OAuth login",
+      };
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        status: "error",
+        latencyMs: Date.now() - start,
+        error: `Upstream ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
     return { status: "ok", latencyMs: Date.now() - start };
   } catch (err) {
     return {

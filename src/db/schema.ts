@@ -11,6 +11,23 @@ export interface AppSettingsRow {
   updated_at: string;
 }
 
+export interface WebAuthnCredentialRow {
+  /** Base64URL credential ID. */
+  id: string;
+  /** Base64URL COSE public key. */
+  public_key: string;
+  counter: number;
+  /** JSON array of transport hints, or NULL. */
+  transports: string | null;
+  name: string;
+  rp_id: string;
+  origin: string;
+  device_type: string | null;
+  backed_up: 0 | 1;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 export interface TokenSaverStatsRow {
   id: 1;
   total_tokens_saved: number;

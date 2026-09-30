@@ -86,6 +86,20 @@ export async function changePassword(
   );
 }
 
+/**
+ * Replace the dashboard password without knowing the current one.
+ *
+ * Only reachable from the local CLI (`kcgrouter --reset-password`), never over
+ * HTTP: anyone who can run the CLI already has the DB and secrets on disk, so
+ * requiring the old password there would protect nothing. The same strength
+ * rules as changePassword still apply.
+ */
+export async function resetPassword(newPassword: string): Promise<void> {
+  getSettings(); // fail loudly if the DB has not been initialized
+  assertPasswordAcceptable(newPassword);
+  await setPasswordHash(await hashPassword(newPassword));
+}
+
 export async function verifyLoginPassword(password: string): Promise<boolean> {
   const settings = getSettings();
   return verifyPassword(password, settings.password_hash);

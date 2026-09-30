@@ -15,6 +15,10 @@ import { dashboardRoutes } from "./server/routes/dashboard.routes";
 import { eventsRoutes } from "./server/routes/events.routes";
 import { logsRoutes } from "./server/routes/logs.routes";
 import { matchRoute as resolveRoute } from "./server/routes/match-route";
+import {
+  PUBLIC_PASSKEY_ROUTES,
+  passkeyRoutes,
+} from "./server/routes/passkey.routes";
 import { providersRoutes } from "./server/routes/providers.routes";
 import { quotaRoutes } from "./server/routes/quota.routes";
 import { settingsRoutes } from "./server/routes/settings.routes";
@@ -108,6 +112,7 @@ try {
 // All API routes (session-auth protected)
 const apiRoutes: Record<string, RouteHandler> = {
   ...authRoutes,
+  ...passkeyRoutes,
   ...cliToolsRoutes,
   ...providersRoutes,
   ...combosRoutes,
@@ -160,11 +165,12 @@ const server = serve({
       const pathname = url.pathname;
       const method = req.method;
 
-      // Public API routes: login, the default-password hint, and reading the
-      // theme — all needed by the login page before a session exists.
-      // Everything else needs auth.
+      // Public API routes: login (password or passkey), the default-password
+      // hint, and reading the theme — all needed by the login page before a
+      // session exists. Everything else needs auth.
       const isPublic =
         pathname === "/api/auth/login" ||
+        PUBLIC_PASSKEY_ROUTES.has(`${method} ${pathname}`) ||
         (pathname === "/api/auth/default-password-hint" && method === "GET") ||
         (pathname === "/api/settings/theme" && method === "GET");
       if (!isPublic) {

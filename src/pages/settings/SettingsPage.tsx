@@ -1,5 +1,6 @@
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 import { EncryptionMismatchAlert } from "@/components/settings/EncryptionMismatchAlert";
+import { PasskeyManager } from "@/components/settings/PasskeyManager";
 import { PreferencesCard } from "@/components/settings/PreferencesCard";
 
 export function SettingsPage() {
@@ -15,8 +16,9 @@ export function SettingsPage() {
       <EncryptionMismatchAlert />
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-5 xl:items-start">
-        <div className="min-w-0 xl:col-span-2">
+        <div className="flex min-w-0 flex-col gap-4 xl:col-span-2">
           <PreferencesCard />
+          <PasskeyManager />
         </div>
         <div
           id="api-keys"

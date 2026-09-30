@@ -54,7 +54,7 @@ function getSize(): { rows: number; cols: number } {
 }
 
 /** Render a block of lines vertically and horizontally centered on screen. */
-function renderCentered(lines: string[]): void {
+export function renderCentered(lines: string[]): void {
   const { rows, cols } = getSize();
   const startRow = Math.max(1, Math.floor((rows - lines.length) / 2));
   const centered = lines.map((line) => {
@@ -69,7 +69,7 @@ function renderCentered(lines: string[]): void {
 }
 
 /** Ginger cat art (3 lines, equal visible width, colors baked in). */
-function catLines(faceIdx: number, tailIdx: number): string[] {
+export function catLines(faceIdx: number, tailIdx: number): string[] {
   // Modulo index is always in-bounds; fall back to the open face for types.
   const face = CAT_FACES[faceIdx % CAT_FACES.length] ?? OPEN_FACE;
   const tail = TAILS[tailIdx % TAILS.length];
@@ -106,7 +106,7 @@ function buildIntro(tick: number): string[] {
     "",
     ...catLines(faceIdx, tailIdx),
     "",
-    `${DIM}${spinner} Menyiapkan konfigurasi pertama${RESET}`,
+    `${DIM}${spinner} Preparing first-time setup${RESET}`,
     `  ${progressBar(pct, 22)}  ${GRAY}${String(pct).padStart(3)}%${RESET}`,
     "",
   ];
@@ -131,7 +131,7 @@ function buildPrompt(
     "",
     ...catLines(frameIdx, Math.floor(frameIdx / 2)),
     "",
-    `${DIM}Masukkan port — kosongkan untuk default ${DEFAULT_PORT}${RESET}`,
+    `${DIM}Enter a port — leave empty for default ${DEFAULT_PORT}${RESET}`,
     "",
     ...inputBox,
     "",
@@ -140,7 +140,7 @@ function buildPrompt(
     lines.push(`${RED}⚠ ${error}${RESET}`, "");
   }
   lines.push(
-    `${GRAY}Enter = simpan · Esc = batal · hanya angka 1–65535${RESET}`,
+    `${GRAY}Enter = save · Esc = cancel · numbers 1–65535 only${RESET}`,
   );
   lines.push("");
   return lines;
@@ -212,7 +212,7 @@ export function promptPortCentered(
         const trimmed = input.trim();
         const port = trimmed === "" ? DEFAULT_PORT : Number(trimmed);
         if (trimmed !== "" && !isValidPort(port)) {
-          error = `"${trimmed}" bukan port valid — gunakan angka 1–65535.`;
+          error = `"${trimmed}" is not a valid port — use a number 1–65535.`;
           renderCentered(buildPrompt(frame, input, error));
           return;
         }

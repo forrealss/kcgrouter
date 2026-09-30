@@ -4,6 +4,7 @@ import {
   apiClient,
   getApiErrorMessage,
 } from "@/lib/api-client";
+import { loginWithPasskey } from "@/lib/passkey";
 import { applyTheme, onSystemThemeChange, type Theme } from "@/lib/theme";
 
 export type SessionStatus =
@@ -75,6 +76,11 @@ export function useSession() {
     [refresh],
   );
 
+  const loginPasskey = useCallback(async () => {
+    await loginWithPasskey();
+    await refresh();
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     await apiClient.post<LoginResponse>("/api/auth/logout");
     setError(null);
@@ -88,6 +94,7 @@ export function useSession() {
     theme,
     mustChangePassword,
     login,
+    loginPasskey,
     logout,
     refresh,
   };

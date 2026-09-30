@@ -13,11 +13,20 @@ export interface KiroMessageContext {
   tools?: Record<string, unknown>[];
 }
 
+/** Inline image attached to a user turn (`userInputMessage.images`). */
+export interface KiroImage {
+  /** MIME subtype, e.g. `png`, `jpeg`, `webp`, `gif`. */
+  format: string;
+  /** Raw base64 payload (no `data:` prefix). */
+  source: { bytes: string };
+}
+
 export interface KiroMessage {
   userInputMessage?: {
     content: string;
     modelId: string;
     origin: string;
+    images?: KiroImage[];
     userInputMessageContext?: KiroMessageContext;
   };
   assistantResponseMessage?: {

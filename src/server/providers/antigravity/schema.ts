@@ -172,7 +172,10 @@ function mergeAllOf(value: unknown): void {
     for (const branch of record.allOf as Schema[]) {
       if (!branch || typeof branch !== "object") continue;
       if (branch.properties) {
-        merged.properties = { ...((merged.properties as Schema) ?? {}), ...(branch.properties as Schema) };
+        merged.properties = {
+          ...((merged.properties as Schema) ?? {}),
+          ...(branch.properties as Schema),
+        };
       }
       if (Array.isArray(branch.required)) {
         merged.required = [
@@ -186,10 +189,16 @@ function mergeAllOf(value: unknown): void {
 
     delete record.allOf;
     if (merged.properties) {
-      record.properties = { ...((record.properties as Schema) ?? {}), ...(merged.properties as Schema) };
+      record.properties = {
+        ...((record.properties as Schema) ?? {}),
+        ...(merged.properties as Schema),
+      };
     }
     if (merged.required) {
-      record.required = [...((record.required as string[]) ?? []), ...(merged.required as string[])];
+      record.required = [
+        ...((record.required as string[]) ?? []),
+        ...(merged.required as string[]),
+      ];
     }
   }
 

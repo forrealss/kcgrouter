@@ -164,3 +164,38 @@ describe("FormatTranslator — Anthropic", () => {
     );
   });
 });
+
+describe("FormatTranslator — Anthropic images", () => {
+  test("base64 image blocks become data-URL canonical image parts", () => {
+    const canonical = toCanonical(
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "look" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: "AAAA",
+                },
+              },
+              {
+                type: "image",
+                source: { type: "url", url: "https://example.com/x.png" },
+              },
+            ],
+          },
+        ],
+      },
+      "anthropic",
+    );
+    expect(canonical.messages[0]?.content).toEqual([
+      { type: "text", text: "look" },
+      { type: "image", image: "data:image/png;base64,AAAA" },
+      { type: "image", image: "https://example.com/x.png" },
+    ]);
+  });
+});

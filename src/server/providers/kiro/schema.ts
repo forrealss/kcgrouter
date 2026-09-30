@@ -7,7 +7,11 @@
  */
 import { createHash } from "node:crypto";
 import type { CanonicalToolDefinition } from "../types";
-import { MAX_TOOL_NAME_LENGTH, SCHEMA_STRIP_KEYS } from "./types";
+import {
+  type KiroImage,
+  MAX_TOOL_NAME_LENGTH,
+  SCHEMA_STRIP_KEYS,
+} from "./types";
 
 /** Recursively drops unsupported schema keys and empty `required` arrays. */
 export function stripSchemaKeys(value: unknown): unknown {
@@ -30,11 +34,74 @@ export function stripSchemaKeys(value: unknown): unknown {
 export function serializeToolResultContent(content: unknown): string {
   if (typeof content === "string") return content || "(no output)";
   if (content === null || content === undefined) return "(no output)";
+  if (Array.isArray(content)) {
+    // Block arrays (Anthropic tool_result content): keep text, replace images
+    // with a short placeholder so base64 blobs never leak into the text body.
+    const parts: string[] = [];
+    for (const block of content as Array<Record<string, unknown>>) {
+      if (!block || typeof block !== "object") continue;
+      if (block.type === "text" && typeof block.text === "string") {
+        if (block.text) parts.push(block.text);
+      } else if (block.type === "image" || block.type === "image_url") {
+        parts.push("[image attached]");
+      } else {
+        try {
+          const str = JSON.stringify(block);
+          if (str && str !== "{}") parts.push(str);
+        } catch {
+          // skip unserializable block
+        }
+      }
+    }
+    return parts.join("\n") || "(no output)";
+  }
   try {
     return JSON.stringify(content) || "(no output)";
   } catch {
     return "(no output)";
   }
+}
+
+/** Only Claude models on Kiro accept image attachments. */
+export function modelSupportsImages(model: string): boolean {
+  return model.toLowerCase().includes("claude");
+}
+
+/**
+ * Converts a `data:image/<fmt>;base64,<bytes>` URL into a Kiro image.
+ * Remote http(s) URLs are not supported by Kiro and return null.
+ */
+export function dataUrlToKiroImage(url: string): KiroImage | null {
+  const match = /^data:image\/([a-z0-9.+-]+);base64,(.+)$/is.exec(url.trim());
+  if (!match?.[1] || !match[2]) return null;
+  let format = match[1].toLowerCase();
+  if (format === "jpg") format = "jpeg";
+  return { format, source: { bytes: match[2] } };
+}
+
+/** Extracts images embedded in Anthropic/OpenAI-style tool_result content blocks. */
+export function extractToolResultImages(content: unknown): KiroImage[] {
+  if (!Array.isArray(content)) return [];
+  const images: KiroImage[] = [];
+  for (const block of content as Array<Record<string, unknown>>) {
+    if (!block || typeof block !== "object") continue;
+    if (block.type === "image") {
+      const src = block.source as
+        | { type?: string; media_type?: string; data?: string }
+        | undefined;
+      if (src?.type === "base64" && src.data) {
+        const img = dataUrlToKiroImage(
+          `data:${src.media_type || "image/jpeg"};base64,${src.data}`,
+        );
+        if (img) images.push(img);
+      }
+    } else if (block.type === "image_url") {
+      const url = (block.image_url as { url?: string } | undefined)?.url;
+      const img = url ? dataUrlToKiroImage(url) : null;
+      if (img) images.push(img);
+    }
+  }
+  return images;
 }
 
 /** Wraps system instructions in Kiro's expected format. */

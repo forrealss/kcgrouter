@@ -55,6 +55,12 @@ interface AnthropicMessage {
         name?: string;
         input?: unknown;
         content?: string;
+        source?: {
+          type?: string;
+          media_type?: string;
+          data?: string;
+          url?: string;
+        };
       }[];
 }
 
@@ -200,6 +206,18 @@ function anthropicToCanonical(body: AnthropicRequest): CanonicalRequest {
       for (const block of m.content) {
         if (block.type === "text" && block.text) {
           parts.push({ type: "text", text: block.text });
+        } else if (block.type === "image" && block.source) {
+          // Canonical images are URL strings: base64 sources become data URLs.
+          const src = block.source;
+          if (src.type === "base64" && src.data) {
+            const mediaType = src.media_type || "image/jpeg";
+            parts.push({
+              type: "image",
+              image: `data:${mediaType};base64,${src.data}`,
+            });
+          } else if (src.type === "url" && src.url) {
+            parts.push({ type: "image", image: src.url });
+          }
         } else if (block.type === "tool_use" && block.id && block.name) {
           const blockWithSignature = block as typeof block & {
             thought_signature?: string;

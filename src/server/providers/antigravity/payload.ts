@@ -19,12 +19,15 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { extractSystemText, parseToolArguments } from "../helpers";
-import { cleanJSONSchemaForAntigravity, defaultParameterSchema } from "./schema";
+import type { CanonicalRequest } from "../types";
+import {
+  cleanJSONSchemaForAntigravity,
+  defaultParameterSchema,
+} from "./schema";
 import {
   DEFAULT_THINKING_AG_SIGNATURE,
   getThoughtSignature,
 } from "./thought-signature";
-import type { CanonicalRequest } from "../types";
 
 /** Gemini rejects unknown thinking/reasoning fields at the body root. */
 const BLACKLISTED_FIELDS = [

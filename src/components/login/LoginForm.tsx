@@ -1,6 +1,9 @@
 import {
   ArrowRightIcon,
   ClockIcon,
+  EyeIcon,
+  EyeOffIcon,
+  FingerprintIcon,
   InfoIcon,
   LockKeyholeIcon,
   ShieldCheckIcon,
@@ -23,10 +26,12 @@ import {
   apiClient,
   getApiErrorMessage,
 } from "@/lib/api-client";
+import { PasskeyCancelledError, passkeysSupported } from "@/lib/passkey";
 import { DEFAULT_PASSWORD } from "@/lib/password-strength";
 
 interface LoginFormProps {
   onLogin: (password: string) => Promise<void>;
+  onPasskeyLogin: () => Promise<void>;
 }
 
 type TraceLine = {
@@ -296,10 +301,13 @@ function loginErrorData(error: unknown): LoginErrorData {
   return data as LoginErrorData;
 }
 
-export function LoginForm({ onLogin }: LoginFormProps) {
+export function LoginForm({ onLogin, onPasskeyLogin }: LoginFormProps) {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasskeyPending, setIsPasskeyPending] = useState(false);
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const [showDefaultHint, setShowDefaultHint] = useState(false);
   const [maxAttempts, setMaxAttempts] = useState<number | null>(null);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(
@@ -329,6 +337,38 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     };
   }, [lockout.start]);
 
+  // Offer the passkey button only when this browser can use one here (secure
+  // context) and at least one is registered. Failure hides the button.
+  useEffect(() => {
+    if (!passkeysSupported()) return;
+    let active = true;
+    apiClient
+      .get<{ available: boolean }>("/api/auth/passkey/available")
+      .then((result) => {
+        if (active) setPasskeyAvailable(result.available);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function handleLoginError(requestError: unknown) {
+    const data = loginErrorData(requestError);
+
+    if (data.retryAfterSeconds !== undefined) {
+      lockout.start(data.retryAfterSeconds);
+      setAttemptsRemaining(0);
+      // The panel states the lockout; a duplicate inline error is noise.
+      setError(null);
+    } else {
+      setError(getApiErrorMessage(requestError));
+      if (data.attemptsRemaining !== undefined) {
+        setAttemptsRemaining(data.attemptsRemaining);
+      }
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (lockout.locked) return;
@@ -340,25 +380,32 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       await onLogin(password);
       setAttemptsRemaining(null);
     } catch (requestError) {
-      const data = loginErrorData(requestError);
-
-      if (data.retryAfterSeconds !== undefined) {
-        lockout.start(data.retryAfterSeconds);
-        setAttemptsRemaining(0);
-        // The panel states the lockout; a duplicate inline error is noise.
-        setError(null);
-      } else {
-        setError(getApiErrorMessage(requestError));
-        if (data.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(data.attemptsRemaining);
-        }
-      }
+      handleLoginError(requestError);
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  const disabled = isSubmitting || lockout.locked;
+  async function handlePasskey() {
+    if (lockout.locked) return;
+
+    setError(null);
+    setIsPasskeyPending(true);
+
+    try {
+      await onPasskeyLogin();
+      setAttemptsRemaining(null);
+    } catch (requestError) {
+      // Dismissing the browser prompt is a choice, not a failure.
+      if (!(requestError instanceof PasskeyCancelledError)) {
+        handleLoginError(requestError);
+      }
+    } finally {
+      setIsPasskeyPending(false);
+    }
+  }
+
+  const disabled = isSubmitting || isPasskeyPending || lockout.locked;
 
   return (
     <main className="relative flex min-h-svh w-full items-center justify-center overflow-hidden bg-background px-4 py-10">
@@ -410,18 +457,36 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               >
                 Application password
               </FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                aria-invalid={Boolean(error)}
-                disabled={disabled}
-                required
-                autoFocus
-                className="h-11 bg-muted/20 font-mono text-sm font-medium tracking-wide dark:bg-input/20"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                  disabled={disabled}
+                  required
+                  autoFocus
+                  className="h-11 bg-muted/20 pr-10 font-mono text-sm font-medium tracking-wide dark:bg-input/20"
+                />
+                {/* Same toggle as ChangePasswordDialog's PasswordInput. */}
+                <button
+                  type="button"
+                  className="absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  disabled={disabled}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  aria-controls="password"
+                >
+                  {showPassword ? (
+                    <EyeOffIcon className="size-3.5" />
+                  ) : (
+                    <EyeIcon className="size-3.5" />
+                  )}
+                </button>
+              </div>
               {error ? (
                 <FieldError aria-live="polite">{error}</FieldError>
               ) : null}
@@ -456,6 +521,38 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             </Button>
           </FieldGroup>
         </form>
+
+        {passkeyAvailable ? (
+          <>
+            <div
+              className="my-4 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+              aria-hidden="true"
+            >
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full font-mono text-xs uppercase tracking-[0.12em] transition-transform active:scale-[0.98]"
+              onClick={() => void handlePasskey()}
+              disabled={disabled}
+            >
+              {isPasskeyPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Waiting for passkey
+                </>
+              ) : (
+                <>
+                  <FingerprintIcon data-icon="inline-start" />
+                  Sign in with passkey
+                </>
+              )}
+            </Button>
+          </>
+        ) : null}
 
         <p className="mt-6 flex items-center gap-2 border-t pt-5 font-mono text-[10px] text-muted-foreground">
           <ShieldCheckIcon className="size-3.5 shrink-0 text-success/80" />

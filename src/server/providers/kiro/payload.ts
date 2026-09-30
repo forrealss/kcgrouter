@@ -14,11 +14,14 @@ import { extractSystemText, parseToolArguments } from "../helpers";
 import type { CanonicalRequest } from "../types";
 import {
   convertTools,
+  dataUrlToKiroImage,
+  extractToolResultImages,
+  modelSupportsImages,
   normalizeModelId,
   serializeToolResultContent,
   wrapSystemMessage,
 } from "./schema";
-import type { KiroMessage, KiroToolResult } from "./types";
+import type { KiroImage, KiroMessage, KiroToolResult } from "./types";
 
 /**
  * Every toolResults array must be preceded by an assistant turn carrying
@@ -62,6 +65,16 @@ function translateMessages(
   const history: KiroMessage[] = [];
   let systemContent = extractSystemText(req) ?? "";
   const pendingToolResults: KiroToolResult[] = [];
+  // Images ride on `userInputMessage.images` (not userInputMessageContext).
+  const supportsImages = modelSupportsImages(normalizedModel);
+  const pendingImages: KiroImage[] = [];
+
+  /** Moves queued images onto a user turn. */
+  const attachImages = (m: KiroMessage) => {
+    if (pendingImages.length > 0 && m.userInputMessage) {
+      m.userInputMessage.images = pendingImages.splice(0);
+    }
+  };
 
   for (const msg of req.messages) {
     if (msg.role === "system") continue;
@@ -75,6 +88,9 @@ function translateMessages(
             status: "success",
             content: [{ text: serializeToolResultContent(part.content) }],
           });
+          if (supportsImages) {
+            pendingImages.push(...extractToolResultImages(part.content));
+          }
         }
       }
     }
@@ -86,6 +102,14 @@ function translateMessages(
         .filter((p) => p.type === "text")
         .map((p) => (p as { type: "text"; text: string }).text)
         .join("\n");
+
+      if (supportsImages) {
+        for (const p of msg.content) {
+          if (p.type !== "image") continue;
+          const img = dataUrlToKiroImage(p.image);
+          if (img) pendingImages.push(img);
+        }
+      }
 
       if (systemContent) {
         content = `${wrapSystemMessage(systemContent)}\n\n${content}`;
@@ -106,6 +130,7 @@ function translateMessages(
         };
       }
 
+      attachImages(userMsg);
       history.push(userMsg);
       continue;
     }
@@ -119,7 +144,7 @@ function translateMessages(
         const text = pendingToolResults
           .flatMap((r) => r.content.map((c) => c.text))
           .join("\n\n");
-        history.push({
+        const toolTurn: KiroMessage = {
           userInputMessage: {
             content: text || "...",
             modelId: normalizedModel,
@@ -128,7 +153,9 @@ function translateMessages(
               toolResults: pendingToolResults.splice(0),
             },
           },
-        });
+        };
+        attachImages(toolTurn);
+        history.push(toolTurn);
       }
 
       const content = msg.content
@@ -174,14 +201,16 @@ function translateMessages(
       .flatMap((r) => r.content.map((c) => c.text))
       .join("\n\n");
 
-    history.push({
+    const toolTurn: KiroMessage = {
       userInputMessage: {
         content: text || "...",
         modelId: normalizedModel,
         origin: "AI_EDITOR",
         userInputMessageContext: { toolResults: pendingToolResults.splice(0) },
       },
-    });
+    };
+    attachImages(toolTurn);
+    history.push(toolTurn);
   }
 
   // Kiro requires history to open with a user turn.

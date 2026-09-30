@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { connect } from "bun";
 import {
   buildAuthUrl,
   exchangeCodeForTokens,
@@ -38,6 +39,68 @@ type FetchMock = (
 
 function mockFetch(impl: FetchMock): void {
   globalThis.fetch = impl as unknown as typeof fetch;
+}
+
+/**
+ * Callback tests must bypass globalThis.fetch. Other Bun test files mock that
+ * global and the default runner shares globals between files; Bun's native TCP
+ * client keeps these tests pointed at the callback server under test.
+ */
+async function requestCallback(
+  port: number,
+  query: string,
+): Promise<{ status: number; contentType: string | undefined; body: string }> {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    let settled = false;
+
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      fn();
+    };
+
+    void connect({
+      hostname: "127.0.0.1",
+      port,
+      socket: {
+        open(socket) {
+          socket.write(
+            `GET /callback?${query} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+          );
+        },
+        data(_socket, data) {
+          raw += Buffer.from(data).toString("utf8");
+        },
+        end() {
+          finish(() => {
+            const headerEnd = raw.indexOf("\r\n\r\n");
+            const headerText = headerEnd >= 0 ? raw.slice(0, headerEnd) : raw;
+            const body = headerEnd >= 0 ? raw.slice(headerEnd + 4) : "";
+            const status = Number(
+              headerText.match(/^HTTP\/\d(?:\.\d)?\s+(\d+)/)?.[1] ?? 0,
+            );
+            const contentType = headerText
+              .match(/^content-type:\s*(.+)$/im)?.[1]
+              ?.trim();
+            resolve({ status, contentType, body });
+          });
+        },
+        close() {
+          finish(() =>
+            reject(
+              new Error("Callback socket closed before response completed"),
+            ),
+          );
+        },
+        error(_socket, error) {
+          finish(() => reject(error));
+        },
+      },
+    }).catch((error: unknown) => {
+      finish(() => reject(error));
+    });
+  });
 }
 
 describe("antigravity oauth — token exchange", () => {
@@ -138,9 +201,7 @@ describe("antigravity oauth — bound callback server", () => {
 
     // A redirect from Google arrives with the code before waitForCode() is
     // called — the buffered deferred must still resolve.
-    const res = await fetch(
-      `http://127.0.0.1:${cb.port}/callback?code=xyz&state=${cb.state}`,
-    );
+    const res = await requestCallback(cb.port, `code=xyz&state=${cb.state}`);
     expect(res.status).toBe(200);
     await expect(cb.waitForCode()).resolves.toBe("xyz");
   });
@@ -155,8 +216,9 @@ describe("antigravity oauth — bound callback server", () => {
     expect(second.port).not.toBe(OAUTH_CALLBACK_PORT);
     expect(second.redirectUri).toBe(`http://127.0.0.1:${second.port}/callback`);
 
-    const res = await fetch(
-      `http://127.0.0.1:${second.port}/callback?code=abc&state=${second.state}`,
+    const res = await requestCallback(
+      second.port,
+      `code=abc&state=${second.state}`,
     );
     expect(res.status).toBe(200);
     await expect(second.waitForCode()).resolves.toBe("abc");
@@ -166,12 +228,10 @@ describe("antigravity oauth — bound callback server", () => {
     const cb = await startBoundCallbackServer();
     opened.push(cb);
 
-    const res = await fetch(
-      `http://127.0.0.1:${cb.port}/callback?code=xyz&state=${cb.state}`,
-    );
-    const html = await res.text();
+    const res = await requestCallback(cb.port, `code=xyz&state=${cb.state}`);
+    const html = res.body;
 
-    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.contentType).toContain("text/html");
     expect(html).toContain('class="card success"');
     expect(html).toContain("Antigravity login successful");
     expect(html).toContain("Closing in 10s");
@@ -186,10 +246,11 @@ describe("antigravity oauth — bound callback server", () => {
     const cb = await startBoundCallbackServer();
     opened.push(cb);
 
-    const res = await fetch(
-      `http://127.0.0.1:${cb.port}/callback?error=%3Cscript%3Ealert(1)%3C/script%3E&state=${cb.state}`,
+    const res = await requestCallback(
+      cb.port,
+      `error=%3Cscript%3Ealert(1)%3C/script%3E&state=${cb.state}`,
     );
-    const html = await res.text();
+    const html = res.body;
 
     expect(html).toContain('class="card error"');
     expect(html).toContain("Antigravity login failed");
@@ -202,9 +263,7 @@ describe("antigravity oauth — bound callback server", () => {
     const cb = await startBoundCallbackServer();
     opened.push(cb);
 
-    await fetch(
-      `http://127.0.0.1:${cb.port}/callback?error=access_denied&state=${cb.state}`,
-    );
+    await requestCallback(cb.port, `error=access_denied&state=${cb.state}`);
     await expect(cb.waitForCode()).rejects.toThrow(
       "OAuth error: access_denied",
     );

@@ -23,6 +23,7 @@ import {
   spawnTrayDaemon,
   stopDaemon,
 } from "./daemon";
+import { resetPasswordInteractive } from "./reset-password";
 import { isTraySupported } from "./tray";
 import {
   BORDER_1,
@@ -110,6 +111,12 @@ export async function showMenu(packageRoot: string) {
     if (pendingAction === "port") {
       pendingAction = null;
       await changePortInteractive();
+      continue;
+    }
+    if (pendingAction === "password") {
+      pendingAction = null;
+      const result = await resetPasswordInteractive();
+      messages.push(result.message);
       continue;
     }
     break;
@@ -228,7 +235,7 @@ export async function ensurePortConfigured(): Promise<void> {
 
 type MenuMode = "menu" | "confirm-stop";
 
-type PendingAction = "port" | null;
+type PendingAction = "port" | "password" | null;
 
 let packageRoot: string;
 let mode: MenuMode = "menu";
@@ -447,6 +454,11 @@ function buildOptions(runningNow: boolean): MenuOption[] {
       value: "port",
       hint: `Current: ${getPort()}`,
     },
+    {
+      label: "Reset Password",
+      value: "password",
+      hint: "Dashboard login",
+    },
     isStartupEnabled()
       ? {
           label: "Disable Startup",
@@ -539,6 +551,10 @@ function handleAction(value: string) {
     }
     case "port":
       exitForPortChange();
+      break;
+    case "password":
+      pendingAction = "password";
+      requestExit("Resetting password...");
       break;
     case "tray": {
       if (!isTraySupported()) {

@@ -8,11 +8,24 @@
  * when the client does not echo one back.
  */
 
+import { get, query, run } from "../../../db/client";
+
 const MEMORY_TTL_MS = 60 * 60 * 1000;
+const PERSISTED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_SIGNATURES = 2_000;
+const MAX_PERSISTED_SIGNATURES = 10_000;
+const SIGNATURE_TABLE = "gemini_thought_signatures";
 
 type SignatureEntry = { signature: string; expiresAt: number };
+type PersistedSignatureRow = {
+  key: string;
+  signature: string;
+  created_at: number;
+  expires_at: number;
+};
+
 const signatures = new Map<string, SignatureEntry>();
+let persistedPruneCounter = 0;
 
 // Ported from 9router/open-sse/config/defaultThinkingSignature.js.
 export const DEFAULT_THINKING_AG_SIGNATURE =
@@ -31,7 +44,44 @@ function prune(): void {
 }
 
 function keys(toolCallId: string, sessionKey?: string): string[] {
-  return sessionKey ? [`${sessionKey}:${toolCallId}`, toolCallId] : [toolCallId];
+  return sessionKey
+    ? [`${sessionKey}:${toolCallId}`, toolCallId]
+    : [toolCallId];
+}
+
+/** SQLite is durable across daemon restarts; database failures must not break chat. */
+function persist(key: string, signature: string, now: number): void {
+  try {
+    run(
+      `INSERT OR REPLACE INTO ${SIGNATURE_TABLE}
+       (key, signature, created_at, expires_at) VALUES (?, ?, ?, ?)`,
+      key,
+      signature,
+      now,
+      now + PERSISTED_TTL_MS,
+    );
+  } catch {
+    // The migration may not have run yet in an isolated unit test/import.
+  }
+}
+
+function prunePersisted(): void {
+  try {
+    const now = Date.now();
+    run(`DELETE FROM ${SIGNATURE_TABLE} WHERE expires_at <= ?`, now);
+
+    const rows = query<{ key: string }>(
+      `SELECT key FROM ${SIGNATURE_TABLE}
+       ORDER BY created_at DESC
+       LIMIT -1 OFFSET ?`,
+      MAX_PERSISTED_SIGNATURES,
+    );
+    for (const row of rows) {
+      run(`DELETE FROM ${SIGNATURE_TABLE} WHERE key = ?`, row.key);
+    }
+  } catch {
+    // Fail-open. Signature caching must never take down a provider request.
+  }
 }
 
 export function storeThoughtSignature(
@@ -41,8 +91,15 @@ export function storeThoughtSignature(
 ): void {
   if (!toolCallId || !signature) return;
   prune();
-  const entry = { signature, expiresAt: Date.now() + MEMORY_TTL_MS };
-  for (const key of keys(toolCallId, sessionKey)) signatures.set(key, entry);
+  const now = Date.now();
+  const entry = { signature, expiresAt: now + MEMORY_TTL_MS };
+  for (const key of keys(toolCallId, sessionKey)) {
+    signatures.set(key, entry);
+    persist(key, signature, now);
+  }
+
+  persistedPruneCounter++;
+  if (persistedPruneCounter % 100 === 0) prunePersisted();
 }
 
 export function getThoughtSignature(
@@ -51,13 +108,49 @@ export function getThoughtSignature(
 ): string | null {
   if (!toolCallId) return null;
   prune();
+  const now = Date.now();
+
   for (const key of keys(toolCallId, sessionKey)) {
     const entry = signatures.get(key);
-    if (entry && entry.expiresAt > Date.now()) return entry.signature;
+    if (entry && entry.expiresAt > now) return entry.signature;
+    if (entry) signatures.delete(key);
   }
+
+  // Restart/reload fallback: hydrate the fast memory cache from SQLite.
+  for (const key of keys(toolCallId, sessionKey)) {
+    try {
+      const row = get<Pick<PersistedSignatureRow, "signature" | "expires_at">>(
+        `SELECT signature, expires_at FROM ${SIGNATURE_TABLE} WHERE key = ?`,
+        key,
+      );
+      if (!row || row.expires_at <= now) {
+        if (row) run(`DELETE FROM ${SIGNATURE_TABLE} WHERE key = ?`, key);
+        continue;
+      }
+
+      signatures.set(key, {
+        signature: row.signature,
+        expiresAt: Math.min(now + MEMORY_TTL_MS, row.expires_at),
+      });
+      return row.signature;
+    } catch {
+      // Fail-open. The caller can still use the default signature fallback.
+    }
+  }
+
   return null;
 }
 
-export function clearThoughtSignatures(): void {
+/** Test/diagnostic hook that simulates a daemon restart without deleting SQLite. */
+export function clearThoughtSignatureMemory(): void {
   signatures.clear();
+}
+
+export function clearThoughtSignatures(): void {
+  clearThoughtSignatureMemory();
+  try {
+    run(`DELETE FROM ${SIGNATURE_TABLE}`);
+  } catch {
+    // The table is optional until migration 024 has run.
+  }
 }

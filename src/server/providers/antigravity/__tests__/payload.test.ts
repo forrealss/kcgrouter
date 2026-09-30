@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { runMigrations } from "../../../../db/migrations";
 import type { CanonicalRequest } from "../../types";
 import {
   buildAntigravityPayload,
@@ -12,10 +13,13 @@ import {
   defaultParameterSchema,
 } from "../schema";
 import {
-  DEFAULT_THINKING_AG_SIGNATURE,
+  clearThoughtSignatureMemory,
   clearThoughtSignatures,
+  DEFAULT_THINKING_AG_SIGNATURE,
+  getThoughtSignature,
   storeThoughtSignature,
 } from "../thought-signature";
+
 function baseRequest(
   overrides: Partial<CanonicalRequest> = {},
 ): CanonicalRequest {
@@ -214,6 +218,18 @@ describe("buildAntigravityPayload", () => {
     }
   });
 
+  test("recovers a signature from SQLite after the memory cache is cleared", () => {
+    runMigrations();
+    clearThoughtSignatures();
+    storeThoughtSignature("restart-call", "durable-signature", "acct_restart");
+    clearThoughtSignatureMemory();
+
+    expect(getThoughtSignature("restart-call", "acct_restart")).toBe(
+      "durable-signature",
+    );
+    clearThoughtSignatures();
+  });
+
   test("fills a default schema for tools without parameters", () => {
     const payload = buildAntigravityPayload(
       baseRequest({ tools: [{ name: "noop" }] }),
@@ -340,9 +356,7 @@ describe("buildAntigravityPayload", () => {
 
   test("uses the default reason schema for tools without parameters", () => {
     expect(defaultParameterSchema().type).toBe("object");
-    expect(
-      cleanJSONSchemaForAntigravity(null).properties,
-    ).toBeDefined();
+    expect(cleanJSONSchemaForAntigravity(null).properties).toBeDefined();
   });
 
   test("generates a fallback projectId when none is provided", () => {

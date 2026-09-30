@@ -50,6 +50,10 @@ export function App() {
           await session.login(password);
           navigate(defaultPath);
         }}
+        onPasskeyLogin={async () => {
+          await session.loginPasskey();
+          navigate(defaultPath);
+        }}
       />
     );
   }

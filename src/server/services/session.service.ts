@@ -34,6 +34,15 @@ function parseCookie(cookie: string): SessionCookie | null {
   return { sessionId, signature };
 }
 
+/**
+ * Mint a signed session cookie value. Callers must have authenticated the
+ * user first (password or passkey) — this does no checking of its own.
+ */
+export function createSessionCookie(): string {
+  const sessionId = generateSessionId();
+  return `${sessionId}.${sign(sessionId)}`;
+}
+
 export async function login(
   password: string,
 ): Promise<{ cookie: string } | null> {
@@ -45,11 +54,7 @@ export async function login(
   const valid = await verifyPassword(password, settings.password_hash);
   if (!valid) return null;
 
-  const sessionId = generateSessionId();
-  const signature = sign(sessionId);
-  const cookie = `${sessionId}.${signature}`;
-
-  return { cookie };
+  return { cookie: createSessionCookie() };
 }
 
 export function verify(cookie: string): boolean {

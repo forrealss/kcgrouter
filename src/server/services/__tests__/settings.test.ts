@@ -14,11 +14,13 @@ import {
   listApiKeys,
   MIN_PASSWORD_LENGTH,
   recordTokenSaverSavings,
+  resetPassword,
   revokeApiKey,
   setPasswordHash,
   setTheme,
   setTokenSaverDefault,
   verifyApiKey,
+  verifyLoginPassword,
 } from "../settings.service";
 
 const INITIAL_PW = "initial-password-123";
@@ -162,6 +164,32 @@ describe("SettingsService", () => {
       await expect(changePassword(INITIAL_PW, "short")).rejects.toThrow();
       // The original password must still be accepted.
       await changePassword(INITIAL_PW, INITIAL_PW);
+    });
+  });
+
+  // --- resetPassword (CLI recovery, no current password needed) ---
+
+  describe("resetPassword", () => {
+    test("replaces the password without the current one", async () => {
+      const newPw = "recovered-password-1";
+      await resetPassword(newPw);
+      expect(await verifyLoginPassword(newPw)).toBe(true);
+      expect(await verifyLoginPassword(INITIAL_PW)).toBe(false);
+      await setPasswordHash(await hashPassword(INITIAL_PW));
+    });
+
+    test("rejects a password shorter than the minimum", async () => {
+      await expect(resetPassword("short")).rejects.toThrow(
+        `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
+      expect(await verifyLoginPassword(INITIAL_PW)).toBe(true);
+    });
+
+    test("rejects the seeded default password", async () => {
+      await expect(resetPassword(DEFAULT_PASSWORD)).rejects.toThrow(
+        "cannot be the default password",
+      );
+      expect(await verifyLoginPassword(INITIAL_PW)).toBe(true);
     });
   });
 

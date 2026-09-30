@@ -419,3 +419,143 @@ test("tool results are placed before the next assistant turn, not at the end", a
     break;
   }
 });
+
+// --- Images ---
+
+type KiroImageTurn = {
+  userInputMessage?: {
+    content?: string;
+    images?: Array<{ format: string; source: { bytes: string } }>;
+  };
+};
+
+async function buildPayloadFor(
+  req: CanonicalRequest,
+  model: string,
+): Promise<Record<string, unknown>> {
+  const get = capturePayload();
+  await kiroAdapter.send(req, { apiKey: "k" }, model).catch(() => {});
+  return get();
+}
+
+test("data-URL images are attached to userInputMessage.images", async () => {
+  const payload = await buildPayload({
+    stream: false,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "what is this?" },
+          { type: "image", image: "data:image/png;base64,iVBORw0KGgo=" },
+          { type: "image", image: "data:image/jpg;base64,/9j/4AAQ" },
+        ],
+      },
+    ],
+  });
+  const current = conversationState(payload).currentMessage as KiroImageTurn;
+  expect(current.userInputMessage?.content).toBe("what is this?");
+  expect(current.userInputMessage?.images).toEqual([
+    { format: "png", source: { bytes: "iVBORw0KGgo=" } },
+    { format: "jpeg", source: { bytes: "/9j/4AAQ" } },
+  ]);
+});
+
+test("images in earlier user turns stay on their history turn", async () => {
+  const payload = await buildPayload({
+    stream: false,
+    messages: [
+      {
+        role: "user",
+        content: [{ type: "image", image: "data:image/webp;base64,UklGR" }],
+      },
+      { role: "assistant", content: [{ type: "text", text: "a cat" }] },
+      { role: "user", content: [{ type: "text", text: "thanks" }] },
+    ],
+  });
+  const state = conversationState(payload);
+  const first = state.history[0] as KiroImageTurn;
+  expect(first.userInputMessage?.images?.[0]?.format).toBe("webp");
+  expect(
+    (state.currentMessage as KiroImageTurn).userInputMessage?.images,
+  ).toBeUndefined();
+});
+
+test("remote http image URLs are skipped (Kiro only accepts bytes)", async () => {
+  const payload = await buildPayload({
+    stream: false,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hi" },
+          { type: "image", image: "https://example.com/a.png" },
+        ],
+      },
+    ],
+  });
+  const current = conversationState(payload).currentMessage as KiroImageTurn;
+  expect(current.userInputMessage?.images).toBeUndefined();
+});
+
+test("images inside tool_result content are attached and not leaked as text", async () => {
+  const payload = await buildPayload({
+    stream: false,
+    messages: [
+      { role: "user", content: [{ type: "text", text: "screenshot" }] },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", id: "t1", name: "screenshot", arguments: {} },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "t1",
+            content: [
+              { type: "text", text: "done" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: "AAAA",
+                },
+              },
+            ] as unknown as string,
+          },
+        ],
+      },
+    ],
+  });
+  const current = conversationState(payload).currentMessage as KiroImageTurn &
+    KiroUserMessage;
+  expect(current.userInputMessage?.images).toEqual([
+    { format: "png", source: { bytes: "AAAA" } },
+  ]);
+  const tr =
+    current.userInputMessage?.userInputMessageContext?.toolResults?.[0];
+  expect(JSON.stringify(tr?.content)).not.toContain("AAAA");
+});
+
+test("non-Claude models never receive images", async () => {
+  const payload = await buildPayloadFor(
+    {
+      stream: false,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "hi" },
+            { type: "image", image: "data:image/png;base64,AAAA" },
+          ],
+        },
+      ],
+    },
+    "deepseek-3.2",
+  );
+  const current = conversationState(payload).currentMessage as KiroImageTurn;
+  expect(current.userInputMessage?.images).toBeUndefined();
+});

@@ -23,6 +23,13 @@ export async function runCli(packageRoot: string) {
     return;
   }
 
+  if (args.includes("--reset-password")) {
+    const { resetPasswordInteractive } = await import("./reset-password");
+    const result = await resetPasswordInteractive();
+    console.log(`\n  ${result.message}\n`);
+    process.exit(result.ok ? 0 : 1);
+  }
+
   if (args.includes("--daemon") || args.includes("-d")) {
     startDaemon(packageRoot);
     return;
@@ -156,6 +163,7 @@ function showHelp() {
     --stop             Stop background process
     --status, -s       Check if running
     --port <port>      Set a custom port (saved to ~/.kcgrouter/config.json)
+    --reset-password   Reset the dashboard password
     --setup-startup    Register auto-start at login
     --remove-startup   Unregister auto-start at login
     --help, -h         Show this help
